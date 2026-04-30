@@ -278,7 +278,12 @@ async function fetchJson(url, opts = {}) {
   const t = setTimeout(() => ctl.abort(), timeout);
   try {
     const r = await fetch(url, { ...rest, signal: rest.signal || ctl.signal });
-    if (!r.ok) throw new Error(`${r.status}`);
+    if (!r.ok) {
+      const err = new Error(`${r.status}`);
+      err.status = r.status;
+      try { err.body = await r.text(); } catch (_) {}
+      throw err;
+    }
     return await r.json();
   } finally { clearTimeout(t); }
 }
@@ -1703,20 +1708,7 @@ class Player {
     if (!srcData?.episodes?.length) return false;
     if (this._rendered) return true;
     this._rendered = true;
-    const seenNums = new Set();
-    this.episodes = srcData.episodes
-      .map(e => ({
-        num: Number(e.num) || 0,
-        name: e.name,
-        preview: e.preview,
-        yummyKey: e.key,
-      }))
-      .filter(e => {
-        if (!e.num || seenNums.has(e.num)) return false;
-        seenNums.add(e.num);
-        return true;
-      })
-      .sort((a, b) => a.num - b.num);
+    this.episodes = this._buildEpisodeList(srcData.episodes);
 
     $("#avEpCount").textContent = `${this.episodes.length} эп.`;
     this._bindPlayerControls();
@@ -1730,6 +1722,79 @@ class Player {
       this.playEpisode(this._resumeIndex());
     });
     return true;
+  }
+
+  _buildEpisodeList(rawEpisodes = []) {
+    const seenNums = new Set();
+    return rawEpisodes
+      .map(e => ({
+        num: Number(e.num) || 0,
+        name: e.name,
+        preview: e.preview,
+        key: e.key,
+        yummyKey: e.key,
+      }))
+      .filter(e => {
+        if (!e.num || seenNums.has(e.num)) return false;
+        seenNums.add(e.num);
+        return true;
+      })
+      .sort((a, b) => a.num - b.num);
+  }
+
+  _isStaleBackendKeyError(err) {
+    return Number(err?.status) === 410 || String(err?.message || "") === "410";
+  }
+
+  async _refreshActiveSourceKeys(reqId) {
+    const src = this._activeSource;
+    if (!src) return false;
+    const currentNum = this.episodes[this.currentEp]?.num;
+    try {
+      await this.discoverBackend(src);
+    } catch (_) {
+      return false;
+    }
+    if (reqId !== this._reqId || this.destroyed) return false;
+    const fresh = this.sources[`backend:${src}`]?.episodes;
+    if (!fresh?.length) return false;
+
+    const nextEpisodes = this._buildEpisodeList(fresh);
+    const currentIdx = nextEpisodes.findIndex(e => e.num === currentNum);
+    this.episodes = nextEpisodes;
+    if (currentIdx >= 0) this.currentEp = currentIdx;
+    this._dubsCache.clear();
+    this.renderEpisodes();
+    $$("#avEpisodesList .ep-row").forEach((b, idx) => b.classList.toggle("active", idx === this.currentEp));
+    return true;
+  }
+
+  async _loadEpisodeDubs(ep, reqId, { retryStale = true } = {}) {
+    const src = this._activeSource;
+    const epKey = ep?.yummyKey || ep?.key;
+    if (!epKey || !src) return [];
+    try {
+      const list = await api.backendSources(epKey, src);
+      if (reqId !== this._reqId) return [];
+      return (list || []).map(s => ({ label: s.name, _sourceKey: s.key, _src: src }));
+    } catch (err) {
+      if (retryStale && this._isStaleBackendKeyError(err)) {
+        const refreshed = await this._refreshActiveSourceKeys(reqId);
+        if (!refreshed || reqId !== this._reqId) return [];
+        const freshEp = this.episodes[this.currentEp];
+        return this._loadEpisodeDubs(freshEp, reqId, { retryStale: false });
+      }
+      throw err;
+    }
+  }
+
+  async _reloadCurrentEpisodeDubs(reqId) {
+    const ep = this.episodes[this.currentEp];
+    const dubs = await this._loadEpisodeDubs(ep, reqId, { retryStale: true });
+    if (reqId !== this._reqId || !dubs.length) return null;
+    this._dubsCache.set(ep.num, dubs);
+    this.currentDubs = dubs;
+    return dubs;
   }
 
   async _fetchEpisodeProgress() {
@@ -1967,20 +2032,21 @@ class Player {
       }
       if (this._duration > 30 && this._lastTime >= this._duration - 3) {
         this._recordCurrentEpisodeComplete();
-        this._maybeAutoNext("near-end");
       }
     };
     window.addEventListener("message", this._onMessage);
   }
   _maybeAutoNext(kind) {
+    if (kind !== "ended") return;
     if (this._autoFired || this.destroyed) return;
     if (!state.autoNext) return;
     if (this.currentEp >= this.episodes.length - 1) return;
     const elapsedMs = Date.now() - (this._playStartedAt || 0);
     if (elapsedMs < 60_000) return;
-    if (kind === "near-end") {
-      if (!(this._duration > 30 && this._lastTime >= this._duration - 3)) return;
-    }
+    // Some embedded players emit broad "complete" messages before the actual
+    // media end. If we still know the playhead is behind the duration, do not
+    // skip the final seconds.
+    if (this._duration > 30 && this._lastTime > 0 && this._lastTime < this._duration - 1) return;
     if (kind === "ended" && this._duration > 30 && elapsedMs < this._duration * 500) return;
     this._autoFired = true;
     this.playEpisode(this.currentEp + 1);
@@ -1997,9 +2063,6 @@ class Player {
       if (this.currentEp >= this.episodes.length - 1) return;
       if (d > 30 && t >= d - 3) {
         this._recordCurrentEpisodeComplete();
-        this._autoFired = true;
-        clearInterval(this._fallbackInt);
-        this.playEpisode(this.currentEp + 1);
       }
     }, 2000);
   }
@@ -2294,17 +2357,7 @@ class Player {
     try {
       let dubs = this._dubsCache.get(ep.num);
       if (!dubs) {
-        dubs = [];
-        const src = this._activeSource;
-        if (ep.yummyKey && src) {
-          try {
-            const list = await api.backendSources(ep.yummyKey, src);
-            if (reqId !== this._reqId) return;
-            for (const s of (list || [])) {
-              dubs.push({ label: s.name, _sourceKey: s.key, _src: src });
-            }
-          } catch {}
-        }
+        dubs = await this._loadEpisodeDubs(ep, reqId, { retryStale: true });
         if (reqId !== this._reqId) return;
         if (!dubs.length) { this.status("Озвучки не найдены"); return; }
         this._dubsCache.set(ep.num, dubs);
@@ -2345,7 +2398,9 @@ class Player {
         if (!vids || reqId !== this._reqId) return;
         const iframe = vids.find(v => v.type === "iframe");
         if (iframe?.url) d.iframeUrl = iframe.url;
-      } catch {}
+      } catch (err) {
+        if (this._isStaleBackendKeyError(err)) d._staleSourceKey = true;
+      }
     }));
   }
   renderDubs() {
@@ -2417,7 +2472,7 @@ class Player {
     pop.hidden = isOpen;
     tr.classList.toggle("open", !isOpen);
   }
-  async playDub(i) {
+  async playDub(i, { retryStale = true } = {}) {
     const d = this.currentDubs[i];
     if (!d) return;
     this.currentDubIdx = i;
@@ -2428,12 +2483,24 @@ class Player {
       this.status(`Загружаю «${d.label}»…`);
       let vids = [];
       try { vids = await api.backendVideos(d._sourceKey, d._src) || []; }
-      catch {}
+      catch (err) {
+        if (retryStale && this._isStaleBackendKeyError(err)) {
+          const oldNorm = this._normDubName(d.label);
+          const freshDubs = await this._reloadCurrentEpisodeDubs(reqId);
+          if (reqId !== this._reqId) return;
+          if (freshDubs?.length) {
+            const freshIdx = Math.max(0, freshDubs.findIndex(x => this._normDubName(x.label) === oldNorm));
+            this.currentDubIdx = freshIdx;
+            this.renderDubs();
+            return this.playDub(freshIdx, { retryStale: false });
+          }
+        }
+      }
       if (reqId !== this._reqId) return;
       if (!vids?.length) {
         try {
           const ep = this.episodes[this.currentEp];
-          const list = await api.backendSources(ep.yummyKey, d._src || this._activeSource);
+          const list = await api.backendSources(ep.yummyKey || ep.key, d._src || this._activeSource);
           if (reqId !== this._reqId) return;
           const match = list.find(s => s.name === d.label) || list[0];
           if (match) {
