@@ -6,23 +6,274 @@
 ![Database](https://img.shields.io/badge/database-MySQL%208-4479a1)
 ![License](https://img.shields.io/badge/license-proprietary-red)
 
-**AsoPlay** is a proprietary anime web platform built as a compact full-stack
-application: a vanilla HTML/CSS/JavaScript frontend, a Python/FastAPI backend,
-server-side account integration with AnimeSocial, canonical SEO title pages, a
-multi-source player, progress tracking, user lists, public profiles and
-runtime API proxying.
+**Язык:** Русский | [English](#english)
 
-The project is intentionally lean: no frontend build step, no Node dependency
-chain, no generated application code in the repository. The server owns API
-integration, caching, authentication, database access, SEO rendering and static
-asset delivery.
+**AsoPlay** — проприетарная full-stack платформа для anime streaming/catalog
+с vanilla frontend, Python/FastAPI backend, интеграцией с AnimeSocial,
+каноническими SEO-страницами тайтлов, multi-source player, личными списками,
+прогрессом просмотра, публичными профилями и runtime proxy/cache слоем.
 
-> Copyright © Чепела Даниэль Максимович (x0doit). All rights reserved.
-> This repository is proprietary software. No license is granted.
+> Copyright © Чепела Даниэль Максимович (x0doit). Все права защищены.
+> Репозиторий не является open source. Любое использование требует прямого
+> письменного разрешения правообладателя.
 
 ---
 
-## Highlights
+## Содержание
+
+- [Возможности](#возможности)
+- [Архитектура](#архитектура)
+- [Стек](#стек)
+- [Развертывание владельцем](#развертывание-владельцем)
+- [Конфигурация](#конфигурация)
+- [Модель данных](#модель-данных)
+- [Безопасность](#безопасность)
+- [Авторские права и лицензия](#авторские-права-и-лицензия)
+- [English](#english)
+
+---
+
+## Возможности
+
+- **Каталог и discovery** на базе Jikan, AniList и Shikimori metadata.
+- **Канонические страницы тайтлов** `/anime/{mal_id}-{slug}/` с server-side
+  meta-тегами, Open Graph, JSON-LD, canonical URL, sitemap и `<noscript>`
+  fallback.
+- **Multi-source player** с fallback-поиском по нескольким источникам и
+  безопасной обработкой iframe `postMessage`.
+- **Интеграция AnimeSocial**: авторизация через существующую MySQL-базу
+  AnimeSocial и локальные HTTP-only сессии проекта.
+- **Личный кабинет**: избранное, продолжить просмотр, списки, статусы,
+  оценки, выбранные озвучки, настройки и приватность.
+- **Автоматические правила списков**: auto-watching, auto-completed и
+  stale auto-dropped на основе реального прогресса просмотра.
+- **Публичные профили** с privacy-aware списками и графиком активности.
+- **Runtime proxy/cache** для внешних metadata API и изображений.
+- **Опциональный xray/Shadowsocks bridge** для окружений, где внешние anime API
+  недоступны напрямую.
+
+---
+
+## Архитектура
+
+```text
+.
+├── index.html                  SPA shell и SSR placeholders
+├── app.js                      публичный router, каталог, тайтл, player
+├── styles.css                  дизайн-система приложения
+├── assets/                     статические media assets
+├── js/
+│   └── account.js              auth UI, личные разделы, store, профили
+├── server/
+│   ├── main.py                 FastAPI wiring, static serving, sources
+│   ├── animesocial.py          AnimeSocial DB auth bridge и sessions
+│   ├── animesocial_config.py   AnimeSocial URL/media configuration
+│   ├── account_api.py          account compatibility API
+│   ├── user_lists.py           list/status/favorite domain и auto-rules
+│   ├── activity_log.py         contribution/activity event log
+│   ├── profile_pages.py        public profile API и SSR shell
+│   ├── title_pages.py          canonical anime pages, sitemap, robots
+│   ├── proxies.py              Jikan/AniList/Shiki/translate/image proxies
+│   ├── vpn_bridge.py           optional xray runtime bridge
+│   ├── animevost.py            native AnimeVost source adapter
+│   ├── oldyummy.py             native old.yummyani source adapter
+│   └── requirements.txt        Python runtime dependencies
+├── sql/
+│   ├── aviev-schema.sql        базовая схема aviev_*
+│   └── aviev-schema-pass2.sql  списки, приватность, активность, compatibility
+├── animesocial.json            public URL/media mapping для AnimeSocial
+├── animesocial-db.php          формат DB-конфига AnimeSocial
+├── vpn.template.json           шаблон xray-конфига
+├── .env.example                шаблон environment variables
+├── COPYRIGHT                   proprietary copyright notice
+└── .gitignore                  ignored local/runtime artifacts
+```
+
+---
+
+## Стек
+
+- **Frontend:** HTML, CSS, vanilla JavaScript ES modules.
+- **Backend:** Python 3.11+, FastAPI, Uvicorn, httpx.
+- **Database:** MySQL 8 / OpenServer-compatible AnimeSocial database.
+- **Auth:** существующая users-таблица AnimeSocial + локальные `aviev_sessions`.
+- **Metadata:** Jikan, AniList, Shikimori.
+- **Network bridge:** optional xray/Shadowsocks через `.env`.
+
+---
+
+## Развертывание владельцем
+
+Этот раздел предназначен только для владельца проекта или лиц, получивших
+прямое письменное разрешение. Наличие инструкций по запуску не предоставляет
+права использовать, копировать, разворачивать или публиковать проект.
+
+Установить Python dependencies:
+
+```bash
+pip install -r server/requirements.txt
+```
+
+Создать runtime configuration:
+
+```bash
+copy .env.example .env
+```
+
+Применить database schema строго по порядку:
+
+```bash
+mysql -u root AnimeSocial < sql/aviev-schema.sql
+mysql -u root AnimeSocial < sql/aviev-schema-pass2.sql
+```
+
+Запустить приложение:
+
+```bash
+python -B -m server.main
+```
+
+Локальный адрес по умолчанию:
+
+```text
+http://127.0.0.1:8787
+```
+
+Health endpoint:
+
+```text
+GET /health
+```
+
+Ожидаемый ответ:
+
+```json
+{
+  "ok": true,
+  "sources": ["..."],
+  "vpn": true,
+  "db": {
+    "ok": true,
+    "aviev_schema_present": true
+  }
+}
+```
+
+---
+
+## Конфигурация
+
+Backend читает runtime settings из `.env`, `animesocial-db.php` и
+`animesocial.json`.
+
+Основные группы переменных:
+
+- `AV_BIND_HOST`, `AV_BIND_PORT` — адрес FastAPI.
+- `AV_SITE_URL`, `AV_SITE_NAME` — canonical SEO URLs и имя сайта.
+- `AV_ALLOWED_ORIGINS` — CORS origins для development/production.
+- `AV_DB_*` — optional DB overrides.
+- `AV_USER_*` — optional AnimeSocial users-table/column overrides.
+- `AV_AUTH_VERIFIER` — override password verification strategy.
+- `AV_COOKIE_SECURE`, `AV_COOKIE_SAMESITE`, `AV_SESSION_TTL_DAYS` — session
+  cookie behavior.
+- `AV_ANIMESOCIAL_SITE_URL` — public host override для AnimeSocial.
+- `SS_ADDRESS`, `SS_PORT`, `SS_METHOD`, `SS_PASSWORD` — optional xray outbound.
+
+Production secrets должны храниться только на сервере. Нельзя коммитить реальные
+пароли, токены, proxy credentials, session data или приватные ключи.
+
+---
+
+## Модель данных
+
+Проект создает и использует только таблицы с префиксом `aviev_`. Существующие
+таблицы AnimeSocial остаются источником identity и login credentials.
+
+Основные таблицы проекта:
+
+- `aviev_sessions` — HTTP-only login sessions.
+- `aviev_user_lists` — canonical title status + favorite flag.
+- `aviev_watch_history` — continue-watching feed.
+- `aviev_episode_progress` — per-episode progress.
+- `aviev_title_ratings` — personal ratings.
+- `aviev_dub_prefs` — preferred dubbing per title.
+- `aviev_account_settings` — account toggles.
+- `aviev_privacy` — public profile privacy controls.
+- `aviev_activity` — contribution/activity graph events.
+- `aviev_title_pages` — canonical SEO title-page cache.
+- `aviev_title_refresh_queue` — title page refresh queue.
+- `aviev_import_marks` — one-time localStorage import markers.
+
+`aviev_activity` использует unique deduplication index:
+
+```sql
+UNIQUE KEY uq_act_dedup (user_id, day, kind, mal_id, meta(64))
+```
+
+---
+
+## Безопасность
+
+- Session tokens хранятся server-side и передаются через HTTP-only cookies.
+- Personal endpoints требуют authenticated session.
+- Public profile endpoints применяют privacy server-side.
+- Player принимает iframe `postMessage` только от ожидаемого source window.
+- Proxy endpoints ограничены конкретными API/media сценариями.
+- Robots rules закрывают internal account/auth/proxy/source endpoints.
+
+---
+
+## Авторские права и лицензия
+
+Этот репозиторий **не является open source**.
+
+Copyright © Чепела Даниэль Максимович (x0doit). Все права защищены.
+
+Никакая лицензия третьим лицам не предоставляется. Без прямого письменного
+разрешения правообладателя запрещено использовать, копировать, скачивать,
+зеркалировать, изменять, запускать, разворачивать, хостить, распространять,
+сублицензировать, перепродавать, публиковать, переупаковывать, использовать для
+обучения моделей, включать в datasets или создавать производные работы на основе
+этого репозитория или любой его части.
+
+Полный proprietary notice: [`COPYRIGHT`](./COPYRIGHT).
+
+Запросы по лицензированию: <https://crazydev.pro/>
+
+---
+
+<a id="english"></a>
+
+# AsoPlay
+
+**Language:** [Русский](#asoplay) | English
+
+**AsoPlay** is a proprietary anime streaming/catalog platform built as a
+compact full-stack application: a vanilla frontend, a Python/FastAPI backend,
+AnimeSocial integration, canonical SEO title pages, a multi-source player,
+personal watch progress, user lists, public profiles and a runtime proxy/cache
+layer.
+
+> Copyright © Chepela Daniel Maximovich (x0doit). All rights reserved.
+> This repository is not open source. Any use requires direct written permission
+> from the copyright owner.
+
+---
+
+## Contents
+
+- [Features](#features)
+- [Architecture](#architecture)
+- [Stack](#stack)
+- [Owner Deployment](#owner-deployment)
+- [Configuration](#configuration)
+- [Data Model](#data-model)
+- [Security](#security)
+- [Copyright and License](#copyright-and-license)
+
+---
+
+## Features
 
 - **Catalog and discovery** powered by Jikan, AniList and Shikimori metadata.
 - **Canonical title pages** at `/anime/{mal_id}-{slug}/` with server-rendered
@@ -80,18 +331,22 @@ asset delivery.
 
 ---
 
-## Runtime Stack
+## Stack
 
-- **Frontend:** plain HTML, CSS and ES modules.
+- **Frontend:** plain HTML, CSS and JavaScript ES modules.
 - **Backend:** Python 3.11+, FastAPI, Uvicorn, httpx.
 - **Database:** MySQL 8 / OpenServer-compatible AnimeSocial database.
 - **Auth:** existing AnimeSocial users table + project-local `aviev_sessions`.
-- **External metadata:** Jikan, AniList, Shikimori.
-- **Optional network bridge:** xray with Shadowsocks settings from `.env`.
+- **Metadata:** Jikan, AniList, Shikimori.
+- **Network bridge:** optional xray/Shadowsocks through `.env`.
 
 ---
 
-## Deployment
+## Owner Deployment
+
+This section is for the project owner and explicitly licensed operators only.
+Publishing operational instructions does not grant permission to use, copy,
+deploy, host or redistribute the project.
 
 Install Python dependencies:
 
@@ -130,7 +385,7 @@ Health endpoint:
 GET /health
 ```
 
-Expected shape:
+Expected response:
 
 ```json
 {
@@ -156,7 +411,7 @@ Important environment groups:
 - `AV_BIND_HOST`, `AV_BIND_PORT` — FastAPI bind address.
 - `AV_SITE_URL`, `AV_SITE_NAME` — canonical SEO URLs and site name.
 - `AV_ALLOWED_ORIGINS` — CORS origins for development or production.
-- `AV_DB_*` — optional DB overrides when `animesocial-db.php` is not enough.
+- `AV_DB_*` — optional DB overrides.
 - `AV_USER_*` — optional AnimeSocial users-table/column overrides.
 - `AV_AUTH_VERIFIER` — password verification strategy override.
 - `AV_COOKIE_SECURE`, `AV_COOKIE_SAMESITE`, `AV_SESSION_TTL_DAYS` — session
@@ -164,12 +419,12 @@ Important environment groups:
 - `AV_ANIMESOCIAL_SITE_URL` — AnimeSocial public host override.
 - `SS_ADDRESS`, `SS_PORT`, `SS_METHOD`, `SS_PASSWORD` — optional xray outbound.
 
-Production secrets must stay outside Git. Use `.env` on the server and never
-commit real passwords, tokens, private proxy credentials or session data.
+Production secrets must stay outside Git. Never commit real passwords, tokens,
+private proxy credentials, session data or private keys.
 
 ---
 
-## Database Model
+## Data Model
 
 The application creates and owns only tables with the `aviev_` prefix. Existing
 AnimeSocial tables remain the source of identity and login credentials.
@@ -186,10 +441,10 @@ Core project tables:
 - `aviev_privacy` — public profile privacy controls.
 - `aviev_activity` — contribution/activity graph events.
 - `aviev_title_pages` — canonical SEO title-page cache.
-- `aviev_title_refresh_queue` — refresh queue for title pages.
+- `aviev_title_refresh_queue` — title page refresh queue.
 - `aviev_import_marks` — one-time localStorage import markers.
 
-`aviev_activity` uses a unique deduplication index for stable activity graphs:
+`aviev_activity` uses a unique deduplication index:
 
 ```sql
 UNIQUE KEY uq_act_dedup (user_id, day, kind, mal_id, meta(64))
@@ -197,14 +452,14 @@ UNIQUE KEY uq_act_dedup (user_id, day, kind, mal_id, meta(64))
 
 ---
 
-## Security Notes
+## Security
 
 - Session tokens are stored server-side and sent through HTTP-only cookies.
 - Personal endpoints require authenticated sessions.
 - Public profile endpoints enforce privacy on the server.
-- The player validates iframe `postMessage` source windows before accepting
-  progress events.
-- Image and API proxy endpoints are constrained to known use cases and hosts.
+- The player accepts iframe `postMessage` events only from the expected source
+  window.
+- Proxy endpoints are constrained to specific API/media scenarios.
 - Robots rules block internal account/auth/proxy/source endpoints.
 
 ---
@@ -213,14 +468,14 @@ UNIQUE KEY uq_act_dedup (user_id, day, kind, mal_id, meta(64))
 
 This repository is **not open source**.
 
-Copyright © Чепела Даниэль Максимович (x0doit). All rights reserved.
+Copyright © Chepela Daniel Maximovich (x0doit). All rights reserved.
 
 No license is granted to any third party. Without direct written permission from
 the copyright owner, no person or organization may use, copy, download, mirror,
-modify, adapt, run, deploy, host, distribute, sublicense, resell, publish,
-repackage, train on, index into a dataset, or create derivative works from this
-repository or any part of it.
+modify, run, deploy, host, distribute, sublicense, resell, publish, repackage,
+train on, index into a dataset, or create derivative works from this repository
+or any part of it.
 
-The full proprietary notice is available in [`COPYRIGHT`](./COPYRIGHT).
+Full proprietary notice: [`COPYRIGHT`](./COPYRIGHT).
 
-For licensing inquiries: <https://crazydev.pro/>
+Licensing inquiries: <https://crazydev.pro/>
