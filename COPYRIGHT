@@ -6,17 +6,20 @@ design assets and every individual file in the repository are the exclusive
 property of the author named above.
 
 No licence — express or implied — is granted to any third party. Without the
-prior written permission of the author you MAY NOT:
+prior direct written permission of the author you MAY NOT:
 
-  1. copy, mirror, re-host or republish the whole work or any part of it;
-  2. modify, translate, adapt, decompile, disassemble or reverse-engineer it;
-  3. distribute, sublicense, sell, rent, lease or lend copies of it;
-  4. incorporate any portion of this code, schema, design or text into other
+  1. use, run, deploy, host or access the whole work or any part of it for any
+     purpose other than the author's own private use;
+  2. copy, download, mirror, scrape, re-host or republish the whole work or any
+     part of it;
+  3. modify, translate, adapt, decompile, disassemble or reverse-engineer it;
+  4. distribute, sublicense, sell, rent, lease or lend copies of it;
+  5. incorporate any portion of this code, schema, design or text into other
      software, services, trainings, datasets or derivative works;
-  5. use this code — directly or indirectly — as training, fine-tuning,
+  6. use this code — directly or indirectly — as training, fine-tuning,
      embedding, alignment, evaluation, distillation or RAG material for any
      machine learning model, agent or automated system;
-  6. remove, obscure or alter this notice or any author attribution.
+  7. remove, obscure or alter this notice or any author attribution.
 
 Permission to use is personal and non-transferable, granted solely to the
 author. Any deviation constitutes an infringement of the author's exclusive
