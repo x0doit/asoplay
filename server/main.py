@@ -43,7 +43,7 @@ except ImportError:
 # free.
 from server import (
     vpn_bridge, proxies, animesocial, account_api,
-    title_pages, user_lists, activity_log, profile_pages,
+    title_pages, user_lists, activity_log, profile_pages, adblock, player_proxy,
 )
 
 
@@ -140,6 +140,30 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def _player_proxy_null_origin_cors(request: Request, call_next):
+    # Proxied players run inside a sandbox without allow-same-origin. Browser
+    # fetch/XHR requests from that frame therefore use Origin: null. Keep this
+    # exception scoped to /player/proxy so account/auth APIs are not exposed to
+    # arbitrary opaque-origin documents.
+    if (
+        (request.url.path.startswith("/player/proxy") or request.url.path.startswith("/player/cvh-api"))
+        and request.headers.get("origin") == "null"
+    ):
+        if request.method == "OPTIONS":
+            return Response(headers={
+                "Access-Control-Allow-Origin": "null",
+                "Access-Control-Allow-Methods": "GET, POST, HEAD, OPTIONS",
+                "Access-Control-Allow-Headers": request.headers.get("access-control-request-headers", "*"),
+                "Access-Control-Max-Age": "600",
+            })
+        response = await call_next(request)
+        response.headers["Access-Control-Allow-Origin"] = "null"
+        response.headers["Vary"] = "Origin"
+        return response
+    return await call_next(request)
+
+
 # ---------- lifecycle ----------
 @app.on_event("startup")
 async def _startup() -> None:
@@ -150,10 +174,14 @@ async def _startup() -> None:
     else:
         log.info("VPN bridge not active — falling back to direct outbound")
     await proxies.startup()
+    await adblock.startup()
+    await player_proxy.startup()
 
 
 @app.on_event("shutdown")
 async def _shutdown() -> None:
+    await player_proxy.shutdown()
+    await adblock.shutdown()
     await proxies.shutdown()
     vpn_bridge.shutdown()
 
@@ -198,12 +226,24 @@ def health():
         "sources": list(SOURCES) + list(NATIVE_SOURCES),
         "vpn": vpn_bridge.is_active(),
         "db": animesocial.health(),
+        "adblock": adblock.status(),
     }
 
 
 @app.get("/sources")
 def sources():
     return list(SOURCES) + list(NATIVE_SOURCES)
+
+
+@app.get("/adblock/status")
+def adblock_status():
+    return adblock.status()
+
+
+@app.get("/adblock/check")
+def adblock_check(url: str = Query(..., min_length=4)):
+    blocked, reason = adblock.should_block(url)
+    return {"blocked": blocked, "reason": reason}
 
 
 # ---------- source-based search / episodes / dubs / videos ----------
@@ -354,7 +394,7 @@ async def dubs_for_episode(key: str, source: str = "anilibria"):
 @app.get("/src/videos")
 async def videos(key: str, source: str = "anilibria"):
     if source in NATIVE_SOURCES:
-        return await _native_videos(source, key)
+        return await adblock.filter_videos(await _native_videos(source, key))
 
     obj = _get(key)
     if hasattr(obj, "get_videos") or hasattr(obj, "a_get_videos"):
@@ -362,10 +402,10 @@ async def videos(key: str, source: str = "anilibria"):
         iframe_url = getattr(obj, "url", None) or ""
 
         if iframe_url.startswith("http"):
-            return [{
+            return await adblock.filter_videos([{
                 "url": iframe_url, "quality": None, "type": "iframe",
                 "headers": {}, "source_name": name,
-            }]
+            }])
 
         out: list[dict] = []
         try:
@@ -383,7 +423,7 @@ async def videos(key: str, source: str = "anilibria"):
                 })
         except Exception as exc:
             log.debug("videos extract failed: %s", exc)
-        return out
+        return await adblock.filter_videos(out)
 
     # Legacy branch — extractor gave us an Episode, we'd enumerate sources × videos.
     episode = obj
@@ -432,7 +472,7 @@ async def videos(key: str, source: str = "anilibria"):
         return (1 if v["type"] == "m3u8" else 0, q)
 
     all_videos.sort(key=score, reverse=True)
-    return all_videos
+    return await adblock.filter_videos(all_videos)
 
 
 # ---------- native source glue ----------
@@ -626,6 +666,8 @@ app.include_router(account_api.router)
 app.include_router(user_lists.router)
 app.include_router(activity_log.router)
 app.include_router(profile_pages.router)
+app.include_router(player_proxy.router)
+app.include_router(player_proxy.kodik_router)
 app.include_router(title_pages.router)
 
 

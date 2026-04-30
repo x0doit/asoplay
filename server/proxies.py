@@ -51,6 +51,7 @@ _IMG_HOSTS = (
     "moe.shikimori.one",
 )
 _IMG_TTL = 86400 * 7
+_RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
 
 _httpx_limits = httpx.Limits(
     max_connections=50, max_keepalive_connections=20, keepalive_expiry=60
@@ -87,6 +88,10 @@ def _cache_get(key: str, ttl: float) -> tuple[bytes, str, int] | None:
         return p.read_bytes(), record.get("ct", "application/octet-stream"), int(record.get("status", 200))
     except OSError:
         return None
+
+
+def _cache_get_any(key: str) -> tuple[bytes, str, int] | None:
+    return _cache_get(key, float("inf"))
 
 
 def _cache_put(key: str, body: bytes, content_type: str, status: int = 200) -> None:
@@ -173,16 +178,21 @@ async def cached_fetch(
                 await asyncio.sleep(0.4 + attempt * 0.6)
                 continue
             break
-        if resp.status_code == 429 and attempt < 3:
-            await asyncio.sleep(0.7 + attempt * 1.2)
-            continue
         ct = resp.headers.get("content-type", "application/octet-stream")
         if resp.status_code == 200:
             _cache_put(key, resp.content, ct, resp.status_code)
+            return resp.content, ct, resp.status_code
+        if resp.status_code in _RETRY_STATUS_CODES:
+            last_exc = HTTPException(resp.status_code, f"upstream status {resp.status_code}")
+            if attempt < 3:
+                await asyncio.sleep(0.7 + attempt * 1.2)
+                continue
+            break
         return resp.content, ct, resp.status_code
 
-    stale = _cache_get(key, ttl * 3)
+    stale = _cache_get(key, ttl * 12) or _cache_get_any(key)
     if stale:
+        log.warning("using stale proxy cache for %s after upstream failure: %s", url, last_exc)
         return stale
     raise HTTPException(502, f"proxy upstream: {last_exc or 'retry exhausted'}")
 
@@ -268,6 +278,8 @@ async def proxy_jikan(path: str, request: Request):
             r = await client.get(url, params=dict(request.query_params))
         except httpx.HTTPError as exc:
             raise HTTPException(502, f"proxy upstream: {exc}")
+        if r.status_code in _RETRY_STATUS_CODES:
+            raise HTTPException(502, f"jikan upstream status {r.status_code}")
         return Response(
             content=r.content,
             status_code=r.status_code,

@@ -21,6 +21,8 @@ server/__pycache__/
 claude-playbook-*/
 .playwright-mcp/
 .run.log
+.run.out.log
+.run.err.log
 
 # System
 Thumbs.db

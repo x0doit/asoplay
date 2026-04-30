@@ -1870,13 +1870,11 @@ class Player {
     }
   }
 
-  _recordCurrentEpisodeComplete() {
+  _recordCurrentEpisodeComplete({ allowEndedSignal = false } = {}) {
     const epNum = this.episodes[this.currentEp]?.num;
     if (!epNum) return false;
     const knownDur = Math.floor(Number(this._duration || 0));
     const knownTime = Math.floor(Number(this._lastTime || 0));
-    const fallbackDur = Math.floor((parseEpDurationMin(this.anime?.duration) || 0) * 60);
-    const elapsedSec = Math.floor((Date.now() - (this._playStartedAt || 0)) / 1000);
     let dur = knownDur;
     let secs = knownTime;
 
@@ -1884,11 +1882,12 @@ class Player {
       const nearEnd = knownTime >= knownDur * 0.92 || knownTime >= Math.max(0, knownDur - 90);
       if (!nearEnd) return false;
       secs = Math.max(knownTime, knownDur);
-    } else if (fallbackDur > 30) {
-      const watchedLongEnough = elapsedSec >= fallbackDur * 0.92 || elapsedSec >= Math.max(0, fallbackDur - 90);
-      if (!watchedLongEnough) return false;
-      dur = fallbackDur;
-      secs = fallbackDur;
+    } else if (allowEndedSignal && this._sawPlaybackSignal) {
+      const fallbackDur = Math.floor((parseEpDurationMin(this.anime?.duration) || 0) * 60);
+      if (knownDur > 30) dur = knownDur;
+      else if (knownTime > 0 && fallbackDur > 30) dur = fallbackDur;
+      else return false;
+      secs = dur;
     } else {
       return false;
     }
@@ -1913,7 +1912,7 @@ class Player {
     this._duration = 0;
     this._autoFired = false;
     this._playStartedAt = 0;
-    this._silentProgressAt = 0;
+    this._sawPlaybackSignal = false;
     this._onMessage = (e) => {
       if (this.destroyed) return;
       const iframe = this._iframeEl;
@@ -1949,6 +1948,7 @@ class Player {
       if (k.includes("time_update") || k === "timeupdate") {
         if (n != null) {
           this._lastTime = n;
+          if (n > 0) this._sawPlaybackSignal = true;
           const epNum = this.episodes[this.currentEp]?.num;
           const secs = Math.floor(n);
           const dur = Math.floor(this._duration || 0);
@@ -1956,11 +1956,14 @@ class Player {
         }
       }
       else if (k.includes("duration")) { if (n != null && n > 30) this._duration = n; }
+      else if (k === "play" || k === "playing" || k.includes("player_play")) {
+        this._sawPlaybackSignal = true;
+      }
       else if (k === "end" || k === "ended" || k === "finish" || k === "finished" || k === "complete" || k.includes("video_end") || k.includes("playback_finished")) {
-        if (this._recordCurrentEpisodeComplete()) this._maybeAutoNext("ended");
+        if (this._recordCurrentEpisodeComplete({ allowEndedSignal: true })) this._maybeAutoNext("ended");
       }
       if (vState === "end" || vState === "ended" || vState === "finished" || vState === "complete") {
-        if (this._recordCurrentEpisodeComplete()) this._maybeAutoNext("ended");
+        if (this._recordCurrentEpisodeComplete({ allowEndedSignal: true })) this._maybeAutoNext("ended");
       }
       if (this._duration > 30 && this._lastTime >= this._duration - 3) {
         this._recordCurrentEpisodeComplete();
@@ -1985,38 +1988,14 @@ class Player {
 
   _armFallback() {
     if (this._fallbackInt) { clearInterval(this._fallbackInt); this._fallbackInt = null; }
-    const jikanMin = parseEpDurationMin(this.anime?.duration) || 24;
-    const jikanSec = jikanMin * 60;
     this._fallbackInt = setInterval(() => {
       if (this.destroyed || this._autoFired) { clearInterval(this._fallbackInt); return; }
-      const elapsedSec = (Date.now() - (this._playStartedAt || 0)) / 1000;
-      if (elapsedSec < 60) return;
       const d = this._duration, t = this._lastTime;
-      // Некоторые iframe-источники вообще не шлют timeupdate. Тогда
-      // "Продолжить просмотр" и серверный progress-event не получают ни одного
-      // сигнала, хотя пользователь реально смотрит серию. Для таких "немых"
-      // источников делаем осторожный fallback: только на видимой вкладке, только
-      // после 5 минут непрерывного просмотра и не чаще раза в 30 секунд.
-      if (state.user && document.visibilityState === "visible" && t <= 0 && elapsedSec >= 300) {
-        const now = Date.now();
-        const epNum = this.episodes[this.currentEp]?.num;
-        if (epNum && (now - (this._silentProgressAt || 0) > 30000)) {
-          this._silentProgressAt = now;
-          const estDur = Math.max(Math.floor(d || 0), jikanSec);
-          const estSecs = Math.min(Math.floor(elapsedSec), estDur);
-          this._recordProgressPoint(epNum, estSecs, estDur, { renderOnAnyChange: true });
-        }
-      }
+      // Watchdog only mirrors real player time. Never estimate watch progress
+      // from wall-clock time spent on the page.
       if (!state.autoNext) return;
       if (this.currentEp >= this.episodes.length - 1) return;
       if (d > 30 && t >= d - 3) {
-        this._recordCurrentEpisodeComplete();
-        this._autoFired = true;
-        clearInterval(this._fallbackInt);
-        this.playEpisode(this.currentEp + 1);
-        return;
-      }
-      if (!t && elapsedSec >= jikanSec + 10) {
         this._recordCurrentEpisodeComplete();
         this._autoFired = true;
         clearInterval(this._fallbackInt);
@@ -2297,7 +2276,7 @@ class Player {
     this._lastTime = 0;
     this._duration = 0;
     this._playStartedAt = Date.now();
-    this._silentProgressAt = 0;
+    this._sawPlaybackSignal = false;
     this._lastCompleteSignalEp = null;
     this._armFallback();
     $$("#avEpisodesList .ep-row").forEach((b, idx) => b.classList.toggle("active", idx === i));
@@ -2479,20 +2458,48 @@ class Player {
   createIframe(url) {
     const c = $("#artplayer");
     if (!c) return;
+    const playerProxyBase = (() => {
+      if (BACKEND) return BACKEND;
+      if (location.protocol === "http:" && location.port === "8787") {
+        if (location.hostname === "127.0.0.1") return "http://localhost:8787";
+        if (location.hostname === "localhost") return "http://127.0.0.1:8787";
+      }
+      return BACKEND;
+    })();
+    const proxiedOrigin = (() => {
+      if (!playerProxyBase) return false;
+      try { return new URL(playerProxyBase, location.origin).origin !== location.origin; }
+      catch (_) { return false; }
+    })();
+    let playerUrl = `${playerProxyBase}/player/frame?url=${encodeURIComponent(url)}`;
+    let allowSameOrigin = proxiedOrigin;
+    try {
+      const u = new URL(url);
+      if (/(\.|^)kodikplayer\.com$/i.test(u.hostname)
+          && /^\/(uv|video|seria|episode|season|serial)\//i.test(u.pathname)) {
+        playerUrl = u.pathname + u.search;
+        allowSameOrigin = false;
+      }
+    } catch (_) {}
     let iframe = c.querySelector("iframe");
+    const hardenFrame = (node, sameOrigin = false) => {
+      node.allow = "autoplay; fullscreen; picture-in-picture; encrypted-media";
+      node.allowFullscreen = true;
+      node.referrerPolicy = "no-referrer";
+      node.setAttribute("sandbox", `allow-scripts allow-presentation${sameOrigin ? " allow-same-origin" : ""}`);
+    };
     if (iframe) {
-      if (iframe.src !== url) iframe.src = url;
+      hardenFrame(iframe, allowSameOrigin);
+      if (iframe.src !== playerUrl) iframe.src = playerUrl;
       this._iframeEl = iframe;
       return;
     }
     iframe = document.createElement("iframe");
-    // `allow="... fullscreen ..."` — современная Feature-Policy атрибут; он
-    // делает устаревший allowFullscreen избыточным и браузер пишет в консоль
-    // «Allow attribute will take precedence over allowfullscreen». Оставляем
-    // только allow.
-    iframe.allow = "autoplay; fullscreen; picture-in-picture; encrypted-media";
+    // Harden third-party players: keep playback features, block popups and
+    // top-level navigation attempts from ad scripts inside the iframe.
+    hardenFrame(iframe, allowSameOrigin);
     iframe.style.cssText = "width:100%;height:100%;border:0;background:#000";
-    iframe.src = url;
+    iframe.src = playerUrl;
     c.appendChild(iframe);
     this._iframeEl = iframe;
   }

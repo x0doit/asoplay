@@ -417,8 +417,9 @@ def progress_event(
         #    completed/dropped/postponed.
         is_last = (
             event.episodes_total > 0 and event.episode_num >= event.episodes_total
-            and (event.seconds == 0 or event.seconds >= event.duration * 0.85
-                 or event.seconds >= (event.duration or 1) - 60)
+            and event.duration > 30
+            and (event.seconds >= event.duration * 0.85
+                 or event.seconds >= event.duration - 60)
         )
         if auto_ok and is_last:
             entry = _fetch_entry(conn, user["id"], event.mal_id)
