@@ -1759,6 +1759,147 @@ class Player {
     return idx >= 0 ? idx : 0;
   }
 
+  _progressDone(entry) {
+    const seconds = Number(entry?.seconds ?? entry?.time ?? 0);
+    const duration = Number(entry?.duration || 0);
+    return duration > 0
+      && (seconds >= duration * 0.92 || seconds >= Math.max(0, duration - 90));
+  }
+
+  _episodeProgressPct(entry) {
+    const seconds = Number(entry?.seconds ?? entry?.time ?? 0);
+    const duration = Number(entry?.duration || 0);
+    return duration > 0 ? Math.min(100, (seconds / duration) * 100) : 0;
+  }
+
+  _updateEpisodeRowProgress(epNum) {
+    const list = $("#avEpisodesList");
+    if (!list) return false;
+    const row = $$(".ep-row", list).find(r => Number(r.dataset.num) === Number(epNum));
+    if (!row) return false;
+    const prog = this._epProgress?.get(Number(epNum)) || getProgress(this.malId, epNum);
+    const pct = this._episodeProgressPct(prog);
+    row.classList.toggle("watched", pct > 90);
+
+    let bar = $(".ep-progress", row);
+    if (pct > 0 && pct < 95) {
+      if (!bar) {
+        bar = document.createElement("div");
+        bar.className = "ep-progress";
+        bar.innerHTML = "<span></span>";
+        row.appendChild(bar);
+      }
+      const fill = $("span", bar);
+      if (fill) fill.style.width = `${pct}%`;
+    } else if (bar) {
+      bar.remove();
+    }
+    return true;
+  }
+
+  _applyEpisodeProgress(epNum, seconds, duration, { renderOnAnyChange = false } = {}) {
+    epNum = Number(epNum || 0);
+    if (!epNum) return false;
+    this._epProgress ??= new Map();
+    const prevEntry = this._epProgress.get(epNum);
+    const wasDone = this._progressDone(prevEntry);
+    const nextEntry = {
+      seconds: Math.max(Math.floor(Number(seconds) || 0), Number(prevEntry?.seconds || 0)),
+      duration: Math.max(Math.floor(Number(duration) || 0), Number(prevEntry?.duration || 0)),
+    };
+    const changed = !prevEntry
+      || nextEntry.seconds !== Number(prevEntry.seconds || 0)
+      || nextEntry.duration !== Number(prevEntry.duration || 0);
+    this._epProgress.set(epNum, nextEntry);
+
+    const isDone = this._progressDone(nextEntry);
+    let needsRender = !!(renderOnAnyChange && changed);
+    if (isDone && !wasDone) needsRender = true;
+    const dirtyRows = new Set();
+    if (changed || isDone !== wasDone) dirtyRows.add(epNum);
+
+    // Realtime mirror of the server rule: finishing episode N means earlier
+    // episodes are treated as watched too, so skipping credits does not leave
+    // the previous episode half-filled until the next page reload.
+    if (isDone && epNum > 1) {
+      const stampDuration = Math.max(nextEntry.duration, 1);
+      for (let prev = 1; prev < epNum; prev++) {
+        const pe = this._epProgress.get(prev);
+        if (!this._progressDone(pe)) {
+          this._epProgress.set(prev, { seconds: stampDuration, duration: stampDuration });
+          dirtyRows.add(prev);
+          needsRender = true;
+        }
+      }
+    }
+
+    let updatedAllRows = true;
+    for (const rowEp of dirtyRows) {
+      if (!this._updateEpisodeRowProgress(rowEp)) updatedAllRows = false;
+    }
+    if (needsRender && !updatedAllRows) this.renderEpisodes();
+    return needsRender;
+  }
+
+  _recordProgressPoint(epNum, seconds, duration, { renderOnAnyChange = false, forceEvent = false } = {}) {
+    if (!epNum || seconds <= 0) return;
+    const title = this.anime._ru || this.anime.title_english || this.anime.title || "";
+    const poster = this.anime.images?.jpg?.large_image_url || this.anime.images?.jpg?.image_url || "";
+    const total = this.anime?.episodes || this.episodes.length || 0;
+    if (state.user && !getWatch(this.malId)) {
+      ensureWatchEntry(this.malId, title, poster, epNum, total);
+    }
+    saveProgress(this.malId, epNum, seconds, duration);
+    this._applyEpisodeProgress(epNum, seconds, duration, { renderOnAnyChange });
+
+    const now = Date.now();
+    const lastSent = this._lastProgressSent || 0;
+    if (state.user && (forceEvent || now - lastSent > 30000)) {
+      this._lastProgressSent = now;
+      account.store.sendProgressEvent({
+        mal_id: this.malId,
+        episode_num: epNum,
+        seconds,
+        duration,
+        episodes_total: total,
+        title,
+        poster_url: poster,
+      });
+    }
+  }
+
+  _recordCurrentEpisodeComplete() {
+    const epNum = this.episodes[this.currentEp]?.num;
+    if (!epNum) return false;
+    const knownDur = Math.floor(Number(this._duration || 0));
+    const knownTime = Math.floor(Number(this._lastTime || 0));
+    const fallbackDur = Math.floor((parseEpDurationMin(this.anime?.duration) || 0) * 60);
+    const elapsedSec = Math.floor((Date.now() - (this._playStartedAt || 0)) / 1000);
+    let dur = knownDur;
+    let secs = knownTime;
+
+    if (knownDur > 30 && knownTime > 0) {
+      const nearEnd = knownTime >= knownDur * 0.92 || knownTime >= Math.max(0, knownDur - 90);
+      if (!nearEnd) return false;
+      secs = Math.max(knownTime, knownDur);
+    } else if (fallbackDur > 30) {
+      const watchedLongEnough = elapsedSec >= fallbackDur * 0.92 || elapsedSec >= Math.max(0, fallbackDur - 90);
+      if (!watchedLongEnough) return false;
+      dur = fallbackDur;
+      secs = fallbackDur;
+    } else {
+      return false;
+    }
+
+    if (this._lastCompleteSignalEp === epNum) return true;
+    this._lastCompleteSignalEp = epNum;
+    this._recordProgressPoint(epNum, secs, dur, {
+      renderOnAnyChange: true,
+      forceEvent: true,
+    });
+    return true;
+  }
+
   // Player iframes from yummyani/kodik/aksor post timeupdate/ended messages.
   // We validate that the message comes from our own iframe — not any other
   // window — before trusting it. Without this check a hostile page could
@@ -1809,58 +1950,20 @@ class Player {
           const epNum = this.episodes[this.currentEp]?.num;
           const secs = Math.floor(n);
           const dur = Math.floor(this._duration || 0);
-          const title = this.anime._ru || this.anime.title_english || this.anime.title || "";
-          const poster = this.anime.images?.jpg?.large_image_url || this.anime.images?.jpg?.image_url || "";
-          // Некоторые iframe-источники не всегда стабильно довозят progress-event
-          // до серверной auto-логики. Как только пришёл первый реальный timeupdate,
-          // создаём локальную watch-entry, чтобы обычный history/progress flush
-          // начал работать и «Продолжить просмотр» не оставался пустым.
-          if (state.user && epNum && secs > 0 && !getWatch(this.malId)) {
-            ensureWatchEntry(this.malId, title, poster, epNum, this.anime?.episodes || this.episodes.length || 0);
-          }
-          // Авторизованный прогресс: saveProgress сам ничего не пишет гостям.
-          saveProgress(this.malId, epNum, secs, dur);
-          // Локальный per-episode кэш: текущая серия + implicit-complete
-          // предыдущих, если текущая только что досмотрена. Так сайдбар
-          // эпизодов перекрашивается сразу, без перезагрузки.
-          this._epProgress ??= new Map();
-          const prevEntry = this._epProgress.get(epNum);
-          const localDur = Math.max(dur, prevEntry?.duration || 0);
-          this._epProgress.set(epNum, { seconds: secs, duration: localDur });
-          const justFinished = dur > 0
-            && (secs >= dur * 0.92 || secs >= dur - 90)
-            && !(prevEntry && prevEntry.seconds >= (prevEntry.duration || 0) * 0.92);
-          if (justFinished && epNum > 1) {
-            for (let prev = 1; prev < epNum; prev++) {
-              const pe = this._epProgress.get(prev);
-              if (!pe || pe.seconds < (pe.duration || 0) * 0.92) {
-                this._epProgress.set(prev, { seconds: dur, duration: dur });
-              }
-            }
-            this.renderEpisodes();
-          }
-          // Сервер сам применяет auto-rules (watching через 10 мин, completed
-          // на последней серии). Отправляем не на каждое событие — не чаще
-          // раза в 30 секунд на титр.
-          const lastSent = this._lastProgressSent || 0;
-          if (state.user && epNum && secs > 0 && (Date.now() - lastSent > 30000)) {
-            this._lastProgressSent = Date.now();
-            account.store.sendProgressEvent({
-              mal_id: this.malId,
-              episode_num: epNum,
-              seconds: secs,
-              duration: dur,
-              episodes_total: this.anime?.episodes || this.episodes.length || 0,
-              title,
-              poster_url: poster,
-            });
-          }
+          this._recordProgressPoint(epNum, secs, dur);
         }
       }
       else if (k.includes("duration")) { if (n != null && n > 30) this._duration = n; }
-      else if (k.includes("ended") || k.includes("video_end") || k.includes("finish") || k === "end" || k === "complete") this._maybeAutoNext("ended");
-      if (vState === "end" || vState === "ended" || vState === "finished") this._maybeAutoNext("ended");
-      if (this._duration > 30 && this._lastTime >= this._duration - 3) this._maybeAutoNext("near-end");
+      else if (k === "end" || k === "ended" || k === "finish" || k === "finished" || k === "complete" || k.includes("video_end") || k.includes("playback_finished")) {
+        if (this._recordCurrentEpisodeComplete()) this._maybeAutoNext("ended");
+      }
+      if (vState === "end" || vState === "ended" || vState === "finished" || vState === "complete") {
+        if (this._recordCurrentEpisodeComplete()) this._maybeAutoNext("ended");
+      }
+      if (this._duration > 30 && this._lastTime >= this._duration - 3) {
+        this._recordCurrentEpisodeComplete();
+        this._maybeAutoNext("near-end");
+      }
     };
     window.addEventListener("message", this._onMessage);
   }
@@ -1899,42 +2002,20 @@ class Player {
           this._silentProgressAt = now;
           const estDur = Math.max(Math.floor(d || 0), jikanSec);
           const estSecs = Math.min(Math.floor(elapsedSec), estDur);
-          const title = this.anime._ru || this.anime.title_english || this.anime.title || "";
-          const poster = this.anime.images?.jpg?.large_image_url || this.anime.images?.jpg?.image_url || "";
-          if (!getWatch(this.malId)) {
-            ensureWatchEntry(this.malId, title, poster, epNum, this.anime?.episodes || this.episodes.length || 0);
-          }
-          saveProgress(this.malId, epNum, estSecs, estDur);
-          this._epProgress ??= new Map();
-          const prevEntry = this._epProgress.get(epNum);
-          if (!prevEntry || estSecs > Number(prevEntry.seconds || 0)) {
-            this._epProgress.set(epNum, { seconds: estSecs, duration: estDur });
-            this.renderEpisodes();
-          }
-          const lastSent = this._lastProgressSent || 0;
-          if (now - lastSent > 30000) {
-            this._lastProgressSent = now;
-            account.store.sendProgressEvent({
-              mal_id: this.malId,
-              episode_num: epNum,
-              seconds: estSecs,
-              duration: estDur,
-              episodes_total: this.anime?.episodes || this.episodes.length || 0,
-              title,
-              poster_url: poster,
-            });
-          }
+          this._recordProgressPoint(epNum, estSecs, estDur, { renderOnAnyChange: true });
         }
       }
       if (!state.autoNext) return;
       if (this.currentEp >= this.episodes.length - 1) return;
       if (d > 30 && t >= d - 3) {
+        this._recordCurrentEpisodeComplete();
         this._autoFired = true;
         clearInterval(this._fallbackInt);
         this.playEpisode(this.currentEp + 1);
         return;
       }
       if (!t && elapsedSec >= jikanSec + 10) {
+        this._recordCurrentEpisodeComplete();
         this._autoFired = true;
         clearInterval(this._fallbackInt);
         this.playEpisode(this.currentEp + 1);
@@ -2215,6 +2296,7 @@ class Player {
     this._duration = 0;
     this._playStartedAt = Date.now();
     this._silentProgressAt = 0;
+    this._lastCompleteSignalEp = null;
     this._armFallback();
     $$("#avEpisodesList .ep-row").forEach((b, idx) => b.classList.toggle("active", idx === i));
     // aviev_watch_history теперь создаётся ТОЛЬКО серверным progress-event'ом,
