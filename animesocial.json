@@ -1,0 +1,28 @@
+{
+  "_about": "AnimeViev — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/). All rights reserved. See /COPYRIGHT. Single source of truth for AnimeSocial links. Everything referencing the partner social network pulls values from here. Override site_url via .env (AV_ANIMESOCIAL_SITE_URL) when you need a different environment without editing JSON.",
+
+  "site_name": "AnimeSocial",
+  "site_url": "https://animesocial.online",
+
+  "paths": {
+    "home":     "/",
+    "login":    "/login",
+    "register": "/register",
+    "recover":  "/recover",
+    "profile":  "/profile{user_id}",
+    "messages": "/im",
+    "cabinet":  "/settings"
+  },
+
+  "uploads": {
+    "avatar_small":  "/uploads/accounts/{user_id}/photo/50_{photo}",
+    "avatar_medium": "/uploads/accounts/{user_id}/photo/100_{photo}",
+    "avatar_full":   "/uploads/accounts/{user_id}/photo/{photo}",
+    "cover":         "/uploads/accounts/{user_id}/cover/{cover}",
+    "fon":           "/uploads/accounts/{user_id}/fon/{fon}"
+  },
+
+  "fallbacks": {
+    "avatar": "/img/noava.png"
+  }
+}

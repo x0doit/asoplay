@@ -1,0 +1,27 @@
+# Секреты: SS-пароль, server address. НЕ коммитить.
+# Шаблон (.env.example) лежит в репо — с него копируется .env при установке.
+.env
+.env.local
+
+# Legacy файл с полным xray-конфигом (если кто-то вернётся к нему).
+vpn.txt
+vpn.json
+
+# Runtime / cache — бэкенд пересоздаёт сам
+.cache/
+.xray-runtime.json
+.xray.log
+
+# Python
+server/__pycache__/
+*.pyc
+
+# Старые/внешние агентские workspace-артефакты
+.claude/
+claude-playbook-*/
+.playwright-mcp/
+.run.log
+
+# System
+Thumbs.db
+.DS_Store

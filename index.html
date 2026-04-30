@@ -1,0 +1,106 @@
+<!doctype html>
+<!--
+  AnimeViev — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
+  All rights reserved. See /COPYRIGHT for full terms.
+-->
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="theme-color" content="#1e1e1e" />
+<title>AnimeViev — смотреть аниме онлайн в русской озвучке</title>
+<meta name="description" content="Смотреть аниме онлайн бесплатно в высоком качестве. Русская озвучка, субтитры, большой каталог сериалов, фильмов, OVA, ONA." />
+<meta name="author" content="Чепела Даниэль Максимович (x0doit) — https://crazydev.pro/" />
+<meta name="robots" content="index, follow, max-image-preview:large" />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='11' fill='%23ff6666'/%3E%3Ctext x='12' y='16' text-anchor='middle' fill='white' font-family='Arial' font-weight='700' font-size='12'%3EA%3C/text%3E%3C/svg%3E" />
+
+<link rel="preconnect" href="https://api.jikan.moe" />
+<link rel="preconnect" href="https://graphql.anilist.co" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+<link rel="stylesheet" href="/styles.css?v=20260421-7" />
+
+<!--av:head-extra-->
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "AnimeViev",
+  "url": "https://animeviev.example.com/",
+  "inLanguage": "ru",
+  "author": {
+    "@type": "Person",
+    "name": "Чепела Даниэль Максимович",
+    "alternateName": "x0doit",
+    "url": "https://crazydev.pro/"
+  },
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": "https://animeviev.example.com/catalog?q={q}",
+    "query-input": "required name=q"
+  }
+}
+</script>
+</head>
+<body>
+
+<header class="header">
+  <div class="container">
+    <a class="logo" href="/" aria-label="AnimeViev — на главную">
+      <img src="/assets/logo.png?v=20260424-2" alt="AnimeViev" class="logo-img" height="46" decoding="async" />
+    </a>
+
+    <div class="mobile-menu-button" id="mobileMenuBtn">Меню</div>
+
+    <ul class="menu" id="topMenu">
+      <li><a href="/" data-view="home">Главная</a></li>
+      <li><a href="/top" data-view="top">ТОП-100</a></li>
+      <li><a href="/season" data-view="season">Сезон <span>сейчас</span></a></li>
+      <li><a href="/trending" data-view="trending">Тренды</a></li>
+      <li><a href="/movies" data-view="movies">Полнометражные</a></li>
+      <li class="menu-sep"><a href="/search" data-view="search" class="menu-icon" title="Поиск">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M10 2a8 8 0 1 0 4.9 14.3l5.4 5.4 1.4-1.4-5.4-5.4A8 8 0 0 0 10 2m0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12"/></svg>
+        <span>Поиск</span>
+      </a></li>
+      <li><a href="/random" data-view="random" class="menu-icon" title="Случайное аниме">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-11 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3m0 7a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3m4-3.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3M16 7a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3m0 7a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3"/></svg>
+        <span>Рандом</span>
+      </a></li>
+      <li class="menu-account" id="avAccountSlot">
+        <a href="/login" data-view="login" class="menu-icon menu-login" title="Войти">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M10 17l1.4-1.4L8.8 13H21v-2H8.8l2.6-2.6L10 7l-5 5 5 5zM4 5h8V3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8v-2H4V5z"/></svg>
+          <span>Авторизация</span>
+        </a>
+      </li>
+    </ul>
+  </div>
+</header>
+
+<div class="container" id="outlet">
+  <!--av:noscript-->
+</div>
+
+<footer>
+  <div class="container">
+    <p>Весь контент предоставлен сторонними источниками по API и отображается в ознакомительных целях.</p>
+    <p>Видео и медиаданные не хранятся на наших серверах, не размещаются и не модерируются администрацией сайта.</p>
+    <div class="foot-note">
+      Разработано <a href="https://crazydev.pro/" target="_blank" rel="noopener">x0doit</a>
+      &middot; &copy; Чепела Даниэль Максимович
+    </div>
+  </div>
+</footer>
+
+<div class="to-top" id="toTop" title="Наверх">
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 4 4 12l1.4 1.4L11 7.8V20h2V7.8l5.6 5.6L20 12z"/></svg>
+</div>
+<div class="dark-overlay" id="darkOverlay"></div>
+
+<!--av:preload-->
+
+<script src="/app.js?v=20260421-7" type="module"></script>
+</body>
+</html>
