@@ -47,6 +47,20 @@ DEDUP_BY_TITLE_PER_DAY = {
     "favorite", "unfavorite", "complete", "rate",
 }
 
+WATCH_EVENT_HAS_PROGRESS_SQL = """(
+    a.kind NOT IN ('watch_start', 'watch_continue')
+    OR (
+        a.meta REGEXP '^ep=[0-9]+$'
+        AND EXISTS (
+            SELECT 1
+            FROM aviev_episode_progress p
+            WHERE p.user_id = a.user_id
+              AND p.mal_id = a.mal_id
+              AND p.episode_num = CAST(SUBSTRING(a.meta, 4) AS UNSIGNED)
+        )
+    )
+)"""
+
 
 def record_event(conn, user_id: int, *, kind: str, mal_id: int | None = None,
                  meta: str | None = None) -> None:
@@ -108,7 +122,7 @@ def _fetch_recent(conn, user_id: int, *, offset: int = 0, limit: int = 10,
 
     cur = conn.cursor()
     kinds = _resolve_kinds(group)
-    where = ["user_id=%s"]
+    where = ["a.user_id=%s", WATCH_EVENT_HAS_PROGRESS_SQL]
     params: list[Any] = [user_id]
     if kinds:
         placeholders = ",".join(["%s"] * len(kinds))
@@ -118,9 +132,9 @@ def _fetch_recent(conn, user_id: int, *, offset: int = 0, limit: int = 10,
         where.append("day=%s")
         params.append(day)
     sql = (
-        f"""SELECT kind, mal_id, meta, at FROM aviev_activity
+        f"""SELECT a.kind, a.mal_id, a.meta, a.at FROM aviev_activity a
             WHERE {' AND '.join(where)}
-            ORDER BY at DESC LIMIT %s OFFSET %s"""
+            ORDER BY a.at DESC LIMIT %s OFFSET %s"""
     )
     cur.execute(sql, (*params, limit, offset))
     rows = cur.fetchall()
@@ -195,16 +209,18 @@ def _graph_for_user(user_id: int, days: int = DEFAULT_DAYS) -> dict[str, Any]:
     with connect() as conn:
         cur = conn.cursor()
         cur.execute(
-            """SELECT day, COUNT(*) AS n FROM aviev_activity
-                WHERE user_id=%s AND day >= %s
-                GROUP BY day""",
+            f"""SELECT a.day, COUNT(*) AS n FROM aviev_activity a
+                WHERE a.user_id=%s AND a.day >= %s
+                  AND {WATCH_EVENT_HAS_PROGRESS_SQL}
+                GROUP BY a.day""",
             (user_id, start),
         )
         by_day = {d.isoformat(): int(n) for d, n in cur.fetchall()}
         cur.execute(
-            """SELECT kind, COUNT(*) FROM aviev_activity
-                WHERE user_id=%s AND day >= %s
-                GROUP BY kind""",
+            f"""SELECT a.kind, COUNT(*) FROM aviev_activity a
+                WHERE a.user_id=%s AND a.day >= %s
+                  AND {WATCH_EVENT_HAS_PROGRESS_SQL}
+                GROUP BY a.kind""",
             (user_id, start),
         )
         by_kind = {k: int(n) for k, n in cur.fetchall()}

@@ -167,6 +167,216 @@ def _sync_watch_history_from_progress(
     )
 
 
+def _progress_done(seconds: int, duration: int) -> bool:
+    return duration > 0 and (seconds >= duration * 0.92 or seconds >= max(0, duration - 90))
+
+
+def _progress_rows_for_title(conn, user_id: int, mal_id: int) -> list[dict[str, Any]]:
+    cur = conn.cursor()
+    cur.execute(
+        """SELECT episode_num, seconds, duration, updated_at
+            FROM aviev_episode_progress
+            WHERE user_id=%s AND mal_id=%s
+            ORDER BY episode_num""",
+        (user_id, mal_id),
+    )
+    return [
+        {
+            "episode_num": int(r[0]),
+            "seconds": int(r[1] or 0),
+            "duration": int(r[2] or 0),
+            "updated_at": r[3].isoformat() if r[3] else None,
+        }
+        for r in cur.fetchall()
+    ]
+
+
+def _history_row_for_title(conn, user_id: int, mal_id: int) -> dict[str, Any] | None:
+    cur = conn.cursor()
+    cur.execute(
+        """SELECT mal_id, last_episode, episode_seconds, episode_duration,
+                  episodes_total, title, poster_url, updated_at
+            FROM aviev_watch_history
+            WHERE user_id=%s AND mal_id=%s
+            LIMIT 1""",
+        (user_id, mal_id),
+    )
+    r = cur.fetchone()
+    if not r:
+        return None
+    return {
+        "mal_id": int(r[0]),
+        "last_episode": int(r[1] or 1),
+        "episode_seconds": int(r[2] or 0),
+        "episode_duration": int(r[3] or 0),
+        "episodes_total": int(r[4] or 0),
+        "title": r[5] or "",
+        "poster_url": r[6] or "",
+        "updated_at": r[7].isoformat() if r[7] else None,
+    }
+
+
+def _list_entry_for_title(conn, user_id: int, mal_id: int) -> dict[str, Any] | None:
+    cur = conn.cursor()
+    cur.execute(
+        """SELECT mal_id, status, status_source, is_favorite,
+                  title, poster_url, added_at, updated_at
+            FROM aviev_user_lists
+            WHERE user_id=%s AND mal_id=%s
+            LIMIT 1""",
+        (user_id, mal_id),
+    )
+    r = cur.fetchone()
+    if not r:
+        return None
+    return {
+        "mal_id": int(r[0]),
+        "status": r[1],
+        "status_source": r[2],
+        "is_favorite": bool(r[3]),
+        "title": r[4] or "",
+        "poster_url": r[5] or "",
+        "added_at": r[6].isoformat() if r[6] else None,
+        "updated_at": r[7].isoformat() if r[7] else None,
+    }
+
+
+def _resync_watch_history_from_latest_progress(conn, user_id: int, mal_id: int) -> dict[str, Any] | None:
+    cur = conn.cursor()
+    old_history = _history_row_for_title(conn, user_id, mal_id) or {}
+    list_entry = _list_entry_for_title(conn, user_id, mal_id) or {}
+    episodes_total = int(old_history.get("episodes_total") or 0)
+    title = old_history.get("title") or list_entry.get("title") or ""
+    poster_url = old_history.get("poster_url") or list_entry.get("poster_url") or ""
+
+    cur.execute(
+        """SELECT episode_num, seconds, duration, updated_at
+            FROM aviev_episode_progress
+            WHERE user_id=%s AND mal_id=%s
+            ORDER BY updated_at DESC, episode_num DESC
+            LIMIT 1""",
+        (user_id, mal_id),
+    )
+    latest = cur.fetchone()
+    cur.execute(
+        """SELECT 1
+            FROM aviev_episode_progress
+            WHERE user_id=%s AND mal_id=%s AND seconds >= 300
+            LIMIT 1""",
+        (user_id, mal_id),
+    )
+    qualified = bool(cur.fetchone())
+    if not latest or not qualified:
+        cur.execute(
+            "DELETE FROM aviev_watch_history WHERE user_id=%s AND mal_id=%s",
+            (user_id, mal_id),
+        )
+        return None
+
+    episode_num = int(latest[0] or 1)
+    episode_seconds = int(latest[1] or 0)
+    episode_duration = int(latest[2] or 0)
+    stamp = latest[3] or _now()
+    cur.execute(
+        """INSERT INTO aviev_watch_history
+            (user_id, mal_id, last_episode, episode_seconds, episode_duration,
+             episodes_total, title, poster_url, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                last_episode=VALUES(last_episode),
+                episode_seconds=VALUES(episode_seconds),
+                episode_duration=VALUES(episode_duration),
+                episodes_total=VALUES(episodes_total),
+                title=IF(VALUES(title)<>'', VALUES(title), title),
+                poster_url=IF(VALUES(poster_url)<>'', VALUES(poster_url), poster_url),
+                updated_at=VALUES(updated_at)""",
+        (
+            user_id,
+            mal_id,
+            episode_num,
+            episode_seconds,
+            episode_duration,
+            episodes_total,
+            title,
+            poster_url,
+            stamp,
+        ),
+    )
+    return _history_row_for_title(conn, user_id, mal_id)
+
+
+def _adjust_auto_list_status_after_unwatch(
+    conn,
+    user_id: int,
+    mal_id: int,
+    *,
+    removed_episode: int,
+    episodes_total: int,
+) -> dict[str, Any] | None:
+    entry = _list_entry_for_title(conn, user_id, mal_id)
+    if not entry or entry.get("status_source") != "auto":
+        return entry
+
+    cur = conn.cursor()
+    cur.execute(
+        """SELECT episode_num, seconds, duration
+            FROM aviev_episode_progress
+            WHERE user_id=%s AND mal_id=%s
+            ORDER BY episode_num DESC""",
+        (user_id, mal_id),
+    )
+    rows = [(int(r[0] or 0), int(r[1] or 0), int(r[2] or 0)) for r in cur.fetchall()]
+    has_watching_progress = any(seconds >= 600 for _, seconds, _ in rows)
+    still_completed = bool(
+        episodes_total > 0
+        and any(ep >= episodes_total and _progress_done(seconds, duration) for ep, seconds, duration in rows)
+    )
+
+    if still_completed:
+        target_status = "completed"
+    elif has_watching_progress:
+        target_status = "watching"
+    else:
+        target_status = None
+
+    now = _now()
+    if target_status:
+        cur.execute(
+            """UPDATE aviev_user_lists
+                SET status=%s, status_source='auto', updated_at=%s
+                WHERE user_id=%s AND mal_id=%s""",
+            (target_status, now, user_id, mal_id),
+        )
+    else:
+        cur.execute(
+            """UPDATE aviev_user_lists
+                SET status=NULL, status_source='auto', updated_at=%s
+                WHERE user_id=%s AND mal_id=%s""",
+            (now, user_id, mal_id),
+        )
+        cur.execute(
+            """DELETE FROM aviev_user_lists
+                WHERE user_id=%s AND mal_id=%s
+                  AND is_favorite=0 AND status IS NULL""",
+            (user_id, mal_id),
+        )
+
+    if removed_episode >= episodes_total > 0 and not still_completed:
+        cur.execute(
+            """DELETE FROM aviev_activity
+                WHERE user_id=%s AND mal_id=%s AND kind='complete'""",
+            (user_id, mal_id),
+        )
+    if not has_watching_progress:
+        cur.execute(
+            """DELETE FROM aviev_activity
+                WHERE user_id=%s AND mal_id=%s
+                  AND kind='list_add' AND meta='watching:auto'""",
+            (user_id, mal_id),
+        )
+    return _list_entry_for_title(conn, user_id, mal_id)
+
+
 # ---------- favorites ----------
 class FavoriteIn(BaseModel):
     mal_id: conint(ge=1, le=10_000_000)
@@ -457,6 +667,58 @@ def progress_upsert(
         )
         conn.commit()
     return {"ok": True}
+
+
+@router.delete("/progress/{mal_id}/{episode_num}")
+def progress_unwatch_episode(
+    mal_id: int,
+    episode_num: int,
+    user: dict[str, Any] = Depends(current_user_required),
+) -> dict[str, Any]:
+    if episode_num < 1 or episode_num > 10_000:
+        raise HTTPException(400, "episode_num out of range")
+
+    with connect() as conn:
+        cur = conn.cursor()
+        old_history = _history_row_for_title(conn, user["id"], mal_id) or {}
+        episodes_total = int(old_history.get("episodes_total") or 0)
+
+        cur.execute(
+            """DELETE FROM aviev_episode_progress
+                WHERE user_id=%s AND mal_id=%s AND episode_num=%s""",
+            (user["id"], mal_id, episode_num),
+        )
+        removed_progress = int(cur.rowcount or 0)
+
+        cur.execute(
+            """DELETE FROM aviev_activity
+                WHERE user_id=%s AND mal_id=%s
+                  AND kind IN ('watch_start', 'watch_continue')
+                  AND meta=%s""",
+            (user["id"], mal_id, f"ep={episode_num}"),
+        )
+        removed_activity = int(cur.rowcount or 0)
+
+        watch = _resync_watch_history_from_latest_progress(conn, user["id"], mal_id)
+        entry = _adjust_auto_list_status_after_unwatch(
+            conn,
+            user["id"],
+            mal_id,
+            removed_episode=episode_num,
+            episodes_total=episodes_total,
+        )
+        progress = _progress_rows_for_title(conn, user["id"], mal_id)
+        conn.commit()
+
+    return {
+        "ok": True,
+        "removed_episode": episode_num,
+        "removed_progress": removed_progress,
+        "removed_activity": removed_activity,
+        "progress": progress,
+        "watch": watch,
+        "entry": entry,
+    }
 
 
 # ---------- ratings ----------

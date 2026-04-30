@@ -144,6 +144,12 @@ export async function login(identity, password) {
   return r.user;
 }
 
+function _loginErrorMessage(exc) {
+  if (exc?.status === 401 || exc?.status === 422) return "Неправильный логин или пароль.";
+  if (exc?.status === 403) return "Аккаунт заблокирован.";
+  return "Не удалось войти. Проверьте соединение и попробуйте снова.";
+}
+
 // ==== one-time localStorage migration ====
 // Triggered after a successful login (and opportunistically when /my/favorites
 // opens). Reads old av_favs / av_watch / av_ratings / av_dubs from this
@@ -592,6 +598,61 @@ export const store = {
     delete ctx.state.watch[String(malId)];
     try { await _fetchJson(`/account/history/${malId}`, { method: "DELETE" }); } catch (_) {}
   },
+  async markEpisodeUnwatched(malId, ep) {
+    if (!ctx.state.user) return null;
+    const key = String(malId);
+    const queued = _progressQueues.get(key);
+    if (queued) {
+      clearTimeout(queued.timer);
+      _progressQueues.delete(key);
+    }
+
+    const r = await _fetchJson(`/account/progress/${malId}/${ep}`, { method: "DELETE" });
+    if (r?.watch) {
+      ctx.state.watch[key] = {
+        at: Date.parse(r.watch.updated_at || "") || Date.now(),
+        title: r.watch.title || "",
+        cover: r.watch.poster_url || "",
+        ep: r.watch.last_episode || 1,
+        time: r.watch.episode_seconds || 0,
+        duration: r.watch.episode_duration || 0,
+        total: r.watch.episodes_total || 0,
+      };
+    } else {
+      delete ctx.state.watch[key];
+    }
+
+    ctx.state.lists = ctx.state.lists || {};
+    ctx.state.favorites = ctx.state.favorites || {};
+    if (r?.entry) {
+      const prev = ctx.state.lists[key] || {};
+      ctx.state.lists[key] = {
+        status: r.entry.status,
+        status_source: r.entry.status_source,
+        is_favorite: !!r.entry.is_favorite,
+        title: r.entry.title || prev.title || "",
+        cover: r.entry.poster_url || prev.cover || "",
+        at: Date.parse(r.entry.updated_at || r.entry.added_at || "") || Date.now(),
+      };
+      if (r.entry.is_favorite) {
+        ctx.state.favorites[key] = {
+          at: ctx.state.lists[key].at,
+          title: ctx.state.lists[key].title,
+          cover: ctx.state.lists[key].cover,
+        };
+      } else {
+        delete ctx.state.favorites[key];
+      }
+    } else {
+      delete ctx.state.lists[key];
+      delete ctx.state.favorites[key];
+    }
+
+    window.dispatchEvent(new CustomEvent("av:list-updated", {
+      detail: { mal_id: Number(malId), action: "episode-unwatched", entry: r?.entry || null },
+    }));
+    return r;
+  },
   async clearAllHistory() {
     if (!ctx.state.user) return { ok: false };
     try {
@@ -787,11 +848,7 @@ export async function viewLogin(params) {
       ctx.nav(next && next.startsWith("/") ? next : "/");
     } catch (exc) {
       err.hidden = false;
-      err.textContent = exc.status === 401
-        ? "Неверный логин или пароль."
-        : exc.status === 403
-          ? "Аккаунт заблокирован."
-          : `Не удалось войти: ${exc.message}`;
+      err.textContent = _loginErrorMessage(exc);
     }
   });
 }

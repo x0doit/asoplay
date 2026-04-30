@@ -561,8 +561,8 @@ router = APIRouter(prefix="/auth")
 
 
 class LoginIn(BaseModel):
-    login: str = Field(..., min_length=1, max_length=200)
-    password: str = Field(..., min_length=1, max_length=500)
+    login: str = Field(..., max_length=200)
+    password: str = Field(..., max_length=500)
 
 
 def _set_cookie(resp: Response, token: str) -> None:
@@ -583,7 +583,10 @@ def _clear_cookie(resp: Response) -> None:
 
 @router.post("/login")
 def auth_login(payload: LoginIn, request: Request, response: Response) -> dict[str, Any]:
-    row = _lookup_user(payload.login.strip())
+    identity = payload.login.strip()
+    if not identity or not payload.password:
+        raise HTTPException(401, "invalid credentials")
+    row = _lookup_user(identity)
     if not row:
         raise HTTPException(401, "invalid credentials")
     schema = _introspect_schema()

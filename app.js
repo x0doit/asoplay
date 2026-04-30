@@ -9,7 +9,7 @@
  * any attempt to do so surfaces a guest-gate.
  */
 
-import * as account from "./js/account.js?v=20260430-1";
+import * as account from "./js/account.js?v=20260430-5";
 
 // ---------- backend URL ----------
 // When the page is served by FastAPI (same-origin, port 8787), fetches use
@@ -1684,21 +1684,21 @@ class Player {
     }
     await this.discoverWithFallback();
     if (this.destroyed) return;
-    if (this._renderFoundSource()) return;
+    if (this._adoptAnyReadySource() || this._renderFoundSource()) return;
 
     for (let i = 0; i < 25; i++) {
       await new Promise(r => setTimeout(r, 200));
       if (this.destroyed) return;
-      if (this._renderFoundSource()) return;
+      if (this._adoptAnyReadySource() || this._renderFoundSource()) return;
     }
     while (this._red) {
       await new Promise(r => setTimeout(r, 200));
       if (this.destroyed) return;
-      if (this._renderFoundSource()) return;
+      if (this._adoptAnyReadySource() || this._renderFoundSource()) return;
     }
     await this.discoverWithFallback();
     if (this.destroyed) return;
-    if (this._renderFoundSource()) return;
+    if (this._adoptAnyReadySource() || this._renderFoundSource()) return;
     if (this._matchedNoEps) { this.renderComingSoon("unknown"); return; }
     this.renderUnavailable();
   }
@@ -1839,6 +1839,29 @@ class Player {
     return duration > 0 ? Math.min(100, (seconds / duration) * 100) : 0;
   }
 
+  _lastProgressEpisodeNum() {
+    let latestTouched = 0;
+    for (const e of this.episodes || []) {
+      const epNum = Number(e.num);
+      const prog = this._epProgress?.get(epNum) || getProgress(this.malId, epNum);
+      const seconds = Number(prog?.seconds ?? prog?.time ?? 0);
+      if (seconds > 0) latestTouched = Math.max(latestTouched, epNum);
+    }
+    return latestTouched;
+  }
+
+  _setEpisodeProgressRows(rows = []) {
+    this._epProgress = new Map();
+    for (const row of rows || []) {
+      const epNum = Number(row.episode_num);
+      if (!epNum) continue;
+      this._epProgress.set(epNum, {
+        seconds: Number(row.seconds || 0),
+        duration: Number(row.duration || 0),
+      });
+    }
+  }
+
   _updateEpisodeRowProgress(epNum) {
     const list = $("#avEpisodesList");
     if (!list) return false;
@@ -1868,6 +1891,7 @@ class Player {
     epNum = Number(epNum || 0);
     if (!epNum) return false;
     this._epProgress ??= new Map();
+    const prevLastProgressEp = this._lastProgressEpisodeNum();
     const prevEntry = this._epProgress.get(epNum);
     const wasDone = this._progressDone(prevEntry);
     const nextEntry = {
@@ -1898,6 +1922,14 @@ class Player {
           needsRender = true;
         }
       }
+    }
+
+    const nextLastProgressEp = this._lastProgressEpisodeNum();
+    if (state.user && nextLastProgressEp !== prevLastProgressEp) needsRender = true;
+    if (needsRender) {
+      this.closeEpisodeUnwatchConfirm();
+      this.renderEpisodes();
+      return true;
     }
 
     let updatedAllRows = true;
@@ -2277,26 +2309,44 @@ class Player {
     const available = new Set(state.backendSources || []);
     const pool = priority.filter(s => available.has(s));
     if (!pool.length) return;
-    const withTimeout = (p, ms) => Promise.race([
-      p, new Promise(r => setTimeout(() => r(null), ms)),
-    ]);
-    const primary = pool[0];
-    await withTimeout(this.discoverBackend(primary).catch(() => null), 5000);
-    if (this.destroyed) return;
-    if (this.sources[`backend:${primary}`]?.episodes?.length) {
-      this._activeSource = primary;
-      return;
+
+    const seq = (this._discoverySeq || 0) + 1;
+    this._discoverySeq = seq;
+    const adoptFoundSource = () => {
+      if (this.destroyed || this._discoverySeq !== seq) return true;
+      if (this._activeSource && this.sources[`backend:${this._activeSource}`]?.episodes?.length) return true;
+      for (const s of pool) {
+        if (this.sources[`backend:${s}`]?.episodes?.length) {
+          this._activeSource = s;
+          this._renderFoundSource();
+          return true;
+        }
+      }
+      return false;
+    };
+
+    const jobs = pool.map(src => this.discoverBackend(src)
+      .catch(() => null)
+      .then(() => adoptFoundSource()));
+
+    const deadline = Date.now() + 12_000;
+    while (Date.now() < deadline) {
+      if (adoptFoundSource()) return;
+      await new Promise(r => setTimeout(r, 250));
     }
-    const rest = pool.slice(1);
-    if (!rest.length) return;
-    await Promise.all(rest.map(s => withTimeout(this.discoverBackend(s).catch(() => null), 6000)));
-    if (this.destroyed) return;
-    for (const s of rest) {
+    adoptFoundSource();
+  }
+
+  _adoptAnyReadySource() {
+    const priority = ["yummy_anime", "oldyummy", "animego", "yummy_anime_org",
+                      "dreamcast", "anilibria", "anilibme", "sameband"];
+    for (const s of priority) {
       if (this.sources[`backend:${s}`]?.episodes?.length) {
         this._activeSource = s;
-        return;
+        return this._renderFoundSource();
       }
     }
+    return false;
   }
 
   renderEpisodes() {
@@ -2311,6 +2361,7 @@ class Player {
       });
     };
     list.innerHTML = "";
+    const lastProgressEp = this._lastProgressEpisodeNum();
     this.episodes.forEach((e, i) => {
       // Предпочитаем серверный per-episode прогресс (включая implicit-complete
       // для серий, которые «перепрыгнули» при досмотре следующей). Fallback на
@@ -2319,20 +2370,109 @@ class Player {
       const prog = serverProg || getProgress(this.malId, e.num);
       const pct = prog?.duration ? Math.min(100, ((prog.time ?? prog.seconds ?? 0) / prog.duration) * 100) : 0;
       const watched = pct > 90;
-      const b = document.createElement("button");
+      const hasProgress = Number(prog?.seconds ?? prog?.time ?? 0) > 0;
+      const canUnwatch = state.user && hasProgress && Number(e.num) === lastProgressEp;
+      const b = document.createElement("div");
       b.className = "ep-row" + (i === this.currentEp ? " active" : "") + (watched ? " watched" : "");
+      b.setAttribute("role", "button");
+      b.tabIndex = 0;
       b.dataset.num = String(e.num);
       b.dataset.name = e.name;
       b.innerHTML = `
         <span class="ep-num">${e.num}</span>
         <span class="ep-name">${esc(e.name)}</span>
+        ${canUnwatch ? `
+          <button type="button" class="ep-unwatch" aria-label="Отметить серию ${e.num} как непросмотренную">
+            <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+            <span class="ep-unwatch-tip">отметить как непросмотренное</span>
+          </button>
+          <div class="ep-unwatch-confirm" hidden>
+            <div class="ep-unwatch-confirm-text">Вы уверены, что хотите отметить, что не смотрели эту серию? Это действие необратимо, так же будет удалена любая активность связанная с просмотром этой серии.</div>
+            <div class="ep-unwatch-confirm-actions">
+              <button type="button" class="ep-unwatch-yes">Да</button>
+              <button type="button" class="ep-unwatch-no">Отмена</button>
+            </div>
+          </div>` : ""}
         ${pct > 0 && pct < 95 ? `<div class="ep-progress"><span style="width:${pct}%"></span></div>` : ""}`;
       b.addEventListener("click", () => this.playEpisode(i));
+      b.addEventListener("keydown", ev => {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          this.playEpisode(i);
+        }
+      });
+      const unwatch = $(".ep-unwatch", b);
+      if (unwatch) {
+        unwatch.addEventListener("click", ev => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (ev.shiftKey) this.markEpisodeUnwatched(e.num);
+          else this.openEpisodeUnwatchConfirm(e.num, b);
+        });
+      }
+      const confirm = $(".ep-unwatch-confirm", b);
+      if (confirm) {
+        confirm.addEventListener("click", ev => {
+          ev.preventDefault();
+          ev.stopPropagation();
+        });
+        $(".ep-unwatch-yes", confirm)?.addEventListener("click", ev => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          this.markEpisodeUnwatched(e.num);
+        });
+        $(".ep-unwatch-no", confirm)?.addEventListener("click", ev => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          this.closeEpisodeUnwatchConfirm();
+        });
+      }
       list.appendChild(b);
     });
   }
+  openEpisodeUnwatchConfirm(epNum, row) {
+    this.closeEpisodeUnwatchConfirm();
+    const pop = $(".ep-unwatch-confirm", row);
+    if (!pop) return;
+    row.classList.add("confirm-open");
+    pop.hidden = false;
+    this._unwatchConfirmEp = Number(epNum);
+  }
+  closeEpisodeUnwatchConfirm() {
+    $$("#avEpisodesList .ep-row.confirm-open").forEach(row => {
+      row.classList.remove("confirm-open");
+      const pop = $(".ep-unwatch-confirm", row);
+      if (pop) pop.hidden = true;
+    });
+    this._unwatchConfirmEp = null;
+  }
+  async markEpisodeUnwatched(epNum) {
+    if (!state.user || this._unwatchingEp) return;
+    const n = Number(epNum);
+    const row = $(`#avEpisodesList .ep-row[data-num="${CSS.escape(String(n))}"]`);
+    const btn = row ? $(".ep-unwatch", row) : null;
+    this._unwatchingEp = n;
+    if (btn) btn.disabled = true;
+    try {
+      this.closeEpisodeUnwatchConfirm();
+      const r = await account.store.markEpisodeUnwatched(this.malId, n);
+      if (Array.isArray(r?.progress)) this._setEpisodeProgressRows(r.progress);
+      else await this._fetchEpisodeProgress();
+      this.renderEpisodes();
+      $$("#avEpisodesList .ep-row").forEach((b, idx) => b.classList.toggle("active", idx === this.currentEp));
+    } catch (err) {
+      console.warn("markEpisodeUnwatched failed", err);
+      this.status("Не удалось снять отметку просмотра");
+    } finally {
+      this._unwatchingEp = null;
+      if (btn) btn.disabled = false;
+    }
+  }
   async playEpisode(i) {
     if (this.destroyed) return;
+    this.closeEpisodeUnwatchConfirm();
     const reqId = ++this._reqId;
     this.currentEp = i;
     this._autoFired = false;
