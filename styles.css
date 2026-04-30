@@ -212,12 +212,12 @@ ul, ol { list-style: none; }
 }
 .logo:hover::after,
 .logo:focus-visible::after {
-  opacity: 1;
-  transform: scaleX(1);
+  opacity: 0;
+  transform: scaleX(.82);
 }
 .logo:active::after {
-  opacity: .82;
-  transform: scaleX(.94);
+  opacity: 0;
+  transform: scaleX(.82);
 }
 
 .mobile-menu-button {
@@ -769,9 +769,15 @@ ul, ol { list-style: none; }
 .detail-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-areas:
+    "watch episodes"
+    "content episodes";
   gap: var(--space-6);
+  align-items: start;
 }
+.watch-main { grid-area: watch; min-width: 0; }
 .detail-main { min-width: 0; }
+.detail-grid > .detail-main { grid-area: content; }
 
 /* Seasons inline bar */
 .seasons-bar {
@@ -1586,6 +1592,7 @@ ul, ol { list-style: none; }
   background: var(--bg-3);
   border-radius: var(--r-sm);
   padding: var(--space-4);
+  grid-area: episodes;
   align-self: start;
   box-shadow: var(--s1);
 }
@@ -1955,9 +1962,16 @@ footer a:hover { color: var(--red); }
    Responsive
    ======================================================================== */
 @media (max-width: 1100px) {
-  .detail-grid { grid-template-columns: 1fr; }
+  .detail-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "watch"
+      "episodes"
+      "content";
+    gap: 18px;
+  }
   .ep-sidebar { max-width: none; }
-  .episodes-list { max-height: 400px; }
+  .episodes-list { max-height: min(420px, 48vh); }
 }
 @media (max-width: 860px) {
   .header .container { padding-left: var(--space-4); }
@@ -2011,6 +2025,39 @@ footer a:hover { color: var(--red); }
   .content-main-info li > span:first-child { min-width: 140px; }
 }
 @media (max-width: 520px) {
+  body > #outlet.container { padding: 0 10px; }
+  .header { margin-bottom: 14px; }
+  .header .container { padding: 8px 12px; }
+  .logo-crop { height: 38px; max-width: 46vw; }
+  .logo-img { height: 48px; }
+  .cinema-content { padding: 14px; }
+  .cinema-poster { width: 112px; }
+  .cinema-title { font-size: 24px; line-height: 1.12; }
+  .cinema-sub { font-size: 12.5px; }
+  .cinema-stats { gap: 8px; font-size: 11.5px; }
+  .cinema-actions { width: 100%; gap: 8px; }
+  .cinema-actions .btn { flex: 1 1 calc(50% - 8px); justify-content: center; min-width: 132px; }
+  .av-support { border-radius: var(--r-md); }
+  .watch-main,
+  .detail-main,
+  .ep-sidebar,
+  .sp-player,
+  .tabs-block { min-width: 0; }
+  .sp-player { border-radius: var(--r-md); margin-bottom: 0; }
+  .sp-head { padding: 11px 12px; gap: 8px; }
+  .sp-ep-num { width: 30px; height: 30px; border-radius: 8px; font-size: 13px; }
+  .sp-dub-trigger { max-width: 100%; width: 100%; justify-content: center; }
+  .sp-foot { padding: 10px 12px; gap: 10px; }
+  .sp-prev-next { width: 100%; }
+  .sp-nav { flex: 1; justify-content: center; min-height: 38px; }
+  .sp-auto { width: 100%; justify-content: center; }
+  .ep-sidebar { padding: 12px; border-radius: var(--r-md); }
+  .ep-side-head { margin-bottom: 10px; padding-bottom: 10px; }
+  .episodes-list { max-height: min(360px, 52vh); gap: 5px; padding-right: 0; }
+  .ep-row { min-height: 42px; padding: 10px 12px; }
+  .info-body { padding: 16px 14px; }
+  .content-main-info li { display: block; }
+  .content-main-info li > span:first-child { display: block; min-width: 0; margin-bottom: 3px; }
   .av-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
   .av-card-title { font-size: 12px; }
   .seasons-bar .season-tab { min-width: 130px; padding: 8px 12px; }

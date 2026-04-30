@@ -1258,7 +1258,7 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
     </aside>
 
     <div class="detail-grid">
-      <div class="detail-main">
+      <div class="watch-main">
         <div class="seasons-bar" id="avSeasonsBar" hidden></div>
 
         <div class="sp-player" id="avPlayerCard">
@@ -1301,7 +1301,17 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
             <div class="sp-dub-pop-inner" id="avDubTabs"></div>
           </div>
         </div>
+      </div>
 
+      <aside class="ep-sidebar">
+        <div class="ep-side-head">
+          <h3>Эпизоды</h3><span id="avEpCount" class="muted" style="font-size:12px"></span>
+        </div>
+        <input type="text" class="ep-search" id="avEpSearch" placeholder="Поиск эпизода…" hidden />
+        <div class="episodes-list" id="avEpisodesList"><div class="av-empty" style="padding:30px 0">Ищу источник…</div></div>
+      </aside>
+
+      <div class="detail-main">
         <div class="tabs-block">
           <div class="block-header">Описание</div>
           <div class="info-body">
@@ -1342,14 +1352,6 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
           <div class="recs-wrap"><div class="av-grid" id="avRecs"><div class="av-empty">Загружаю…</div></div></div>
         </div>
       </div>
-
-      <aside class="ep-sidebar">
-        <div class="ep-side-head">
-          <h3>Эпизоды</h3><span id="avEpCount" class="muted" style="font-size:12px"></span>
-        </div>
-        <input type="text" class="ep-search" id="avEpSearch" placeholder="Поиск эпизода…" hidden />
-        <div class="episodes-list" id="avEpisodesList"><div class="av-empty" style="padding:30px 0">Ищу источник…</div></div>
-      </aside>
     </div>`;
 
   fitHeroTitle($("#avHeroTitle"));
