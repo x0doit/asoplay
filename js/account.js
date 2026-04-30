@@ -6,8 +6,7 @@
  * Account layer: login/logout/register redirect, personal sections (favorites,
  * history), guest auth-gates and the "store" abstraction that turns every
  * personal-data write into either a server call (authenticated) or a gate
- * prompt (guest). There is no localStorage fallback for guests — following the
- * playbook, we refuse to pretend the old single-device model works multi-user.
+ * prompt (guest). There is no localStorage fallback for new guest progress.
  */
 
 let ctx = null;
@@ -562,7 +561,7 @@ export const store = {
     return w && w.ep === ep ? w : null;
   },
   async ensureWatchEntry(malId, title, cover, ep, total = 0) {
-    if (!ctx.state.user) return; // guests don't get history (per playbook)
+    if (!ctx.state.user) return; // guests don't get account history
     const key = String(malId);
     const existing = ctx.state.watch[key];
     const ent = {

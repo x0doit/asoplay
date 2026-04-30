@@ -9,7 +9,7 @@
  * any attempt to do so surfaces a guest-gate.
  */
 
-import * as account from "./js/account.js?v=20260421-7";
+import * as account from "./js/account.js?v=20260430-1";
 
 // ---------- backend URL ----------
 // When the page is served by FastAPI (same-origin, port 8787), fetches use
@@ -1774,7 +1774,14 @@ class Player {
     this._onMessage = (e) => {
       if (this.destroyed) return;
       const iframe = this._iframeEl;
-      if (iframe && e.source !== iframe.contentWindow) return;   // strict source check
+      if (iframe) {
+        const fromDirectFrame = e.source === iframe.contentWindow;
+        let fromFrameOrigin = false;
+        try {
+          fromFrameOrigin = !!e.origin && new URL(iframe.src).origin === e.origin;
+        } catch (_) {}
+        if (!fromDirectFrame && !fromFrameOrigin) return;
+      }
       this._dubSawEvent = true;
       const since = Date.now() - (this._playStartedAt || 0);
       if (since < 5000) return;
@@ -1811,7 +1818,7 @@ class Player {
           if (state.user && epNum && secs > 0 && !getWatch(this.malId)) {
             ensureWatchEntry(this.malId, title, poster, epNum, this.anime?.episodes || this.episodes.length || 0);
           }
-          // Локальный прогресс (persist для «Продолжить просмотр»).
+          // Авторизованный прогресс: saveProgress сам ничего не пишет гостям.
           saveProgress(this.malId, epNum, secs, dur);
           // Локальный per-episode кэш: текущая серия + implicit-complete
           // предыдущих, если текущая только что досмотрена. Так сайдбар
@@ -1877,8 +1884,6 @@ class Player {
     const jikanSec = jikanMin * 60;
     this._fallbackInt = setInterval(() => {
       if (this.destroyed || this._autoFired) { clearInterval(this._fallbackInt); return; }
-      if (!state.autoNext) return;
-      if (this.currentEp >= this.episodes.length - 1) return;
       const elapsedSec = (Date.now() - (this._playStartedAt || 0)) / 1000;
       if (elapsedSec < 60) return;
       const d = this._duration, t = this._lastTime;
@@ -1900,6 +1905,12 @@ class Player {
             ensureWatchEntry(this.malId, title, poster, epNum, this.anime?.episodes || this.episodes.length || 0);
           }
           saveProgress(this.malId, epNum, estSecs, estDur);
+          this._epProgress ??= new Map();
+          const prevEntry = this._epProgress.get(epNum);
+          if (!prevEntry || estSecs > Number(prevEntry.seconds || 0)) {
+            this._epProgress.set(epNum, { seconds: estSecs, duration: estDur });
+            this.renderEpisodes();
+          }
           const lastSent = this._lastProgressSent || 0;
           if (now - lastSent > 30000) {
             this._lastProgressSent = now;
@@ -1915,6 +1926,8 @@ class Player {
           }
         }
       }
+      if (!state.autoNext) return;
+      if (this.currentEp >= this.episodes.length - 1) return;
       if (d > 30 && t >= d - 3) {
         this._autoFired = true;
         clearInterval(this._fallbackInt);
