@@ -66,6 +66,14 @@ def _now() -> datetime:
     return datetime.utcnow()
 
 
+def _history_qualified(seconds: int, duration: int) -> bool:
+    return seconds >= 300 or (duration > 0 and seconds >= duration * 0.92)
+
+
+def _auto_watching_qualified(seconds: int, duration: int) -> bool:
+    return seconds >= 600 or (duration > 0 and seconds >= duration * 0.92)
+
+
 # ---------- helpers ----------
 def _row_to_public(row: tuple) -> dict[str, Any]:
     (user_id, mal_id, status, source, is_fav, title, poster, added_at, updated_at) = row
@@ -368,9 +376,10 @@ def progress_event(
                      stamp_duration, stamp_duration),
                 )
 
-        # watch_history = фид «Продолжить просмотр». Туда попадает только
-        # реальный просмотр от 5 минут; «просто открыл страницу» не учитывается.
-        if event.seconds >= 300:
+        # watch_history = фид «Продолжить просмотр». Туда попадает реальный
+        # просмотр от 5 минут или честно завершённая короткая серия; «просто
+        # открыл страницу» не учитывается.
+        if _history_qualified(event.seconds, event.duration):
             cur.execute(
                 """INSERT INTO aviev_watch_history
                     (user_id, mal_id, last_episode, episode_seconds, episode_duration,
@@ -395,10 +404,22 @@ def progress_event(
         current = _fetch_entry(conn, user["id"], event.mal_id)
         auto_ok = _auto_add_enabled(conn, user["id"])
 
-        # 2) auto-rule: 10 минут → watching (auto), если нет ручного статуса.
-        #    «Ручной watching» тоже уважаем: просто не трогаем.
-        crossed_ten_min = event.seconds >= 600
-        if auto_ok and crossed_ten_min:
+        # 2) auto-rule: 10 минут или завершённая серия → watching (auto),
+        #    если нет ручного статуса. Так короткие серии не выпадают из
+        #    списков только потому, что физически короче 10 минут.
+        cur.execute(
+            """SELECT 1
+                FROM aviev_episode_progress
+                WHERE user_id=%s AND mal_id=%s
+                  AND (seconds >= 600 OR (duration > 0 AND seconds >= duration * 0.92))
+                LIMIT 1""",
+            (user["id"], event.mal_id),
+        )
+        has_watching_signal = bool(cur.fetchone()) or _auto_watching_qualified(
+            event.seconds,
+            event.duration,
+        )
+        if auto_ok and has_watching_signal:
             prev_status = current.get("status") if current else None
             prev_source = current.get("status_source") if current else None
             if prev_status is None and prev_source != "manual":

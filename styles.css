@@ -3186,6 +3186,41 @@ footer a:hover { color: var(--red); }
   border-radius: var(--r-xs);
 }
 .profile-owner-hint a { color: var(--red); font-weight: 600; }
+.profile-list-stage {
+  position: relative;
+  min-height: 120px;
+  transition: min-height var(--d-fast) var(--ease);
+}
+.profile-list-panel {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity var(--d-fast) var(--ease),
+    transform var(--d-fast) var(--ease),
+    filter var(--d-fast) var(--ease);
+}
+.profile-list-stage.is-switching .profile-list-panel {
+  opacity: 0;
+  transform: translateY(5px);
+}
+.profile-list-stage.is-loading .profile-list-panel {
+  opacity: .68;
+  filter: saturate(.86);
+}
+.profile-list-stage.is-loading::after {
+  content: "Загружаю…";
+  position: absolute;
+  top: 12px;
+  right: 8px;
+  z-index: 3;
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 102, 102, .28);
+  border-radius: var(--r-full);
+  background: rgba(24, 24, 24, .9);
+  color: var(--text-2);
+  font: 700 11px/1 var(--font);
+  box-shadow: var(--s2);
+}
 
 /* Settings page */
 .acct-settings {

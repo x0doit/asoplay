@@ -9,7 +9,7 @@
  * any attempt to do so surfaces a guest-gate.
  */
 
-import * as account from "./js/account.js?v=20260430-5";
+import * as account from "./js/account.js?v=20260430-7";
 
 // ---------- backend URL ----------
 // When the page is served by FastAPI (same-origin, port 8787), fetches use
@@ -1647,6 +1647,35 @@ class Player {
     this._iframeEl = null;
   }
 
+  _tabEpisodeKey() {
+    return `av:tab-episode:${this.malId}`;
+  }
+
+  _readTabEpisodeNum() {
+    try {
+      const raw = sessionStorage.getItem(this._tabEpisodeKey());
+      if (!raw) return 0;
+      const data = JSON.parse(raw);
+      const ep = Number(data?.ep || 0);
+      const at = Number(data?.at || 0);
+      if (!ep || (at && Date.now() - at > 12 * 60 * 60 * 1000)) {
+        sessionStorage.removeItem(this._tabEpisodeKey());
+        return 0;
+      }
+      return ep;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  _rememberTabEpisode(epNum) {
+    try {
+      const ep = Number(epNum || 0);
+      if (!ep) return;
+      sessionStorage.setItem(this._tabEpisodeKey(), JSON.stringify({ ep, at: Date.now() }));
+    } catch (_) {}
+  }
+
   _normDubName(name) {
     let s = (name || "").toLowerCase().trim();
     s = s.replace(/[\(\[]([^)\]]*)[\)\]]/g, " ");
@@ -1816,6 +1845,12 @@ class Player {
   // (>=92% или финишный хвост), стартуем со следующей. Иначе — с той же,
   // чтобы пользователь мог продолжить с места паузы.
   _resumeIndex() {
+    const tabEp = this._readTabEpisodeNum();
+    if (tabEp) {
+      const tabIdx = this.episodes.findIndex(e => Number(e.num) === tabEp);
+      if (tabIdx >= 0) return tabIdx;
+    }
+
     const w = state.watch[String(this.malId)];
     if (!w || !w.ep) return 0;
     const finished = w.duration > 0
@@ -1837,6 +1872,25 @@ class Player {
     const seconds = Number(entry?.seconds ?? entry?.time ?? 0);
     const duration = Number(entry?.duration || 0);
     return duration > 0 ? Math.min(100, (seconds / duration) * 100) : 0;
+  }
+
+  _completedThroughEpisodeNum() {
+    let completed = 0;
+    for (const e of this.episodes || []) {
+      const epNum = Number(e.num);
+      const prog = this._epProgress?.get(epNum) || getProgress(this.malId, epNum);
+      if (this._progressDone(prog)) completed = Math.max(completed, epNum);
+    }
+
+    const watch = getWatch(this.malId);
+    const watchEp = Number(watch?.ep || 0);
+    const watchSeconds = Number(watch?.seconds ?? watch?.time ?? 0);
+    if (watchEp > 0) {
+      if (this._progressDone(watch)) completed = Math.max(completed, watchEp);
+      else if (watchSeconds > 0) completed = Math.max(completed, watchEp - 1);
+    }
+
+    return Math.max(0, completed);
   }
 
   _lastProgressEpisodeNum() {
@@ -1869,7 +1923,8 @@ class Player {
     if (!row) return false;
     const prog = this._epProgress?.get(Number(epNum)) || getProgress(this.malId, epNum);
     const pct = this._episodeProgressPct(prog);
-    row.classList.toggle("watched", pct > 90);
+    const completedThrough = this._completedThroughEpisodeNum();
+    row.classList.toggle("watched", pct > 90 || Number(epNum) <= completedThrough);
 
     let bar = $(".ep-progress", row);
     if (pct > 0 && pct < 95) {
@@ -2255,34 +2310,48 @@ class Player {
   }
 
   async discoverBackend(src) {
-    const pool = [];
+    if (this.sources[`backend:${src}`]?.episodes?.length) return;
     const yr = this.anime?.year;
     const mal = this.malId;
     const queries = this._expandQueries(this.titles);
-    const results = await Promise.all(
-      queries.map(t => api.backendSearch(t, src, yr, mal).catch(() => []))
-    );
-    for (const r of results) if (r?.length) pool.push(...r);
-    if (!pool.length) return;
-    const ded = Object.values(Object.fromEntries(pool.map(x => [x.url || x.title, x])));
     let best = null, bestScore = 0;
-    for (const c of ded) {
-      if (mal && c.mal_id != null) {
-        if (Number(c.mal_id) === Number(mal)) {
-          best = c; bestScore = 1.0; break;
-        }
-        continue;
-      }
+
+    const scoreCandidate = c => {
       const names = [c.title, c.title_en].filter(Boolean);
       let s = 0;
       for (const e of this.titles) for (const n of names) s = Math.max(s, titleSimilarity(n, e));
+      const candidateMal = Number(c.mal_id);
+      const hasCandidateMal = mal && c.mal_id != null && Number.isFinite(candidateMal);
+      if (hasCandidateMal) {
+        if (candidateMal === Number(mal)) s = Math.max(s, 1.0);
+        else s -= 0.25;
+      }
       if (yr && c.year) {
         const diff = Math.abs(c.year - yr);
         if (diff === 0) s += 0.15;
         else if (diff <= 1) s += 0.05;
         else if (diff > 3) s -= 0.2;
       }
-      if (s > bestScore) { bestScore = s; best = c; }
+      return s;
+    };
+
+    const seen = new Set();
+    const consider = rows => {
+      for (const c of rows || []) {
+        const key = c.url || c.key || c.title;
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        const s = scoreCandidate(c);
+        if (s > bestScore) { bestScore = s; best = c; }
+      }
+    };
+
+    for (let i = 0; i < queries.length; i += 2) {
+      const results = await Promise.all(
+        queries.slice(i, i + 2).map(t => api.backendSearch(t, src, yr, mal).catch(() => []))
+      );
+      for (const r of results) consider(r);
+      if (bestScore >= 1.0) break;
     }
     if (!best || bestScore < 0.3) return;
     let eps = [];
@@ -2325,14 +2394,30 @@ class Player {
       return false;
     };
 
-    const jobs = pool.map(src => this.discoverBackend(src)
-      .catch(() => null)
-      .then(() => adoptFoundSource()));
+    const runWave = async (wave, waitMs) => {
+      let pending = wave.length;
+      if (!pending) return false;
+      wave.forEach(src => {
+        this.discoverBackend(src)
+          .catch(() => null)
+          .finally(() => {
+            pending -= 1;
+            adoptFoundSource();
+          });
+      });
+      const deadline = Date.now() + waitMs;
+      while (pending > 0 && Date.now() < deadline) {
+        if (adoptFoundSource()) return true;
+        await new Promise(r => setTimeout(r, 200));
+      }
+      return adoptFoundSource();
+    };
 
-    const deadline = Date.now() + 12_000;
-    while (Date.now() < deadline) {
+    const waves = [pool.slice(0, 2), pool.slice(2, 5), pool.slice(5)];
+    for (const wave of waves) {
       if (adoptFoundSource()) return;
-      await new Promise(r => setTimeout(r, 250));
+      if (await runWave(wave, 6_000)) return;
+      if (this.destroyed || this._discoverySeq !== seq) return;
     }
     adoptFoundSource();
   }
@@ -2362,6 +2447,7 @@ class Player {
     };
     list.innerHTML = "";
     const lastProgressEp = this._lastProgressEpisodeNum();
+    const completedThrough = this._completedThroughEpisodeNum();
     this.episodes.forEach((e, i) => {
       // Предпочитаем серверный per-episode прогресс (включая implicit-complete
       // для серий, которые «перепрыгнули» при досмотре следующей). Fallback на
@@ -2369,7 +2455,7 @@ class Player {
       const serverProg = this._epProgress?.get(Number(e.num));
       const prog = serverProg || getProgress(this.malId, e.num);
       const pct = prog?.duration ? Math.min(100, ((prog.time ?? prog.seconds ?? 0) / prog.duration) * 100) : 0;
-      const watched = pct > 90;
+      const watched = pct > 90 || Number(e.num) <= completedThrough;
       const hasProgress = Number(prog?.seconds ?? prog?.time ?? 0) > 0;
       const canUnwatch = state.user && hasProgress && Number(e.num) === lastProgressEp;
       const b = document.createElement("div");
@@ -2488,6 +2574,7 @@ class Player {
     // открыл страницу» — фид «Продолжить просмотр» должен быть честный.
     const ep = this.episodes[i];
     if (!ep) return;
+    this._rememberTabEpisode(ep.num);
     $("#avEpInfo").innerHTML = `<span class="sp-ep-num">${ep.num}</span><span class="sp-ep-title">${esc(ep.name)}</span>`;
     const p = $("#avPrevEp"), n = $("#avNextEp");
     if (p) p.disabled = i === 0;

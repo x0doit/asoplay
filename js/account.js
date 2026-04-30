@@ -41,6 +41,12 @@ export async function setup(hooks) {
 
 export function getSocialConfig() { return authConfig.social; }
 
+function _historyQualifiedProgress(seconds, duration) {
+  const sec = Number(seconds || 0);
+  const dur = Number(duration || 0);
+  return sec >= 300 || (dur > 0 && sec >= dur * 0.92);
+}
+
 export async function refresh() {
   try {
     const r = await _fetchJson("/auth/me", { credentials: "include" });
@@ -509,7 +515,7 @@ export const store = {
       // порог, сервер создаёт/обновляет aviev_watch_history — локальный state
       // должен увидеть это сразу, без рефреша. Раньше state.watch обновлялся
       // только при hydrate, и «Продолжить просмотр» показывал устаревшие данные.
-      if (payload.seconds >= 300) {
+      if (_historyQualifiedProgress(payload.seconds, payload.duration)) {
         ctx.state.watch = ctx.state.watch || {};
         const key = String(payload.mal_id);
         const prev = ctx.state.watch[key] || {};
@@ -908,8 +914,9 @@ export async function viewMyContinue() {
   // Всегда тянем свежий /account/history перед рендером. Локальный state.watch
   // заполняется только при бутстрапе страницы, и если пользователь в той же
   // сессии посмотрел что-то и вернулся сюда SPA-переходом — локальные данные
-  // устарели. Бэкенд отдаёт ТОЛЬКО записи с episode_seconds >= 300, поэтому
-  // фильтровать 5-минутный порог ещё раз не нужно.
+  // устарели. Бэкенд отдаёт только реальные точки продолжения: 5+ минут
+  // просмотра или завершённые короткие серии, поэтому повторно фильтровать
+  // порог здесь не нужно.
   try {
     const fresh = await _fetchJson("/account/history");
     ctx.state.watch = Object.fromEntries(
@@ -937,7 +944,7 @@ export async function viewMyContinue() {
   if (!entries.length) {
     ctx.outlet.innerHTML = `<div class="block-header">Продолжить просмотр</div>` + ctx.errorPage({
       title: "Пока пусто",
-      message: "Как только вы посмотрите хотя бы 5 минут любого аниме, оно появится здесь — продолжить с того же места.",
+      message: "Как только вы посмотрите хотя бы 5 минут аниме или досмотрите короткую серию, тайтл появится здесь — продолжить с того же места.",
       action: { href: "/", label: "Найти что-нибудь" },
       variant: "empty",
     });
@@ -1335,7 +1342,7 @@ export async function viewProfile(handle) {
         ${listsHidden
           ? `<div class="privacy-gate">Списки пользователя ограничены настройками приватности</div>`
           : `<div class="seg-tabs profile-seg" id="avProfileTabs">${tabs}</div>
-             <div id="avProfileList"></div>`}
+             <div id="avProfileList" class="profile-list-stage" aria-live="polite"></div>`}
       </div>
 
       <div class="tabs-block">
@@ -1347,36 +1354,94 @@ export async function viewProfile(handle) {
     </div>`;
 
   if (!listsHidden && counts) {
-    const loadTab = async (status) => {
-      const list = document.querySelector("#avProfileList");
-      list.innerHTML = `<div class="av-empty" style="padding:40px 0">Загружаю…</div>`;
-      try {
-        const r = await _fetchJson(`/profile/${encodeURIComponent(handle)}/lists?status=${status}`);
-        if (r.hidden) {
-          list.innerHTML = `<div class="privacy-gate">Списки пользователя ограничены настройками приватности</div>`;
-          return;
-        }
-        if (!r.items.length) {
-          list.innerHTML = ctx.errorPage({
+    const listCache = new Map();
+    let listSeq = 0;
+
+    const buildListHtml = (r) => {
+      if (r.hidden) {
+        return {
+          html: `<div class="privacy-gate">Списки пользователя ограничены настройками приватности</div>`,
+          items: [],
+        };
+      }
+      if (!r.items.length) {
+        return {
+          html: ctx.errorPage({
             title: "В этом списке пока пусто",
             message: "Пользователь ещё не добавил сюда тайтлы.",
             variant: "empty",
-          });
-          return;
-        }
-        list.innerHTML = `<div class="av-grid"></div>`;
+          }),
+          items: [],
+        };
+      }
+      const grid = document.createElement("div");
+      grid.className = "av-grid";
+      r.items.forEach(v => grid.appendChild(ctx.makeCard({
+        mal_id: v.mal_id, title: v.title || "", _ru: v.title || "",
+        images: { jpg: { large_image_url: v.poster_url } },
+      })));
+      return { html: grid.outerHTML, items: r.items };
+    };
+
+    const paintList = (status, html, items = []) => {
+      const list = document.querySelector("#avProfileList");
+      if (!list) return;
+      const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      const hadRealContent = !!list.querySelector(".profile-list-panel:not(.profile-list-loading)");
+      const h = list.offsetHeight;
+      if (h > 0) list.style.minHeight = `${h}px`;
+
+      const swap = () => {
+        list.dataset.status = status;
+        list.innerHTML = `<div class="profile-list-panel">${html}</div>`;
         const grid = list.querySelector(".av-grid");
-        r.items.forEach(v => grid.appendChild(ctx.makeCard({
-          mal_id: v.mal_id, title: v.title || "", _ru: v.title || "",
-          images: { jpg: { large_image_url: v.poster_url } },
-        })));
-        if (ctx.enrichWithShiki) ctx.enrichWithShiki(grid, r.items);
+        if (grid && items.length && ctx.enrichWithShiki) ctx.enrichWithShiki(grid, items);
+        requestAnimationFrame(() => {
+          list.classList.remove("is-switching", "is-loading");
+          list.removeAttribute("aria-busy");
+          list.style.minHeight = "";
+        });
+      };
+
+      if (reduce || !hadRealContent) {
+        swap();
+        return;
+      }
+      list.classList.add("is-switching");
+      window.setTimeout(swap, 130);
+    };
+
+    const loadTab = async (status) => {
+      const list = document.querySelector("#avProfileList");
+      if (!list) return;
+      const seq = ++listSeq;
+
+      const cached = listCache.get(status);
+      if (cached) {
+        paintList(status, cached.html, cached.items);
+        return;
+      }
+
+      list.setAttribute("aria-busy", "true");
+      if (list.innerHTML.trim()) {
+        list.classList.add("is-loading");
+      } else {
+        list.innerHTML = `<div class="profile-list-panel profile-list-loading"><div class="av-empty">Загружаю…</div></div>`;
+      }
+
+      try {
+        const r = await _fetchJson(`/profile/${encodeURIComponent(handle)}/lists?status=${status}`);
+        if (seq !== listSeq) return;
+        const next = buildListHtml(r);
+        listCache.set(status, next);
+        paintList(status, next.html, next.items);
       } catch (_) {
-        list.innerHTML = ctx.errorPage({
+        if (seq !== listSeq) return;
+        paintList(status, ctx.errorPage({
           title: "Не удалось загрузить список",
           message: "Попробуйте обновить страницу — возможно, временный сбой сети.",
           variant: "sad",
-        });
+        }));
       }
     };
     const tabsEl = document.querySelector("#avProfileTabs");

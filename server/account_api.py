@@ -131,11 +131,12 @@ def _sync_watch_history_from_progress(
     cur.execute(
         """SELECT 1
             FROM aviev_episode_progress
-            WHERE user_id=%s AND mal_id=%s AND seconds >= 300
+            WHERE user_id=%s AND mal_id=%s
+              AND (seconds >= 300 OR (duration > 0 AND seconds >= duration * 0.92))
             LIMIT 1""",
         (user_id, mal_id),
     )
-    qualified = bool(cur.fetchone()) or episode_seconds >= 300
+    qualified = bool(cur.fetchone()) or _history_qualified(episode_seconds, episode_duration)
     if not qualified:
         return
     stamp = updated_at or _now()
@@ -169,6 +170,14 @@ def _sync_watch_history_from_progress(
 
 def _progress_done(seconds: int, duration: int) -> bool:
     return duration > 0 and (seconds >= duration * 0.92 or seconds >= max(0, duration - 90))
+
+
+def _history_qualified(seconds: int, duration: int) -> bool:
+    return seconds >= 300 or (duration > 0 and seconds >= duration * 0.92)
+
+
+def _auto_watching_qualified(seconds: int, duration: int) -> bool:
+    return seconds >= 600 or (duration > 0 and seconds >= duration * 0.92)
 
 
 def _progress_rows_for_title(conn, user_id: int, mal_id: int) -> list[dict[str, Any]]:
@@ -261,7 +270,8 @@ def _resync_watch_history_from_latest_progress(conn, user_id: int, mal_id: int) 
     cur.execute(
         """SELECT 1
             FROM aviev_episode_progress
-            WHERE user_id=%s AND mal_id=%s AND seconds >= 300
+            WHERE user_id=%s AND mal_id=%s
+              AND (seconds >= 300 OR (duration > 0 AND seconds >= duration * 0.92))
             LIMIT 1""",
         (user_id, mal_id),
     )
@@ -326,7 +336,7 @@ def _adjust_auto_list_status_after_unwatch(
         (user_id, mal_id),
     )
     rows = [(int(r[0] or 0), int(r[1] or 0), int(r[2] or 0)) for r in cur.fetchall()]
-    has_watching_progress = any(seconds >= 600 for _, seconds, _ in rows)
+    has_watching_progress = any(_auto_watching_qualified(seconds, duration) for _, seconds, duration in rows)
     still_completed = bool(
         episodes_total > 0
         and any(ep >= episodes_total and _progress_done(seconds, duration) for ep, seconds, duration in rows)
@@ -499,11 +509,13 @@ def history_list(user: dict[str, Any] = Depends(current_user_required)) -> list[
                 qualified_titles AS (
                     SELECT DISTINCT mal_id
                     FROM aviev_episode_progress
-                    WHERE user_id=%s AND seconds >= 300
+                    WHERE user_id=%s
+                      AND (seconds >= 300 OR (duration > 0 AND seconds >= duration * 0.92))
                     UNION DISTINCT
                     SELECT mal_id
                     FROM aviev_watch_history
-                    WHERE user_id=%s AND episode_seconds >= 300
+                    WHERE user_id=%s
+                      AND (episode_seconds >= 300 OR (episode_duration > 0 AND episode_seconds >= episode_duration * 0.92))
                 )
                 SELECT p.mal_id,
                        p.episode_num,
