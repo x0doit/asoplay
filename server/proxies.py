@@ -358,7 +358,7 @@ async def startup() -> None:
     async def _warm(method, url, params, ttl):
         try:
             await cached_fetch(method, url, params=params, ttl=ttl, timeout=20)
-        except HTTPException as exc:
+        except Exception as exc:
             log.debug("warmup %s failed: %s", url, exc)
 
     await asyncio.gather(*[_warm(*t) for t in urls])
