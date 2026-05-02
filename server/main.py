@@ -173,6 +173,7 @@ async def _startup() -> None:
         log.info("VPN bridge active via %s", vpn_bridge.VPN_PROXY_URL)
     else:
         log.info("VPN bridge not active — falling back to direct outbound")
+    vpn_bridge.start_watchdog()
     await proxies.startup()
     await adblock.startup()
     await player_proxy.startup()

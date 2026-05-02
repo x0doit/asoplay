@@ -22,6 +22,7 @@ import os
 import shutil
 import socket
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -34,6 +35,7 @@ VPN_SOCKS_PORT = 20808
 VPN_METRICS_PORT = 21111
 VPN_PROXY_URL = f"http://{VPN_HOST}:{VPN_HTTP_PORT}"
 VPN_SOCKS_URL = f"socks5://{VPN_HOST}:{VPN_SOCKS_PORT}"
+_BRIDGE_PROXY_VALUES = {VPN_PROXY_URL, VPN_SOCKS_URL}
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 VPN_TEMPLATE = _PROJECT_ROOT / "vpn.template.json"
@@ -52,6 +54,34 @@ _LEGACY_PATHS = [
 ]
 
 _xray_proc: subprocess.Popen | None = None
+_bridge_desired = False
+_restart_lock = threading.Lock()
+_watchdog_stop = threading.Event()
+_watchdog_thread: threading.Thread | None = None
+
+
+def _restart_bridge_locked() -> bool:
+    if _port_alive(VPN_HOST, VPN_HTTP_PORT, timeout=0.25):
+        _export_env()
+        return True
+    log.warning("VPN proxy env points to %s, but the port is down; restarting bridge", VPN_PROXY_URL)
+    clear_env()
+    return activate()
+
+
+def _restart_bridge_async() -> None:
+    if _restart_lock.locked():
+        return
+
+    def _run() -> None:
+        with _restart_lock:
+            _restart_bridge_locked()
+
+    threading.Thread(
+        target=_run,
+        name="animeviev-vpn-restart",
+        daemon=True,
+    ).start()
 
 
 def _port_alive(host: str, port: int, timeout: float = 1.0) -> bool:
@@ -174,16 +204,21 @@ def _launch_xray(config_path: Path) -> subprocess.Popen | None:
 def activate() -> bool:
     """Spin up xray and export HTTP_PROXY/HTTPS_PROXY. Returns True if the
     proxy is up and outbound traffic is now routed through it."""
-    global _xray_proc
+    global _xray_proc, _bridge_desired
     if _port_alive(VPN_HOST, VPN_HTTP_PORT):
+        _bridge_desired = True
         log.info("VPN already listening on %s (reusing)", VPN_PROXY_URL)
         _export_env()
         return True
     config_path = _prepare_runtime()
     if config_path is None:
+        _bridge_desired = False
+        clear_env()
         return False
+    _bridge_desired = True
     _xray_proc = _launch_xray(config_path)
     if _xray_proc is None:
+        clear_env()
         return False
     atexit.register(shutdown)
     _export_env()
@@ -191,14 +226,92 @@ def activate() -> bool:
 
 
 def _export_env() -> None:
-    os.environ.setdefault("HTTP_PROXY", VPN_PROXY_URL)
-    os.environ.setdefault("HTTPS_PROXY", VPN_PROXY_URL)
-    os.environ.setdefault("ALL_PROXY", VPN_SOCKS_URL)
-    os.environ.setdefault("NO_PROXY", "127.0.0.1,localhost")
+    os.environ["HTTP_PROXY"] = VPN_PROXY_URL
+    os.environ["HTTPS_PROXY"] = VPN_PROXY_URL
+    os.environ["ALL_PROXY"] = VPN_SOCKS_URL
+    no_proxy = [x.strip() for x in os.environ.get("NO_PROXY", "").split(",") if x.strip()]
+    for host in ("127.0.0.1", "localhost"):
+        if host not in no_proxy:
+            no_proxy.append(host)
+    os.environ["NO_PROXY"] = ",".join(no_proxy)
+
+
+def _env_uses_bridge() -> bool:
+    for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
+        value = (os.environ.get(key) or "").rstrip("/")
+        if value in _BRIDGE_PROXY_VALUES:
+            return True
+    return False
+
+
+def clear_env() -> None:
+    """Remove only proxy variables owned by this bridge.
+
+    A dead local xray port must not poison future httpx clients. Custom user
+    proxy variables are left untouched.
+    """
+    for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
+        value = (os.environ.get(key) or "").rstrip("/")
+        if value in _BRIDGE_PROXY_VALUES:
+            os.environ.pop(key, None)
+
+
+def ensure_active(*, blocking: bool = True) -> bool:
+    """Keep the app-wide proxy env in sync with the local xray port.
+
+    If the app exported 127.0.0.1:20809 earlier and the port later died, try to
+    restart xray once for the current request. If that fails, clear the app-owned
+    proxy env so callers can fall back to direct outbound instead of waiting on
+    a dead local proxy.
+    """
+    if _port_alive(VPN_HOST, VPN_HTTP_PORT, timeout=0.25):
+        _export_env()
+        return True
+    if not (_bridge_desired or _env_uses_bridge()):
+        clear_env()
+        return False
+    if not blocking:
+        clear_env()
+        _restart_bridge_async()
+        return False
+    with _restart_lock:
+        return _restart_bridge_locked()
+
+
+def start_watchdog() -> None:
+    """Start a lightweight supervisor for the local xray bridge."""
+    global _watchdog_thread
+    if _watchdog_thread and _watchdog_thread.is_alive():
+        return
+    _watchdog_stop.clear()
+    interval = max(0.25, float(os.environ.get("AV_VPN_WATCHDOG_INTERVAL", "0.5")))
+
+    def _loop() -> None:
+        while not _watchdog_stop.wait(interval):
+            if not _bridge_desired and not _env_uses_bridge():
+                continue
+            if _port_alive(VPN_HOST, VPN_HTTP_PORT, timeout=0.2):
+                continue
+            ensure_active()
+
+    _watchdog_thread = threading.Thread(
+        target=_loop,
+        name="animeviev-vpn-watchdog",
+        daemon=True,
+    )
+    _watchdog_thread.start()
+
+
+def stop_watchdog() -> None:
+    _watchdog_stop.set()
+    if _watchdog_thread and _watchdog_thread.is_alive():
+        _watchdog_thread.join(timeout=2)
 
 
 def shutdown() -> None:
-    global _xray_proc
+    global _xray_proc, _bridge_desired
+    _bridge_desired = False
+    stop_watchdog()
     if _xray_proc and _xray_proc.poll() is None:
         try:
             _xray_proc.terminate()
@@ -209,8 +322,12 @@ def shutdown() -> None:
             except OSError:
                 pass
     _xray_proc = None
+    clear_env()
 
 
 def is_active() -> bool:
     """Quick probe for the HTTP_PROXY being set AND the port being alive."""
-    return bool(os.environ.get("HTTPS_PROXY")) and _port_alive(VPN_HOST, VPN_HTTP_PORT)
+    active = bool(os.environ.get("HTTPS_PROXY")) and _port_alive(VPN_HOST, VPN_HTTP_PORT)
+    if not active and _env_uses_bridge():
+        clear_env()
+    return active

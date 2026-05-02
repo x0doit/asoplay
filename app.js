@@ -132,15 +132,23 @@ function fitHeroTitle(el) {
 }
 
 function ruEpisodeTitle(title, num) {
-  const fallback = `Эпизод ${num}`;
+  const fallback = `\u042d\u043f\u0438\u0437\u043e\u0434 ${num}`;
   if (!title) return fallback;
   const t = String(title).trim();
-  if (/^(episode|ep|эпизод)\s*\.?\s*\d+\s*$/i.test(t)) return fallback;
-  const m = t.match(/^(episode|ep)\s*\.?\s*\d+\s*[:\-–—]\s*(.+)$/i);
+  if (/^(episode|ep)\s*\.?\s*\d*\s*$/i.test(t)) return fallback;
+  if (/^(\u044d\u043f\u0438\u0437\u043e\u0434|\u0441\u0435\u0440\u0438\u044f)\s*\.?\s*\d*\s*$/i.test(t)) return fallback;
+  const m = t.match(/^(episode|ep)\s*\.?\s*\d*\s*[:\-–—]\s*(.+)$/i);
   if (m) return `${fallback}: ${m[2]}`;
   if (/^\d+$/.test(t)) return fallback;
   if (hasCyrillic(t)) return t;
   return t;
+}
+
+function isGenericEpisodeTitle(title) {
+  const t = String(title || "").trim();
+  if (!t || /^\d+$/.test(t)) return true;
+  return /^(episode|ep)\s*\.?\s*\d*\s*$/i.test(t)
+      || /^(\u044d\u043f\u0438\u0437\u043e\u0434|\u0441\u0435\u0440\u0438\u044f)\s*\.?\s*\d*\s*$/i.test(t);
 }
 
 async function translateToRu(text) {
@@ -1690,9 +1698,27 @@ class Player {
   async addTitles(newTitles) {
     const before = this.titles.length;
     this.titles = uniq([...this.titles, ...newTitles]).filter(Boolean);
-    if (this.titles.length === before || Object.keys(this.sources).length) return;
+    if (this.titles.length === before) return;
+    if (Object.keys(this.sources).length) {
+      if (this._activeSource && this._episodeTitlesNeedRefresh()) {
+        const reqId = this._reqId;
+        this._refreshActiveSourceKeys(reqId).catch(() => null);
+      }
+      return;
+    }
     this.rediscover();
   }
+
+  _episodeTitlesNeedRefresh() {
+    return (this.episodes || []).some(e => isGenericEpisodeTitle(e.name));
+  }
+
+  _syncCurrentEpisodeTitle() {
+    const ep = this.episodes?.[this.currentEp];
+    const el = $("#avEpInfo .sp-ep-title");
+    if (ep && el) el.textContent = ep.name;
+  }
+
   async rediscover() {
     if (this._red) return; this._red = true;
     try {
@@ -1756,13 +1782,16 @@ class Player {
   _buildEpisodeList(rawEpisodes = []) {
     const seenNums = new Set();
     return rawEpisodes
-      .map(e => ({
-        num: Number(e.num) || 0,
-        name: e.name,
-        preview: e.preview,
-        key: e.key,
-        yummyKey: e.key,
-      }))
+      .map(e => {
+        const num = Number(e.num) || 0;
+        return {
+          num,
+          name: ruEpisodeTitle(e.name || e.title, num),
+          preview: e.preview,
+          key: e.key,
+          yummyKey: e.key,
+        };
+      })
       .filter(e => {
         if (!e.num || seenNums.has(e.num)) return false;
         seenNums.add(e.num);
@@ -1795,6 +1824,7 @@ class Player {
     this._dubsCache.clear();
     this.renderEpisodes();
     $$("#avEpisodesList .ep-row").forEach((b, idx) => b.classList.toggle("active", idx === this.currentEp));
+    this._syncCurrentEpisodeTitle();
     return true;
   }
 

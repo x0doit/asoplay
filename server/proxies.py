@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import time
 from hashlib import sha1
 from pathlib import Path
@@ -30,6 +31,8 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response
+
+from server import vpn_bridge
 
 log = logging.getLogger("animeviev.proxies")
 
@@ -57,15 +60,60 @@ _httpx_limits = httpx.Limits(
     max_connections=50, max_keepalive_connections=20, keepalive_expiry=60
 )
 _http_client: httpx.AsyncClient | None = None
+_http_client_proxy_env: tuple[str, str, str, str] | None = None
+_direct_client: httpx.AsyncClient | None = None
+
+_NETWORK_ERRORS: tuple[type[BaseException], ...] = (httpx.HTTPError, OSError, TimeoutError)
+try:
+    import anyio
+
+    _NETWORK_ERRORS += (anyio.ClosedResourceError,)
+except Exception:
+    pass
+
+
+def _proxy_env_fingerprint() -> tuple[str, str, str, str]:
+    return (
+        os.environ.get("HTTP_PROXY", ""),
+        os.environ.get("HTTPS_PROXY", ""),
+        os.environ.get("ALL_PROXY", ""),
+        os.environ.get("NO_PROXY", ""),
+    )
 
 
 async def get_client() -> httpx.AsyncClient:
-    global _http_client
+    global _http_client, _http_client_proxy_env
+    vpn_bridge.ensure_active(blocking=False)
+    proxy_env = _proxy_env_fingerprint()
+    if (
+        _http_client is not None
+        and not _http_client.is_closed
+        and _http_client_proxy_env != proxy_env
+    ):
+        await _http_client.aclose()
+        _http_client = None
     if _http_client is None or _http_client.is_closed:
+        trust_env = any(proxy_env[:3])
         _http_client = httpx.AsyncClient(
-            timeout=15.0, follow_redirects=True, limits=_httpx_limits
+            timeout=15.0,
+            follow_redirects=True,
+            limits=_httpx_limits,
+            trust_env=trust_env,
         )
+        _http_client_proxy_env = proxy_env
     return _http_client
+
+
+async def get_direct_client() -> httpx.AsyncClient:
+    global _direct_client
+    if _direct_client is None or _direct_client.is_closed:
+        _direct_client = httpx.AsyncClient(
+            timeout=15.0,
+            follow_redirects=True,
+            limits=_httpx_limits,
+            trust_env=False,
+        )
+    return _direct_client
 
 
 # ---------- disk cache ----------
@@ -155,25 +203,30 @@ async def cached_fetch(
     if cached:
         return cached
 
-    global _http_client
+    global _http_client, _http_client_proxy_env
     is_jikan = "api.jikan.moe" in url
     last_exc: Exception | None = None
+    force_direct = False
     for attempt in range(4):
         if is_jikan:
             await _JIKAN_LIMIT.wait()
-        client = await get_client()
+        client = await get_direct_client() if force_direct else await get_client()
         try:
             resp = await client.request(
                 method, url, params=params, json=json_body, headers=headers, timeout=timeout
             )
-        except httpx.HTTPError as exc:
+        except _NETWORK_ERRORS as exc:
             last_exc = exc
             if _http_client is not None:
                 try:
                     await _http_client.aclose()
-                except httpx.HTTPError:
+                except _NETWORK_ERRORS:
                     pass
             _http_client = None
+            _http_client_proxy_env = None
+            if not force_direct and vpn_bridge.is_active():
+                log.warning("proxy path failed for %s, retrying direct outbound: %s", url, exc)
+                force_direct = True
             if attempt < 3:
                 await asyncio.sleep(0.4 + attempt * 0.6)
                 continue
@@ -358,7 +411,7 @@ async def startup() -> None:
     async def _warm(method, url, params, ttl):
         try:
             await cached_fetch(method, url, params=params, ttl=ttl, timeout=20)
-        except Exception as exc:
+        except HTTPException as exc:
             log.debug("warmup %s failed: %s", url, exc)
 
     await asyncio.gather(*[_warm(*t) for t in urls])
@@ -366,7 +419,11 @@ async def startup() -> None:
 
 
 async def shutdown() -> None:
-    global _http_client
+    global _http_client, _http_client_proxy_env, _direct_client
     if _http_client and not _http_client.is_closed:
         await _http_client.aclose()
     _http_client = None
+    _http_client_proxy_env = None
+    if _direct_client and not _direct_client.is_closed:
+        await _direct_client.aclose()
+    _direct_client = None
