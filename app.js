@@ -2882,14 +2882,15 @@ class Player {
       const u = new URL(url);
       if (/(\.|^)kodikplayer\.com$/i.test(u.hostname)
           && /^\/(uv|video|seria|episode|season|serial)\//i.test(u.pathname)) {
-        playerUrl = u.pathname + u.search;
-        allowSameOrigin = false;
+        playerUrl = new URL(u.pathname + u.search, playerProxyBase || location.origin).href;
+        try { allowSameOrigin = new URL(playerUrl).origin !== location.origin; }
+        catch (_) { allowSameOrigin = false; }
       }
     } catch (_) {}
     let iframe = c.querySelector("iframe");
     const hardenFrame = (node, sameOrigin = false) => {
       node.allow = "autoplay; fullscreen; picture-in-picture; encrypted-media";
-      node.allowFullscreen = true;
+      node.removeAttribute("allowfullscreen");
       node.referrerPolicy = "no-referrer";
       node.setAttribute("sandbox", `allow-scripts allow-presentation${sameOrigin ? " allow-same-origin" : ""}`);
     };

@@ -157,10 +157,12 @@ async def _player_proxy_null_origin_cors(request: Request, call_next):
                 "Access-Control-Allow-Origin": "null",
                 "Access-Control-Allow-Methods": "GET, POST, HEAD, OPTIONS",
                 "Access-Control-Allow-Headers": request.headers.get("access-control-request-headers", "*"),
+                "Access-Control-Allow-Credentials": "true",
                 "Access-Control-Max-Age": "600",
             })
         response = await call_next(request)
         response.headers["Access-Control-Allow-Origin"] = "null"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Vary"] = "Origin"
         return response
     return await call_next(request)

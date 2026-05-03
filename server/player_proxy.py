@@ -30,7 +30,7 @@ kodik_router = APIRouter()
 
 _client: httpx.AsyncClient | None = None
 _MAX_TEXT_REWRITE = int(os.environ.get("AV_PLAYER_PROXY_MAX_TEXT_REWRITE", str(3 * 1024 * 1024)))
-_PROXY_VERSION = "20260430-player3"
+_PROXY_VERSION = "20260503-player11"
 _CHROME_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
@@ -250,7 +250,7 @@ def _response_headers(upstream: httpx.Response, *, html_frame: bool = False) -> 
             "https://api.okcdn.ru https://videotestapi.ok.ru https://apitest.ok.ru; "
             "frame-src 'self' data: blob:; "
             "worker-src 'self' blob:; "
-            "object-src 'none'; base-uri 'none'; form-action 'none'; navigate-to 'self'"
+            "object-src 'none'; base-uri 'none'; form-action 'none'"
         )
     return headers
 
@@ -621,6 +621,141 @@ def _bridge_script(base: str) -> str:
   const LOCAL_ORIGIN = location.origin;
   const AD_RE = /(casino|bookmaker|betting|vulkan|1xbet|pin[-\\s]?up|av\\s*casino|werbung|реклам|казино|ставк|букмекер|advert|preroll|vast|vpaid|popunder)/i;
   const ATTRS = new Set(["src", "href", "poster", "data", "action"]);
+  const AD_EXTRA_RE = /(buzzoola|adfox|doubleclick|googlesyndication|googletag|\\/ad(?:[/?#]|$)|\\/ads(?:[/?#]|$))/i;
+  const shieldStyleA = "background:#ff5c66;color:#fff;padding:3px 7px;border-radius:5px;font-weight:800";
+  const shieldStyleB = "color:#dc2626;font-weight:800";
+  const pauseStyleA = "background:#2563eb;color:#fff;padding:3px 7px;border-radius:5px;font-weight:800";
+  const pauseStyleB = "color:#2563eb;font-weight:800";
+  const extensionStyleA = "background:#f59e0b;color:#111827;padding:3px 7px;border-radius:5px;font-weight:900";
+  const extensionStyleB = "color:#b45309;font-weight:800";
+  const nativeConsole = {{
+    log: console.log ? console.log.bind(console) : () => {{}},
+    warn: console.warn ? console.warn.bind(console) : () => {{}},
+    error: console.error ? console.error.bind(console) : () => {{}},
+    info: console.info ? console.info.bind(console) : () => {{}},
+    debug: console.debug ? console.debug.bind(console) : () => {{}}
+  }};
+  const shieldState = {{ windowStart: 0, hits: 0, mutedUntil: 0 }};
+  const shieldLog = () => {{
+    try {{
+      const now = Date.now();
+      if (now < shieldState.mutedUntil) return;
+      if (!shieldState.windowStart || now - shieldState.windowStart > 5000) {{
+        shieldState.windowStart = now;
+        shieldState.hits = 0;
+      }}
+      shieldState.hits += 1;
+      if (shieldState.hits >= 3) {{
+        nativeConsole.info(
+          "%cAsoPlay Shield:%c У Kodik настоящий понос, но у Даниэля Сэмпая есть волшебная \\"Антиспам\\" палочка, которая блокирует его запросы. ^-^",
+          shieldStyleA,
+          shieldStyleB
+        );
+        shieldState.mutedUntil = now + 60000;
+        shieldState.windowStart = now;
+        shieldState.hits = 0;
+        return;
+      }}
+      if (shieldState.hits === 1) {{
+        nativeConsole.info(
+          "%cAsoPlay Shield:%c Kodik пытается засрать твое видео рекламой, но обосрался. Сэмпай Даниэль защитил твои глазки от мусора.",
+          shieldStyleA,
+          shieldStyleB
+        );
+      }}
+    }} catch (_) {{}}
+  }};
+  const storageShieldState = {{ windowStart: 0, hits: 0, mutedUntil: 0 }};
+  const storageShieldLog = () => {{
+    try {{
+      const now = Date.now();
+      if (now < storageShieldState.mutedUntil) return;
+      if (!storageShieldState.windowStart || now - storageShieldState.windowStart > 5000) {{
+        storageShieldState.windowStart = now;
+        storageShieldState.hits = 0;
+      }}
+      storageShieldState.hits += 1;
+      if (storageShieldState.hits >= 3) {{
+        nativeConsole.info(
+          "%cAsoPlay Shield:%c Kodik устроил storage-истерику, но антиспам Сэмпая Даниэля отправил ее в угол подумать. ^-^",
+          shieldStyleA,
+          shieldStyleB
+        );
+        storageShieldState.mutedUntil = now + 60000;
+        storageShieldState.windowStart = now;
+        storageShieldState.hits = 0;
+        return;
+      }}
+      if (storageShieldState.hits === 1) {{
+        nativeConsole.info(
+          "%cAsoPlay Shield:%c Kodik полез в localStorage за мутной фигней, но Сэмпай Даниэль выдал ему безопасную пустышку.",
+          shieldStyleA,
+          shieldStyleB
+        );
+      }}
+    }} catch (_) {{}}
+  }};
+  const pauseShieldState = {{ mutedUntil: 0 }};
+  const pauseShieldLog = () => {{
+    try {{
+      const now = Date.now();
+      if (now < pauseShieldState.mutedUntil) return;
+      nativeConsole.info(
+        "%cAsoPlay Shield:%c Пауза поставлена. Серия терпеливо ждёт, пока ты вернёшься к просмотру.",
+        pauseStyleA,
+        pauseStyleB
+      );
+      pauseShieldState.mutedUntil = now + 30000;
+    }} catch (_) {{}}
+  }};
+  const extensionShieldState = {{ shown: false }};
+  const extensionShieldLog = () => {{
+    try {{
+      if (extensionShieldState.shown) return;
+      extensionShieldState.shown = true;
+      nativeConsole.info(
+        "%cAsoPlay Shield:%c Какие-то расширения пытались прочитать cookies sandbox-iframe, но Даниэль Сэмпай послал их НаАХОООЙ. :З",
+        extensionStyleA,
+        extensionStyleB
+      );
+    }} catch (_) {{}}
+  }};
+  queueMicrotask(() => {{
+    let blocked = false;
+    try {{
+      void document.cookie;
+    }} catch (err) {{
+      const text = String((err && err.name) || "") + " " + String((err && err.message) || "");
+      blocked = /SecurityError|sandbox|cookie/i.test(text);
+    }}
+    if (blocked || window.top !== window) extensionShieldLog();
+  }});
+  const patchConsoleMethod = (name) => {{
+    const native = nativeConsole[name];
+    try {{
+      console[name] = (...args) => {{
+        const text = args.map(x => {{
+          try {{
+            if (typeof x === "string") return x;
+            if (x && typeof x.message === "string") return x.message;
+            return JSON.stringify(x);
+          }} catch (_) {{
+            return String(x);
+          }}
+        }}).join(" ");
+        if (/AUTO\\s+PAUSED/i.test(text)) {{
+          pauseShieldLog();
+          return;
+        }}
+        if (/Unable to send stat|VAST ended|noad|original_manifest/i.test(text)) {{
+          shieldLog();
+          return;
+        }}
+        return native(...args);
+      }};
+    }} catch (_) {{}}
+  }};
+  ["log", "warn", "error", "info", "debug"].forEach(patchConsoleMethod);
   const makeStorage = () => {{
     const data = new Map();
     return {{
@@ -668,6 +803,21 @@ def _bridge_script(base: str) -> str:
       return false;
     }}
   }};
+  const unwrapProxyTarget = (value) => {{
+    const raw = String(value || "");
+    try {{
+      const u = new URL(raw, LOCAL_ORIGIN);
+      if (u.origin === LOCAL_ORIGIN && isLocalProxyPath(u.pathname)) {{
+        return u.searchParams.get("url") || raw;
+      }}
+    }} catch (_) {{}}
+    return raw;
+  }};
+  const isAdTarget = (value) => {{
+    const raw = String(value || "");
+    const unwrapped = unwrapProxyTarget(raw);
+    return AD_RE.test(raw) || AD_EXTRA_RE.test(raw) || AD_RE.test(unwrapped) || AD_EXTRA_RE.test(unwrapped);
+  }};
   const absolute = (value) => {{
     if (isLocalProxyPath(value)) return LOCAL_ORIGIN + String(value || "").trim();
     try {{ return new URL(String(value || ""), BASE).href; }} catch (_) {{ return String(value || ""); }}
@@ -684,11 +834,15 @@ def _bridge_script(base: str) -> str:
     }}
   }};
   const proxied = (value) => {{
+    if (isAdTarget(value)) shieldLog();
     if (passthrough(value)) return value;
     if (isLocalProxyUrl(value)) return String(value || "");
     const u = normalizeUpstream(absolute(value));
-    if (isLocalProxyUrl(u)) return u;
-    if (AD_RE.test(u)) return "about:blank";
+    if (isLocalProxyUrl(u)) {{
+      if (isAdTarget(u)) shieldLog();
+      return u;
+    }}
+    if (isAdTarget(u)) shieldLog();
     return "/player/proxy?url=" + encodeURIComponent(u) + "&base=" + encodeURIComponent(BASE) + "&pv={_PROXY_VERSION}";
   }};
   const rewriteHtml = (html) => String(html || "").replace(
@@ -756,7 +910,13 @@ def _bridge_script(base: str) -> str:
                     return target.fetch(proxied(url), init);
                   }};
                 }}
-                const value = Reflect.get(target, prop, receiver);
+                let value;
+                try {{
+                  value = Reflect.get(target, prop, target);
+                }} catch (_) {{
+                  storageShieldLog();
+                  return undefined;
+                }}
                 return typeof value === "function" ? value.bind(target) : value;
               }}
             }});
@@ -788,7 +948,13 @@ def _bridge_script(base: str) -> str:
     return new Proxy(event, {{
       get(target, prop, receiver) {{
         if (prop === "origin") return fallbackMessageOrigin();
-        const value = Reflect.get(target, prop, receiver);
+        let value;
+        try {{
+          value = Reflect.get(target, prop, target);
+        }} catch (_) {{
+          storageShieldLog();
+          return undefined;
+        }}
         return typeof value === "function" ? value.bind(target) : value;
       }}
     }});
@@ -837,7 +1003,8 @@ def _bridge_script(base: str) -> str:
   addEventListener("click", (event) => {{
     const a = event.target && event.target.closest ? event.target.closest("a[target], a[href]") : null;
     if (!a) return;
-    if (AD_RE.test(a.href || "") || a.target === "_blank") {{
+    if (isAdTarget(a.href || "") || a.target === "_blank") {{
+      if (isAdTarget(a.href || "")) shieldLog();
       event.preventDefault();
       event.stopImmediatePropagation();
     }}
@@ -866,7 +1033,10 @@ def _bridge_script(base: str) -> str:
   if (window.WebSocket) {{
     const NativeWS = window.WebSocket;
     window.WebSocket = function(url, protocols) {{
-      if (AD_RE.test(String(url || ""))) throw new Error("Blocked ad websocket");
+      if (isAdTarget(url)) {{
+        shieldLog();
+        throw new Error("Blocked ad websocket");
+      }}
       return new NativeWS(url, protocols);
     }};
   }}
