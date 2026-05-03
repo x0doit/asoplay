@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import re
+from pathlib import Path
 from urllib.parse import parse_qs, quote, urljoin, urlparse, urlsplit, urlunsplit
 
 import httpx
@@ -30,7 +31,8 @@ kodik_router = APIRouter()
 
 _client: httpx.AsyncClient | None = None
 _MAX_TEXT_REWRITE = int(os.environ.get("AV_PLAYER_PROXY_MAX_TEXT_REWRITE", str(3 * 1024 * 1024)))
-_PROXY_VERSION = "20260503-player16"
+_PROXY_VERSION = "20260503-player17"
+_KODIK_SKIN_CSS = Path(__file__).resolve().parent.parent / "assets" / "player" / "kodik-skin.css"
 _SHIELD_LOGGER_JS = (
     '(function(){var q=[],c={};try{["log","warn","error","info","debug"].forEach(function(m){'
     'var f=typeof console!=="undefined"&&console[m];if(typeof f==="function")c[m]=f.bind(console);});}catch(_){}'
@@ -620,9 +622,22 @@ async def _sibnet_frame(request: Request, iframe_url: str) -> Response:
     return _clean_video_frame(source_url, str(frame_resp.url), poster_url, element_id="av-sibnet-video")
 
 
+def _is_kodik_base(base: str) -> bool:
+    try:
+        host = urlparse(base).netloc.lower()
+    except Exception:
+        return False
+    return host == "kodikplayer.com" or host.endswith(".kodikplayer.com")
+
+
 def _bridge_script(base: str) -> str:
     base_js = json.dumps(base)
+    kodik_skin = (
+        f'<link rel="stylesheet" href="/player/kodik-skin.css?v={_PROXY_VERSION}">\n'
+        if _is_kodik_base(base) else ""
+    )
     return f"""
+{kodik_skin}
 <script src="/player/asoplay-shield.js"></script>
 <script>
 (() => {{
@@ -811,7 +826,7 @@ def _bridge_script(base: str) -> str:
     return !s || s[0] === "#" || /^(about|blob|data|javascript|mailto|tel):/i.test(s);
   }};
   const isPlayerInternalPath = (value) =>
-    /^\\/player\\/(?:frame|proxy|cvh-api)(?:[/?#]|$)|^\\/player\\/asoplay-shield\\.js(?:[?#]|$)/i
+    /^\\/player\\/(?:frame|proxy|cvh-api)(?:[/?#]|$)|^\\/player\\/(?:asoplay-shield\\.js|kodik-skin\\.css)(?:[?#]|$)/i
       .test(String(value || "").trim());
   const isLocalProxyPath = (value) => isPlayerInternalPath(value);
   const isLocalProxyUrl = (value) => {{
@@ -1288,6 +1303,17 @@ def asoplay_shield_js():
     return Response(
         _SHIELD_LOGGER_JS,
         media_type="application/javascript",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.get("/kodik-skin.css", include_in_schema=False)
+def kodik_skin_css():
+    if not _KODIK_SKIN_CSS.is_file():
+        raise HTTPException(404)
+    return Response(
+        _KODIK_SKIN_CSS.read_bytes(),
+        media_type="text/css",
         headers={"Cache-Control": "no-store"},
     )
 

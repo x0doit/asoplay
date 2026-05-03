@@ -1,0 +1,39 @@
+:root {
+  --asoplay-kodik-accent: #ff6666;
+  --asoplay-kodik-accent-soft: rgba(255, 102, 102, 0.42);
+}
+
+.fp-progress,
+.fp-volumeslider em.fp-color,
+.fp-quality.hd span::before,
+.fp-subtitles.chosen::after,
+.fp-playback-settings.changed::before,
+.fp-play-icon:hover,
+.fp-pause-icon:hover,
+.ps-dropdown .rangeslider__fill,
+.ps-dropdown .rangeslider__handle {
+  background-color: var(--asoplay-kodik-accent) !important;
+}
+
+.fp-volumeslider em {
+  background-color: var(--asoplay-kodik-accent-soft) !important;
+}
+
+.fp-quality-dropdown div.hd::after {
+  color: var(--asoplay-kodik-accent) !important;
+}
+
+.fp-quality.hd span::before {
+  color: #fff !important;
+}
+
+.fp-quality svg .fp-fill,
+.fp-volume-icon:hover svg .fp-fill,
+.fp-playback-settings:hover .fp-fill,
+.fp-subtitles:hover span svg,
+.fp-subtitles:hover span svg .fill,
+.active-quality-dropdown .fp-quality svg .fp-fill,
+.active-ps-dropdown .fp-playback-settings .fp-fill,
+.active-subtitles-dropdown .fp-subtitles span svg {
+  fill: var(--asoplay-kodik-accent) !important;
+}
