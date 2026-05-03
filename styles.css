@@ -1186,6 +1186,48 @@ ul, ol { list-style: none; }
   overflow: hidden;
 }
 
+.asoplayer-menu {
+  position: fixed;
+  z-index: 10000;
+  min-width: 220px;
+  padding: 7px;
+  border-radius: 8px;
+  background: rgba(18, 18, 20, .98);
+  border: 1px solid rgba(255, 255, 255, .1);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, .42),
+    0 0 0 1px rgba(255, 102, 102, .08) inset;
+  backdrop-filter: blur(14px);
+}
+.asoplayer-menu button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  padding: 10px 11px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, .9);
+  font: 700 13px/1.15 var(--font);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--d-fast), color var(--d-fast);
+}
+.asoplayer-menu button:hover,
+.asoplayer-menu button:focus-visible {
+  outline: 0;
+  background: rgba(255, 102, 102, .14);
+  color: #fff;
+}
+.asoplayer-menu-brand {
+  margin: 6px 4px 2px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255, 255, 255, .08);
+  color: rgba(255, 255, 255, .42);
+  font: 800 10px/1 var(--font);
+  text-transform: uppercase;
+}
+
 /* Episode info — перенесён ВЫШЕ плеера (в head) */
 .player-head {
   padding: 14px 18px 12px;

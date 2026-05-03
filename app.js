@@ -1653,6 +1653,10 @@ class Player {
     this._reqId = 0;
     this._activeSource = null;
     this._iframeEl = null;
+    this._playerContextMenuEl = null;
+    this._onPlayerContextMenu = null;
+    this._onPlayerMenuOutside = null;
+    this._onPlayerMenuKeydown = null;
   }
 
   _tabEpisodeKey() {
@@ -2224,6 +2228,121 @@ class Player {
     return false;
   }
 
+  _playerAnimeUrl() {
+    try {
+      return new URL(location.pathname || `/anime/${this.malId}/`, location.origin).href;
+    } catch (_) {
+      return `${location.origin}/anime/${this.malId}/`;
+    }
+  }
+
+  async _copyPlayerAnimeLink() {
+    const url = this._playerAnimeUrl();
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        throw new Error("clipboard unavailable");
+      }
+      this._flashPlayerNotice("Ссылка на аниме скопирована");
+    } catch (_) {
+      try {
+        const field = document.createElement("textarea");
+        field.value = url;
+        field.setAttribute("readonly", "");
+        field.style.cssText = "position:fixed;left:-9999px;top:-9999px";
+        document.body.appendChild(field);
+        field.select();
+        document.execCommand("copy");
+        field.remove();
+        this._flashPlayerNotice("Ссылка на аниме скопирована");
+      } catch {
+        this._flashPlayerNotice("Не удалось скопировать ссылку", true);
+      }
+    }
+  }
+
+  _requestPlayerScreenshot() {
+    try {
+      if (!this._iframeEl?.contentWindow) throw new Error("iframe unavailable");
+      this._iframeEl.contentWindow.postMessage({ type: "asoplay:capture-screenshot" }, "*");
+    } catch (_) {
+      this._flashPlayerNotice("Скриншот недоступен для этого плеера", true);
+    }
+  }
+
+  _hidePlayerContextMenu() {
+    this._playerContextMenuEl?.remove();
+    this._playerContextMenuEl = null;
+    if (this._onPlayerMenuOutside) {
+      document.removeEventListener("pointerdown", this._onPlayerMenuOutside, true);
+      this._onPlayerMenuOutside = null;
+    }
+    if (this._onPlayerMenuKeydown) {
+      document.removeEventListener("keydown", this._onPlayerMenuKeydown);
+      this._onPlayerMenuKeydown = null;
+    }
+  }
+
+  _runPlayerMenuAction(action) {
+    this._hidePlayerContextMenu();
+    if (action === "screenshot") this._requestPlayerScreenshot();
+    else if (action === "copy-link") this._copyPlayerAnimeLink();
+    else if (action === "animesocial") window.open("https://AnimeSocial.online", "_blank", "noopener,noreferrer");
+  }
+
+  _showPlayerContextMenu(clientX, clientY) {
+    this._hidePlayerContextMenu();
+    const menu = document.createElement("div");
+    menu.className = "asoplayer-menu";
+    menu.setAttribute("role", "menu");
+    menu.innerHTML = `
+      <button type="button" role="menuitem" data-action="screenshot">Сделать скриншот</button>
+      <button type="button" role="menuitem" data-action="copy-link">Копировать ссылку на аниме</button>
+      <button type="button" role="menuitem" data-action="animesocial">Аниме соц сеть</button>
+      <div class="asoplayer-menu-brand">AsoPlayer v0.0.1</div>
+    `;
+    menu.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-action]");
+      if (!button) return;
+      this._runPlayerMenuAction(button.dataset.action);
+    });
+    document.body.appendChild(menu);
+    const gap = 8;
+    const rect = menu.getBoundingClientRect();
+    const maxX = Math.max(gap, window.innerWidth - rect.width - gap);
+    const maxY = Math.max(gap, window.innerHeight - rect.height - gap);
+    menu.style.left = `${Math.min(Math.max(gap, clientX), maxX)}px`;
+    menu.style.top = `${Math.min(Math.max(gap, clientY), maxY)}px`;
+    this._playerContextMenuEl = menu;
+    this._onPlayerMenuOutside = (event) => {
+      if (!this._playerContextMenuEl?.contains(event.target)) this._hidePlayerContextMenu();
+    };
+    this._onPlayerMenuKeydown = (event) => {
+      if (event.key === "Escape") this._hidePlayerContextMenu();
+    };
+    setTimeout(() => {
+      document.addEventListener("pointerdown", this._onPlayerMenuOutside, true);
+      document.addEventListener("keydown", this._onPlayerMenuKeydown);
+    }, 0);
+  }
+
+  _handlePlayerContextMenuMessage(data) {
+    if (data?.type === "asoplay:player-pointerdown") {
+      this._hidePlayerContextMenu();
+      return true;
+    }
+    if (data?.type !== "asoplay:player-context-menu") return false;
+    const iframe = this._iframeEl;
+    const rect = iframe?.getBoundingClientRect?.();
+    const baseX = rect ? rect.left : 0;
+    const baseY = rect ? rect.top : 0;
+    const x = baseX + (Number(data.x) || 0);
+    const y = baseY + (Number(data.y) || 0);
+    this._showPlayerContextMenu(x, y);
+    return true;
+  }
+
   // Player iframes from yummyani/kodik/aksor post timeupdate/ended messages.
   // We validate that the message comes from our own iframe — not any other
   // window — before trusting it. Without this check a hostile page could
@@ -2248,6 +2367,7 @@ class Player {
         if (!fromDirectFrame && !fromFrameOrigin) return;
       }
       const d = e.data;
+      if (d && typeof d === "object" && this._handlePlayerContextMenuMessage(d)) return;
       if (d && typeof d === "object" && this._handlePlayerScreenshotMessage(d)) return;
       this._dubSawEvent = true;
       const since = Date.now() - (this._playStartedAt || 0);
@@ -2937,6 +3057,13 @@ class Player {
   createIframe(url) {
     const c = $("#artplayer");
     if (!c) return;
+    if (!this._onPlayerContextMenu) {
+      this._onPlayerContextMenu = (event) => {
+        event.preventDefault();
+        this._showPlayerContextMenu(event.clientX, event.clientY);
+      };
+      c.addEventListener("contextmenu", this._onPlayerContextMenu);
+    }
     const playerProxyBase = (() => {
       if (BACKEND) return BACKEND;
       if (location.protocol === "http:" && location.port === "8787") {
@@ -2985,6 +3112,8 @@ class Player {
   }
   destroyPlayer() {
     const c = $("#artplayer");
+    if (c && this._onPlayerContextMenu) c.removeEventListener("contextmenu", this._onPlayerContextMenu);
+    this._onPlayerContextMenu = null;
     if (c) c.innerHTML = "";
     this._iframeEl = null;
   }
@@ -2995,6 +3124,7 @@ class Player {
     if (this._fallbackInt) clearInterval(this._fallbackInt);
     if (this._countdownInt) clearInterval(this._countdownInt);
     if (this._shotNoticeTimer) clearTimeout(this._shotNoticeTimer);
+    this._hidePlayerContextMenu();
     if (this._onMessage) window.removeEventListener("message", this._onMessage);
     if (this._shellCleanup) this._shellCleanup();
     this.destroyPlayer();

@@ -31,7 +31,7 @@ kodik_router = APIRouter()
 
 _client: httpx.AsyncClient | None = None
 _MAX_TEXT_REWRITE = int(os.environ.get("AV_PLAYER_PROXY_MAX_TEXT_REWRITE", str(3 * 1024 * 1024)))
-_PROXY_VERSION = "20260503-player18"
+_PROXY_VERSION = "20260503-player20"
 _KODIK_SKIN_CSS = Path(__file__).resolve().parent.parent / "assets" / "player" / "kodik-skin.css"
 _SHIELD_LOGGER_JS = (
     '(function(){var q=[],c={};try{["log","warn","error","info","debug"].forEach(function(m){'
@@ -464,6 +464,54 @@ border-left:22px solid #fff;margin-left:6px}}
   const send = (key, value) => {{
     try {{ parent.postMessage({{ key, value }}, "*"); }} catch (_) {{}}
   }};
+  const sendShotError = (message) => {{
+    try {{ parent.postMessage({{ type: "asoplay:screenshot-error", message }}, "*"); }} catch (_) {{}}
+  }};
+  const captureScreenshot = () => {{
+    if (!video || !video.videoWidth || !video.videoHeight) {{
+      sendShotError("Кадр еще не готов. Запустите видео и попробуйте снова.");
+      return;
+    }}
+    try {{
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("canvas unavailable");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const done = (dataUrl) => {{
+        try {{
+          parent.postMessage({{
+            type: "asoplay:screenshot",
+            dataUrl,
+            width: canvas.width,
+            height: canvas.height,
+            time: Number(video.currentTime) || 0,
+            title: document.title || ""
+          }}, "*");
+        }} catch (_) {{}}
+      }};
+      if (canvas.toBlob && window.FileReader) {{
+        canvas.toBlob((blob) => {{
+          if (!blob) {{
+            sendShotError("Не удалось сохранить кадр.");
+            return;
+          }}
+          const reader = new FileReader();
+          reader.onload = () => done(String(reader.result || ""));
+          reader.onerror = () => sendShotError("Не удалось прочитать кадр.");
+          reader.readAsDataURL(blob);
+        }}, "image/png");
+      }} else {{
+        done(canvas.toDataURL("image/png"));
+      }}
+    }} catch (err) {{
+      const name = err && err.name ? String(err.name) : "";
+      sendShotError(name === "SecurityError"
+        ? "Источник не разрешил снять кадр из видео."
+        : "Не удалось сделать скриншот.");
+    }}
+  }};
   const sendTime = () => {{
     const duration = Number.isFinite(video.duration) ? video.duration : 0;
     const time = Number.isFinite(video.currentTime) ? video.currentTime : 0;
@@ -478,6 +526,18 @@ border-left:22px solid #fff;margin-left:6px}}
     if (p && typeof p.catch === "function") p.catch(showStart);
   }};
   start.addEventListener("click", tryPlay);
+  document.addEventListener("pointerdown", (event) => {{
+    if (event.button !== 0) return;
+    try {{ parent.postMessage({{ type: "asoplay:player-pointerdown" }}, "*"); }} catch (_) {{}}
+  }}, true);
+  document.addEventListener("contextmenu", (event) => {{
+    event.preventDefault();
+    try {{ parent.postMessage({{ type: "asoplay:player-context-menu", x: event.clientX, y: event.clientY }}, "*"); }} catch (_) {{}}
+  }}, true);
+  window.addEventListener("message", (event) => {{
+    const data = event && event.data;
+    if (data && typeof data === "object" && data.type === "asoplay:capture-screenshot") captureScreenshot();
+  }});
   video.addEventListener("loadedmetadata", sendTime);
   video.addEventListener("canplay", () => {{ sendTime(); if (video.paused) showStart(); }});
   video.addEventListener("timeupdate", sendTime);
@@ -1093,7 +1153,7 @@ def _bridge_script(base: str) -> str:
 
   const setAttr = Element.prototype.setAttribute;
   Element.prototype.setAttribute = function(name, value) {{
-    if (IS_KODIK && String(name).toLowerCase() === "src" && String(this.tagName || "").toUpperCase() === "VIDEO") {{
+    if (String(name).toLowerCase() === "src" && String(this.tagName || "").toUpperCase() === "VIDEO") {{
       try {{
         this.crossOrigin = "anonymous";
         setAttr.call(this, "crossorigin", "anonymous");
@@ -1110,7 +1170,7 @@ def _bridge_script(base: str) -> str:
       enumerable: desc.enumerable,
       get: desc.get,
       set(value) {{
-        if (IS_KODIK && prop === "src" && String(this.tagName || "").toUpperCase() === "VIDEO") {{
+        if (prop === "src" && String(this.tagName || "").toUpperCase() === "VIDEO") {{
           try {{
             this.crossOrigin = "anonymous";
             setAttr.call(this, "crossorigin", "anonymous");
@@ -1157,7 +1217,7 @@ def _bridge_script(base: str) -> str:
   document.writeln = (...items) => nativeWriteln(...items.map(rewriteHtml));
 
   const prepareScreenshotVideo = (video) => {{
-    if (!IS_KODIK || !video || String(video.tagName || "").toUpperCase() !== "VIDEO") return;
+    if (!video || String(video.tagName || "").toUpperCase() !== "VIDEO") return;
     try {{
       video.crossOrigin = "anonymous";
       video.setAttribute("crossorigin", "anonymous");
@@ -1177,7 +1237,6 @@ def _bridge_script(base: str) -> str:
     }} catch (_) {{}}
   }};
   const captureScreenshot = () => {{
-    if (!IS_KODIK) return;
     const video = Array.from(document.querySelectorAll("video")).find((item) =>
       item && item.videoWidth > 0 && item.videoHeight > 0
     );
@@ -1270,6 +1329,27 @@ def _bridge_script(base: str) -> str:
       captureScreenshot();
     }}, true);
   }}
+  document.addEventListener("pointerdown", (event) => {{
+    if (event.button !== 0) return;
+    try {{ window.parent.postMessage({{ type: "asoplay:player-pointerdown" }}, "*"); }} catch (_) {{}}
+  }}, true);
+  document.addEventListener("contextmenu", (event) => {{
+    try {{
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      window.parent.postMessage({{
+        type: "asoplay:player-context-menu",
+        x: event.clientX,
+        y: event.clientY
+      }}, "*");
+    }} catch (_) {{}}
+  }}, true);
+  window.addEventListener("message", (event) => {{
+    const data = event && event.data;
+    if (!data || typeof data !== "object") return;
+    if (data.type === "asoplay:capture-screenshot") captureScreenshot();
+  }});
 
   const clean = (root) => {{
     if (!root || !root.querySelectorAll) return;
