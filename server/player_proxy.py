@@ -30,10 +30,10 @@ kodik_router = APIRouter()
 
 _client: httpx.AsyncClient | None = None
 _MAX_TEXT_REWRITE = int(os.environ.get("AV_PLAYER_PROXY_MAX_TEXT_REWRITE", str(3 * 1024 * 1024)))
-_PROXY_VERSION = "20260503-player15"
+_PROXY_VERSION = "20260503-player16"
 _SHIELD_LOGGER_JS = (
     '(function(){var q=[],c={};try{["log","warn","error","info","debug"].forEach(function(m){'
-    'var f=console&&console[m];if(typeof f==="function")c[m]=f.bind(console);});}catch(_){}'
+    'var f=typeof console!=="undefined"&&console[m];if(typeof f==="function")c[m]=f.bind(console);});}catch(_){}'
     'function flush(){try{var x;while((x=q.shift())){var f=c[x.m]||c.info;'
     'if(typeof f==="function")f.apply(console,x.a);}}catch(_){}}'
     'function l(m,a){try{q.push({m:m,a:a});'
@@ -810,7 +810,10 @@ def _bridge_script(base: str) -> str:
     const s = String(value || "").trim();
     return !s || s[0] === "#" || /^(about|blob|data|javascript|mailto|tel):/i.test(s);
   }};
-  const isLocalProxyPath = (value) => /^\\/player\\/(frame|proxy)(?:[/?#]|$)/i.test(String(value || "").trim());
+  const isPlayerInternalPath = (value) =>
+    /^\\/player\\/(?:frame|proxy|cvh-api)(?:[/?#]|$)|^\\/player\\/asoplay-shield\\.js(?:[?#]|$)/i
+      .test(String(value || "").trim());
+  const isLocalProxyPath = (value) => isPlayerInternalPath(value);
   const isLocalProxyUrl = (value) => {{
     try {{
       const u = new URL(String(value || ""), LOCAL_ORIGIN);
@@ -841,7 +844,7 @@ def _bridge_script(base: str) -> str:
   const normalizeUpstream = (url) => {{
     try {{
       const u = new URL(url);
-      if (u.origin === LOCAL_ORIGIN && !/^\\/player\\/(frame|proxy)(?:[/?#]|$)/i.test(u.pathname)) {{
+      if (u.origin === LOCAL_ORIGIN && !isPlayerInternalPath(u.pathname)) {{
         return UPSTREAM_ORIGIN + u.pathname + u.search + u.hash;
       }}
       return u.href;
