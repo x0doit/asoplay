@@ -2151,6 +2151,79 @@ class Player {
     return true;
   }
 
+  _flashPlayerNotice(text, danger = false) {
+    const c = $("#artplayer");
+    if (!c) return;
+    let note = c.querySelector(".player-shot-notice");
+    if (!note) {
+      note = document.createElement("div");
+      note.className = "player-shot-notice";
+      c.appendChild(note);
+    }
+    note.textContent = text;
+    note.style.cssText = [
+      "position:absolute",
+      "left:50%",
+      "bottom:74px",
+      "transform:translateX(-50%)",
+      "z-index:30",
+      "padding:9px 13px",
+      "border-radius:6px",
+      "background:" + (danger ? "rgba(120,24,32,.94)" : "rgba(18,18,18,.92)"),
+      "color:#fff",
+      "font:700 12px/1.2 var(--font,Arial,sans-serif)",
+      "box-shadow:0 10px 26px rgba(0,0,0,.36)",
+      "pointer-events:none",
+    ].join(";");
+    clearTimeout(this._shotNoticeTimer);
+    this._shotNoticeTimer = setTimeout(() => note.remove(), 1800);
+  }
+
+  _screenshotFilename(payload = {}) {
+    const animeId = this.anime?.mal_id || this.anime?.id || "anime";
+    const ep = this.episodes[this.currentEp]?.num || this.currentEp + 1 || "episode";
+    const secs = Math.max(0, Math.floor(Number(payload.time) || this._lastTime || 0));
+    const hh = String(Math.floor(secs / 3600)).padStart(2, "0");
+    const mm = String(Math.floor((secs % 3600) / 60)).padStart(2, "0");
+    const ss = String(secs % 60).padStart(2, "0");
+    return `AsoPlay-${animeId}-ep${ep}-${hh}-${mm}-${ss}.png`;
+  }
+
+  async _downloadPlayerScreenshot(payload = {}) {
+    const dataUrl = String(payload.dataUrl || "");
+    if (!dataUrl.startsWith("data:image/png")) {
+      this._flashPlayerNotice("Скриншот недоступен для этого источника", true);
+      return;
+    }
+    try {
+      const blob = await (await fetch(dataUrl)).blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = this._screenshotFilename(payload);
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      this._flashPlayerNotice("Скриншот сохранен");
+    } catch (_) {
+      this._flashPlayerNotice("Не удалось сохранить скриншот", true);
+    }
+  }
+
+  _handlePlayerScreenshotMessage(data) {
+    if (data?.type === "asoplay:screenshot") {
+      this._downloadPlayerScreenshot(data);
+      return true;
+    }
+    if (data?.type === "asoplay:screenshot-error") {
+      this._flashPlayerNotice(data.message || "Скриншот недоступен", true);
+      return true;
+    }
+    return false;
+  }
+
   // Player iframes from yummyani/kodik/aksor post timeupdate/ended messages.
   // We validate that the message comes from our own iframe — not any other
   // window — before trusting it. Without this check a hostile page could
@@ -2174,10 +2247,11 @@ class Player {
         } catch (_) {}
         if (!fromDirectFrame && !fromFrameOrigin) return;
       }
+      const d = e.data;
+      if (d && typeof d === "object" && this._handlePlayerScreenshotMessage(d)) return;
       this._dubSawEvent = true;
       const since = Date.now() - (this._playStartedAt || 0);
       if (since < 5000) return;
-      const d = e.data;
       let key = "", val = null;
       if (typeof d === "string") {
         try { const p = JSON.parse(d); key = p.key || p.event || p.type || ""; val = p.value ?? p.time ?? p.data; }
@@ -2920,6 +2994,7 @@ class Player {
     this.destroyed = true;
     if (this._fallbackInt) clearInterval(this._fallbackInt);
     if (this._countdownInt) clearInterval(this._countdownInt);
+    if (this._shotNoticeTimer) clearTimeout(this._shotNoticeTimer);
     if (this._onMessage) window.removeEventListener("message", this._onMessage);
     if (this._shellCleanup) this._shellCleanup();
     this.destroyPlayer();

@@ -31,7 +31,7 @@ kodik_router = APIRouter()
 
 _client: httpx.AsyncClient | None = None
 _MAX_TEXT_REWRITE = int(os.environ.get("AV_PLAYER_PROXY_MAX_TEXT_REWRITE", str(3 * 1024 * 1024)))
-_PROXY_VERSION = "20260503-player17"
+_PROXY_VERSION = "20260503-player18"
 _KODIK_SKIN_CSS = Path(__file__).resolve().parent.parent / "assets" / "player" / "kodik-skin.css"
 _SHIELD_LOGGER_JS = (
     '(function(){var q=[],c={};try{["log","warn","error","info","debug"].forEach(function(m){'
@@ -632,6 +632,7 @@ def _is_kodik_base(base: str) -> bool:
 
 def _bridge_script(base: str) -> str:
     base_js = json.dumps(base)
+    is_kodik_js = json.dumps(_is_kodik_base(base))
     kodik_skin = (
         f'<link rel="stylesheet" href="/player/kodik-skin.css?v={_PROXY_VERSION}">\n'
         if _is_kodik_base(base) else ""
@@ -643,6 +644,7 @@ def _bridge_script(base: str) -> str:
 (() => {{
   "use strict";
   const BASE = {base_js};
+  const IS_KODIK = {is_kodik_js};
   const UPSTREAM_ORIGIN = new URL(BASE).origin;
   const LOCAL_ORIGIN = location.origin;
   const AD_RE = /(casino|bookmaker|betting|vulkan|1xbet|pin[-\\s]?up|av\\s*casino|werbung|реклам|казино|ставк|букмекер|advert|preroll|vast|vpaid|popunder)/i;
@@ -1091,6 +1093,12 @@ def _bridge_script(base: str) -> str:
 
   const setAttr = Element.prototype.setAttribute;
   Element.prototype.setAttribute = function(name, value) {{
+    if (IS_KODIK && String(name).toLowerCase() === "src" && String(this.tagName || "").toUpperCase() === "VIDEO") {{
+      try {{
+        this.crossOrigin = "anonymous";
+        setAttr.call(this, "crossorigin", "anonymous");
+      }} catch (_) {{}}
+    }}
     if (ATTRS.has(String(name).toLowerCase())) value = proxied(value);
     return setAttr.call(this, name, value);
   }};
@@ -1101,7 +1109,15 @@ def _bridge_script(base: str) -> str:
       configurable: true,
       enumerable: desc.enumerable,
       get: desc.get,
-      set(value) {{ return desc.set.call(this, proxied(value)); }}
+      set(value) {{
+        if (IS_KODIK && prop === "src" && String(this.tagName || "").toUpperCase() === "VIDEO") {{
+          try {{
+            this.crossOrigin = "anonymous";
+            setAttr.call(this, "crossorigin", "anonymous");
+          }} catch (_) {{}}
+        }}
+        return desc.set.call(this, proxied(value));
+      }}
     }});
   }};
   const propTargets = [
@@ -1140,6 +1156,121 @@ def _bridge_script(base: str) -> str:
   document.write = (...items) => nativeWrite(...items.map(rewriteHtml));
   document.writeln = (...items) => nativeWriteln(...items.map(rewriteHtml));
 
+  const prepareScreenshotVideo = (video) => {{
+    if (!IS_KODIK || !video || String(video.tagName || "").toUpperCase() !== "VIDEO") return;
+    try {{
+      video.crossOrigin = "anonymous";
+      video.setAttribute("crossorigin", "anonymous");
+    }} catch (_) {{}}
+  }};
+  const postScreenshot = (payload) => {{
+    try {{ window.parent.postMessage(payload, "*"); }} catch (_) {{}}
+  }};
+  const postScreenshotError = (message) => {{
+    postScreenshot({{ type: "asoplay:screenshot-error", message: String(message || "Скриншот недоступен") }});
+  }};
+  const setScreenshotBusy = (busy) => {{
+    try {{
+      document.querySelectorAll(".asoplay-screenshot-button").forEach((button) => {{
+        button.classList.toggle("asoplay-screenshot-busy", !!busy);
+      }});
+    }} catch (_) {{}}
+  }};
+  const captureScreenshot = () => {{
+    if (!IS_KODIK) return;
+    const video = Array.from(document.querySelectorAll("video")).find((item) =>
+      item && item.videoWidth > 0 && item.videoHeight > 0
+    );
+    if (!video) {{
+      postScreenshotError("Кадр еще не готов. Запустите видео и попробуйте снова.");
+      return;
+    }}
+    prepareScreenshotVideo(video);
+    try {{
+      setScreenshotBusy(true);
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("canvas unavailable");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const payload = {{
+        type: "asoplay:screenshot",
+        width: canvas.width,
+        height: canvas.height,
+        time: Number(video.currentTime) || 0,
+        title: document.title || ""
+      }};
+      const done = (dataUrl) => {{
+        setScreenshotBusy(false);
+        payload.dataUrl = dataUrl;
+        postScreenshot(payload);
+      }};
+      if (canvas.toBlob && window.FileReader) {{
+        canvas.toBlob((blob) => {{
+          if (!blob) {{
+            setScreenshotBusy(false);
+            postScreenshotError("Не удалось сохранить кадр.");
+            return;
+          }}
+          const reader = new FileReader();
+          reader.onload = () => done(String(reader.result || ""));
+          reader.onerror = () => {{
+            setScreenshotBusy(false);
+            postScreenshotError("Не удалось прочитать кадр.");
+          }};
+          reader.readAsDataURL(blob);
+        }}, "image/png");
+      }} else {{
+        done(canvas.toDataURL("image/png"));
+      }}
+    }} catch (err) {{
+      setScreenshotBusy(false);
+      const name = err && err.name ? String(err.name) : "";
+      postScreenshotError(name === "SecurityError"
+        ? "Источник не разрешил снять кадр из видео."
+        : "Не удалось сделать скриншот.");
+    }}
+  }};
+  const screenshotIcon =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">' +
+    '<path class="fill" d="M9.2 4.5h5.6l1.2 2h3A2.5 2.5 0 0 1 21.5 9v8A2.5 2.5 0 0 1 19 19.5H5A2.5 2.5 0 0 1 2.5 17V9A2.5 2.5 0 0 1 5 6.5h3l1.2-2Zm2.8 4A4.3 4.3 0 1 0 12 17a4.3 4.3 0 0 0 0-8.5Zm0 2A2.3 2.3 0 1 1 12 15a2.3 2.3 0 0 1 0-4.5Z"/></svg>';
+  const markScreenshotUi = (root) => {{
+    if (!IS_KODIK) return;
+    const scope = root && root.querySelectorAll ? root : document;
+    const buttons = [];
+    try {{
+      if (scope.matches && (scope.matches(".share_button") || scope.matches(".fp-share_button"))) buttons.push(scope);
+      buttons.push(...scope.querySelectorAll(".share_button, .fp-share_button"));
+    }} catch (_) {{}}
+    buttons.forEach((button) => {{
+      if (!button || button.__asoplayScreenshotButton) return;
+      button.__asoplayScreenshotButton = true;
+      button.classList.add("asoplay-screenshot-button");
+      button.setAttribute("title", "Сделать скриншот");
+      button.setAttribute("aria-label", "Сделать скриншот");
+      try {{ button.innerHTML = screenshotIcon; }} catch (_) {{}}
+    }});
+    try {{
+      scope.querySelectorAll(".get_code_heading").forEach((item) => {{
+        item.textContent = "Сделать скриншот";
+      }});
+      scope.querySelectorAll("video").forEach(prepareScreenshotVideo);
+    }} catch (_) {{}}
+  }};
+  if (IS_KODIK) {{
+    document.addEventListener("click", (event) => {{
+      const button = event.target && event.target.closest
+        ? event.target.closest(".asoplay-screenshot-button, .share_button, .fp-share_button")
+        : null;
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      captureScreenshot();
+    }}, true);
+  }}
+
   const clean = (root) => {{
     if (!root || !root.querySelectorAll) return;
     const selector = "iframe, script, img, video, source, track, a, link, embed, object";
@@ -1150,14 +1281,20 @@ def _bridge_script(base: str) -> str:
       for (const attr of ATTRS) {{
         if (el.hasAttribute && el.hasAttribute(attr)) el.setAttribute(attr, el.getAttribute(attr));
       }}
+      prepareScreenshotVideo(el);
       const marker = [el.id, el.className, el.title, el.alt, el.textContent].join(" ");
       if (AD_RE.test(marker) && !/video|player/i.test(marker)) el.remove();
     }});
   }};
   new MutationObserver((items) => {{
-    for (const item of items) for (const node of item.addedNodes) clean(node.nodeType === 1 ? node : null);
+    for (const item of items) for (const node of item.addedNodes) {{
+      if (node.nodeType !== 1) continue;
+      clean(node);
+      markScreenshotUi(node);
+    }}
   }}).observe(document.documentElement, {{ childList: true, subtree: true }});
   clean(document);
+  markScreenshotUi(document);
 }})();
 </script>
 """

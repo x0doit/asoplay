@@ -37,3 +37,25 @@
 .active-subtitles-dropdown .fp-subtitles span svg {
   fill: var(--asoplay-kodik-accent) !important;
 }
+
+.share_button.asoplay-screenshot-button::after,
+.fp-share_button.asoplay-screenshot-button::after {
+  content: "Сделать скриншот" !important;
+  width: max-content !important;
+  min-width: max-content !important;
+}
+
+.share_button.asoplay-screenshot-button.asoplay-screenshot-busy::after,
+.fp-share_button.asoplay-screenshot-button.asoplay-screenshot-busy::after {
+  content: "Снимаю кадр..." !important;
+}
+
+.share_button.asoplay-screenshot-button:hover,
+.fp-share_button.asoplay-screenshot-button:hover {
+  background-color: #242424 !important;
+}
+
+.share_button.asoplay-screenshot-button:hover .fill,
+.fp-share_button.asoplay-screenshot-button:hover .fill {
+  fill: var(--asoplay-kodik-accent) !important;
+}
