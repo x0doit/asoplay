@@ -24,6 +24,7 @@ import logging
 import os
 import random as _random
 import re as _re
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -44,6 +45,7 @@ except ImportError:
 from server import (
     vpn_bridge, proxies, animesocial, account_api,
     title_pages, user_lists, activity_log, profile_pages, adblock, player_proxy,
+    source_health,
 )
 
 
@@ -219,21 +221,66 @@ async def _run(fn, *args, **kwargs):
     return await asyncio.to_thread(fn, *args, **kwargs)
 
 
+def _all_sources() -> list[str]:
+    return list(SOURCES) + list(NATIVE_SOURCES)
+
+
+def _source_unavailable(source: str) -> HTTPException:
+    wait = source_health.cooldown_remaining(source)
+    return HTTPException(
+        503,
+        f"source '{source}' is cooling down after repeated failures; retry in {wait}s",
+    )
+
+
+async def _guard_source(source: str, op: str, awaitable, timeout: float):
+    if not source_health.is_available(source):
+        cancel = getattr(awaitable, "cancel", None)
+        close = getattr(awaitable, "close", None)
+        if callable(cancel):
+            cancel()
+        elif callable(close):
+            close()
+        raise _source_unavailable(source)
+    started = time.perf_counter()
+    try:
+        result = await asyncio.wait_for(awaitable, timeout=timeout)
+    except HTTPException:
+        raise
+    except asyncio.TimeoutError as exc:
+        source_health.mark_failure(source, f"{op} timeout after {timeout}s")
+        raise HTTPException(504, f"{op} timeout") from exc
+    except Exception as exc:
+        source_health.mark_failure(source, exc)
+        raise
+    else:
+        elapsed = int((time.perf_counter() - started) * 1000)
+        source_health.mark_success(source, elapsed)
+        return result
+
+
 # ---------- status endpoints ----------
 @app.get("/health")
 def health():
+    active_sources = source_health.available_sources(_all_sources())
     return {
         "ok": True,
-        "sources": list(SOURCES) + list(NATIVE_SOURCES),
+        "sources": active_sources,
         "vpn": vpn_bridge.is_active(),
         "db": animesocial.health(),
         "adblock": adblock.status(),
+        "source_health": source_health.snapshot(_all_sources()),
     }
 
 
 @app.get("/sources")
 def sources():
-    return list(SOURCES) + list(NATIVE_SOURCES)
+    return source_health.available_sources(_all_sources())
+
+
+@app.get("/source-health")
+def source_health_status():
+    return source_health.snapshot(_all_sources())
 
 
 @app.get("/adblock/status")
@@ -270,12 +317,21 @@ async def search(
     mal_id: int | None = None,
 ):
     if source in NATIVE_SOURCES:
-        results = await _native_search(source, q, mal_id=mal_id)
+        try:
+            results = await _guard_source(
+                source,
+                "search",
+                _native_search(source, q, mal_id=mal_id),
+                timeout=10.0,
+            )
+        except Exception as exc:
+            log.info("search failed on %s: %s (returning empty)", source, exc)
+            return []
         return _filter_by_year(results, year)
 
     ext = _get_extractor(source)
     try:
-        results = await _run(ext.search, q)
+        results = await _guard_source(source, "search", _run(ext.search, q), timeout=10.0)
     except Exception as exc:
         # Source-скрейперы anicli-api (animego, dreamcast, yummy_anime_org…)
         # регулярно падают: у них сайт-цель или блокирует запрос, или сменил
@@ -337,14 +393,21 @@ async def search(
 @app.get("/src/episodes")
 async def episodes(key: str, source: str = "anilibria"):
     if source in NATIVE_SOURCES:
-        return await _native_episodes(source, key)
+        return await _guard_source(
+            source,
+            "episodes",
+            _native_episodes(source, key),
+            timeout=12.0,
+        )
 
     search_result = _get(key)
     try:
         get_anime = getattr(search_result, "a_get_anime", None) or search_result.get_anime
-        anime = await _run(get_anime)
+        anime = await _guard_source(source, "anime", _run(get_anime), timeout=12.0)
         get_eps = getattr(anime, "a_get_episodes", None) or anime.get_episodes
-        episodes_list = await _run(get_eps)
+        episodes_list = await _guard_source(source, "episodes", _run(get_eps), timeout=12.0)
+    except HTTPException:
+        raise
     except Exception as exc:
         log.exception("episodes failed")
         raise HTTPException(502, f"episodes failed: {exc}")
@@ -371,12 +434,19 @@ def _norm_dub_name(name: str) -> str:
 @app.get("/src/dubs")
 async def dubs_for_episode(key: str, source: str = "anilibria"):
     if source in NATIVE_SOURCES:
-        return await _native_dubs(source, key)
+        return await _guard_source(
+            source,
+            "dubs",
+            _native_dubs(source, key),
+            timeout=12.0,
+        )
 
     episode = _get(key)
     try:
         get_sources = getattr(episode, "a_get_sources", None) or episode.get_sources
-        sources_list = await _run(get_sources)
+        sources_list = await _guard_source(source, "dubs", _run(get_sources), timeout=12.0)
+    except HTTPException:
+        raise
     except Exception as exc:
         log.exception("sources failed")
         raise HTTPException(502, f"sources failed: {exc}")
@@ -395,7 +465,13 @@ async def dubs_for_episode(key: str, source: str = "anilibria"):
 @app.get("/src/videos")
 async def videos(key: str, source: str = "anilibria"):
     if source in NATIVE_SOURCES:
-        return await adblock.filter_videos(await _native_videos(source, key))
+        vids = await _guard_source(
+            source,
+            "videos",
+            _native_videos(source, key),
+            timeout=15.0,
+        )
+        return await adblock.filter_videos(vids)
 
     obj = _get(key)
     if hasattr(obj, "get_videos") or hasattr(obj, "a_get_videos"):
@@ -411,7 +487,7 @@ async def videos(key: str, source: str = "anilibria"):
         out: list[dict] = []
         try:
             get_videos = getattr(obj, "a_get_videos", None) or obj.get_videos
-            vids = await _run(get_videos)
+            vids = await _guard_source(source, "videos", _run(get_videos), timeout=15.0)
             for v in vids:
                 url = getattr(v, "url", None) or str(v)
                 if not url:
@@ -430,7 +506,7 @@ async def videos(key: str, source: str = "anilibria"):
     episode = obj
     try:
         get_sources = getattr(episode, "a_get_sources", None) or episode.get_sources
-        sources_list = await _run(get_sources)
+        sources_list = await _guard_source(source, "video sources", _run(get_sources), timeout=12.0)
 
         sem = asyncio.Semaphore(8)
 
@@ -438,7 +514,7 @@ async def videos(key: str, source: str = "anilibria"):
             async with sem:
                 try:
                     get_videos = getattr(s, "a_get_videos", None) or s.get_videos
-                    vids = await _run(get_videos)
+                    vids = await asyncio.wait_for(_run(get_videos), timeout=8.0)
                 except Exception as exc:
                     log.debug("source videos skipped: %s", exc)
                     return []
@@ -455,11 +531,18 @@ async def videos(key: str, source: str = "anilibria"):
                                 "headers": headers, "source_name": name})
                 return out
 
-        grouped = await asyncio.gather(*[fetch_one(s) for s in sources_list], return_exceptions=True)
+        grouped = await _guard_source(
+            source,
+            "videos",
+            asyncio.gather(*[fetch_one(s) for s in sources_list], return_exceptions=True),
+            timeout=15.0,
+        )
         all_videos: list[dict] = []
         for g in grouped:
             if isinstance(g, list):
                 all_videos.extend(g)
+    except HTTPException:
+        raise
     except Exception as exc:
         log.exception("videos failed")
         raise HTTPException(502, f"videos failed: {exc}")

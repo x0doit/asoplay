@@ -1828,14 +1828,18 @@ class Player {
     return true;
   }
 
-  async _loadEpisodeDubs(ep, reqId, { retryStale = true } = {}) {
-    const src = this._activeSource;
+  async _loadEpisodeDubsFromSource(src, ep, reqId) {
     const epKey = ep?.yummyKey || ep?.key;
     if (!epKey || !src) return [];
+    const list = await api.backendSources(epKey, src);
+    if (reqId !== this._reqId) return [];
+    return (list || []).map(s => ({ label: s.name, _sourceKey: s.key, _src: src }));
+  }
+
+  async _loadEpisodeDubs(ep, reqId, { retryStale = true } = {}) {
+    const src = this._activeSource;
     try {
-      const list = await api.backendSources(epKey, src);
-      if (reqId !== this._reqId) return [];
-      return (list || []).map(s => ({ label: s.name, _sourceKey: s.key, _src: src }));
+      return await this._loadEpisodeDubsFromSource(src, ep, reqId);
     } catch (err) {
       if (retryStale && this._isStaleBackendKeyError(err)) {
         const refreshed = await this._refreshActiveSourceKeys(reqId);
@@ -1854,6 +1858,70 @@ class Player {
     this._dubsCache.set(ep.num, dubs);
     this.currentDubs = dubs;
     return dubs;
+  }
+
+  _backendSourcePriority() {
+    return ["yummy_anime", "oldyummy", "animego", "yummy_anime_org",
+            "dreamcast", "anilibria", "anilibme", "sameband"];
+  }
+
+  _activateSourceForEpisode(src, episodes, index) {
+    this._activeSource = src;
+    this.episodes = episodes;
+    this.currentEp = index;
+    this._dubsCache.clear();
+    $("#avEpCount").textContent = `${this.episodes.length} эп.`;
+    this.renderEpisodes();
+    $$("#avEpisodesList .ep-row").forEach((b, idx) => b.classList.toggle("active", idx === this.currentEp));
+    const ep = this.episodes[this.currentEp];
+    $("#avEpInfo").innerHTML = `<span class="sp-ep-num">${ep.num}</span><span class="sp-ep-title">${esc(ep.name)}</span>`;
+    const p = $("#avPrevEp"), n = $("#avNextEp");
+    if (p) p.disabled = this.currentEp === 0;
+    if (n) n.disabled = this.currentEp === this.episodes.length - 1;
+    return ep;
+  }
+
+  async _tryAlternativeSourceForEpisode(episodeNum, reqId) {
+    const available = new Set(state.backendSources || []);
+    for (const src of this._backendSourcePriority()) {
+      if (src === this._activeSource || !available.has(src)) continue;
+      try {
+        if (!this.sources[`backend:${src}`]?.episodes?.length) {
+          await this.discoverBackend(src);
+        }
+        if (reqId !== this._reqId || this.destroyed) return null;
+        const srcData = this.sources[`backend:${src}`];
+        if (!srcData?.episodes?.length) continue;
+        let episodes = this._buildEpisodeList(srcData.episodes);
+        let index = episodes.findIndex(e => Number(e.num) === Number(episodeNum));
+        if (index < 0) continue;
+        let ep = episodes[index];
+        let dubs = [];
+        try {
+          dubs = await this._loadEpisodeDubsFromSource(src, ep, reqId);
+        } catch (err) {
+          if (!this._isStaleBackendKeyError(err)) throw err;
+          delete this.sources[`backend:${src}`];
+          await this.discoverBackend(src);
+          if (reqId !== this._reqId || this.destroyed) return null;
+          const freshData = this.sources[`backend:${src}`];
+          if (!freshData?.episodes?.length) continue;
+          episodes = this._buildEpisodeList(freshData.episodes);
+          index = episodes.findIndex(e => Number(e.num) === Number(episodeNum));
+          if (index < 0) continue;
+          ep = episodes[index];
+          dubs = await this._loadEpisodeDubsFromSource(src, ep, reqId);
+        }
+        if (reqId !== this._reqId || this.destroyed) return null;
+        if (!dubs.length) continue;
+        const activeEp = this._activateSourceForEpisode(src, episodes, index);
+        this._dubsCache.set(activeEp.num, dubs);
+        return { ep: activeEp, dubs };
+      } catch (err) {
+        console.warn("episode source fallback skipped", src, err);
+      }
+    }
+    return null;
   }
 
   async _fetchEpisodeProgress() {
@@ -2602,7 +2670,7 @@ class Player {
     // aviev_watch_history теперь создаётся ТОЛЬКО серверным progress-event'ом,
     // когда просмотр перевалил за 5 минут. Не стартуем фейковые записи «просто
     // открыл страницу» — фид «Продолжить просмотр» должен быть честный.
-    const ep = this.episodes[i];
+    let ep = this.episodes[i];
     if (!ep) return;
     this._rememberTabEpisode(ep.num);
     $("#avEpInfo").innerHTML = `<span class="sp-ep-num">${ep.num}</span><span class="sp-ep-title">${esc(ep.name)}</span>`;
@@ -2614,8 +2682,21 @@ class Player {
     try {
       let dubs = this._dubsCache.get(ep.num);
       if (!dubs) {
-        dubs = await this._loadEpisodeDubs(ep, reqId, { retryStale: true });
+        try {
+          dubs = await this._loadEpisodeDubs(ep, reqId, { retryStale: true });
+        } catch (err) {
+          console.warn("episode dubs failed", err);
+          dubs = [];
+        }
         if (reqId !== this._reqId) return;
+        if (!dubs.length) {
+          const fallback = await this._tryAlternativeSourceForEpisode(ep.num, reqId);
+          if (reqId !== this._reqId) return;
+          if (fallback) {
+            ep = fallback.ep;
+            dubs = fallback.dubs;
+          }
+        }
         if (!dubs.length) { this.status("Озвучки не найдены"); return; }
         this._dubsCache.set(ep.num, dubs);
       }
