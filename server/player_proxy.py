@@ -30,7 +30,17 @@ kodik_router = APIRouter()
 
 _client: httpx.AsyncClient | None = None
 _MAX_TEXT_REWRITE = int(os.environ.get("AV_PLAYER_PROXY_MAX_TEXT_REWRITE", str(3 * 1024 * 1024)))
-_PROXY_VERSION = "20260503-player11"
+_PROXY_VERSION = "20260503-player15"
+_SHIELD_LOGGER_JS = (
+    '(function(){var q=[],c={};try{["log","warn","error","info","debug"].forEach(function(m){'
+    'var f=console&&console[m];if(typeof f==="function")c[m]=f.bind(console);});}catch(_){}'
+    'function flush(){try{var x;while((x=q.shift())){var f=c[x.m]||c.info;'
+    'if(typeof f==="function")f.apply(console,x.a);}}catch(_){}}'
+    'function l(m,a){try{q.push({m:m,a:a});'
+    'if(q.length>40)q.splice(0,q.length-40);setTimeout(flush,0);}catch(_){}}'
+    'try{Object.defineProperty(window,"__asoplayShieldLog",{value:l,configurable:true});}'
+    'catch(_){window.__asoplayShieldLog=l;}setInterval(flush,250);})();\n'
+)
 _CHROME_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
@@ -613,6 +623,7 @@ async def _sibnet_frame(request: Request, iframe_url: str) -> Response:
 def _bridge_script(base: str) -> str:
     base_js = json.dumps(base)
     return f"""
+<script src="/player/asoplay-shield.js"></script>
 <script>
 (() => {{
   "use strict";
@@ -635,6 +646,11 @@ def _bridge_script(base: str) -> str:
     info: console.info ? console.info.bind(console) : () => {{}},
     debug: console.debug ? console.debug.bind(console) : () => {{}}
   }};
+  const shieldConsole = window.__asoplayShieldLog || ((method, args) => {{
+    const fn = nativeConsole[method] || nativeConsole.info;
+    return fn(...args);
+  }});
+  const shieldInfo = (...args) => shieldConsole("info", args);
   const shieldState = {{ windowStart: 0, hits: 0, mutedUntil: 0 }};
   const shieldLog = () => {{
     try {{
@@ -646,7 +662,7 @@ def _bridge_script(base: str) -> str:
       }}
       shieldState.hits += 1;
       if (shieldState.hits >= 3) {{
-        nativeConsole.info(
+        shieldInfo(
           "%cAsoPlay Shield:%c У Kodik настоящий понос, но у Даниэля Сэмпая есть волшебная \\"Антиспам\\" палочка, которая блокирует его запросы. ^-^",
           shieldStyleA,
           shieldStyleB
@@ -657,7 +673,7 @@ def _bridge_script(base: str) -> str:
         return;
       }}
       if (shieldState.hits === 1) {{
-        nativeConsole.info(
+        shieldInfo(
           "%cAsoPlay Shield:%c Kodik пытается засрать твое видео рекламой, но обосрался. Сэмпай Даниэль защитил твои глазки от мусора.",
           shieldStyleA,
           shieldStyleB
@@ -676,7 +692,7 @@ def _bridge_script(base: str) -> str:
       }}
       storageShieldState.hits += 1;
       if (storageShieldState.hits >= 3) {{
-        nativeConsole.info(
+        shieldInfo(
           "%cAsoPlay Shield:%c Kodik устроил storage-истерику, но антиспам Сэмпая Даниэля отправил ее в угол подумать. ^-^",
           shieldStyleA,
           shieldStyleB
@@ -687,7 +703,7 @@ def _bridge_script(base: str) -> str:
         return;
       }}
       if (storageShieldState.hits === 1) {{
-        nativeConsole.info(
+        shieldInfo(
           "%cAsoPlay Shield:%c Kodik полез в localStorage за мутной фигней, но Сэмпай Даниэль выдал ему безопасную пустышку.",
           shieldStyleA,
           shieldStyleB
@@ -700,7 +716,7 @@ def _bridge_script(base: str) -> str:
     try {{
       const now = Date.now();
       if (now < pauseShieldState.mutedUntil) return;
-      nativeConsole.info(
+      shieldInfo(
         "%cAsoPlay Shield:%c Пауза поставлена. Серия терпеливо ждёт, пока ты вернёшься к просмотру.",
         pauseStyleA,
         pauseStyleB
@@ -713,7 +729,7 @@ def _bridge_script(base: str) -> str:
     try {{
       if (extensionShieldState.shown) return;
       extensionShieldState.shown = true;
-      nativeConsole.info(
+      shieldInfo(
         "%cAsoPlay Shield:%c Какие-то расширения пытались прочитать cookies sandbox-iframe, но Даниэль Сэмпай послал их НаАХОООЙ. :З",
         extensionStyleA,
         extensionStyleB
@@ -751,7 +767,7 @@ def _bridge_script(base: str) -> str:
           shieldLog();
           return;
         }}
-        return native(...args);
+        return shieldConsole(name, args);
       }};
     }} catch (_) {{}}
   }};
@@ -1261,6 +1277,15 @@ async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = 
         status_code=upstream.status_code,
         media_type=content_type.split(";", 1)[0] or None,
         headers=headers,
+    )
+
+
+@router.get("/asoplay-shield.js", include_in_schema=False)
+def asoplay_shield_js():
+    return Response(
+        _SHIELD_LOGGER_JS,
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-store"},
     )
 
 
