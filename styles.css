@@ -2244,6 +2244,280 @@ footer a:hover { color: var(--red); }
   .to-top { bottom: 14px; right: 14px; }
 }
 
+/* Compact viewport / iframe app mode.
+   800x600-class embeds need less chrome and a player that fits the first view. */
+html.is-embedded {
+  --container-max: 100%;
+  --header-h: 56px;
+}
+html.is-embedded body > #outlet.container {
+  min-height: auto;
+}
+html.is-embedded .container {
+  padding-left: clamp(10px, 2vw, 16px);
+  padding-right: clamp(10px, 2vw, 16px);
+}
+html.is-embedded .header {
+  margin-bottom: 12px;
+}
+html.is-embedded .header .container {
+  min-height: var(--header-h);
+  height: auto;
+  padding: 7px 16px;
+  flex-wrap: nowrap;
+}
+html.is-embedded .mobile-menu-button {
+  display: inline-block;
+  margin-left: auto;
+  order: 2;
+  padding: 7px 13px;
+}
+html.is-embedded .menu-sep {
+  margin-left: 0;
+}
+html.is-embedded .menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  flex-direction: column;
+  width: min(280px, calc(100vw - 28px));
+  max-width: 280px;
+  background: var(--bg-3);
+  padding: 20px 10px;
+  border-right: 3px solid var(--red);
+  transform: translateX(-100%);
+  transition: transform var(--d-med) var(--ease);
+  z-index: 40;
+  overflow-y: auto;
+  margin-left: 0;
+}
+html.is-embedded .menu.show {
+  transform: translateX(0);
+}
+html.is-embedded .menu > li > a {
+  padding: 14px 16px;
+}
+html.is-embedded .sub-menu {
+  position: static;
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  background: var(--bg-4);
+  border: 0;
+  box-shadow: none;
+}
+html.is-embedded footer,
+html.is-embedded .to-top {
+  display: none;
+}
+html.is-embedded .av-support {
+  display: none;
+}
+html.is-embedded .detail-grid {
+  gap: 12px;
+}
+html.is-compact-frame .cinema-hero {
+  display: none;
+}
+html.is-compact-frame .hero-carousel {
+  height: min(330px, calc(100vh - 132px));
+  margin-bottom: 12px;
+}
+html.is-compact-frame .hero-content {
+  padding: 16px 16px 54px;
+}
+html.is-compact-frame .hero-title {
+  font-size: clamp(22px, 4vw, 30px);
+  margin-bottom: 8px;
+}
+html.is-compact-frame .hero-desc {
+  -webkit-line-clamp: 2;
+  margin-bottom: 12px;
+}
+html.is-compact-frame .hero-actions .btn {
+  padding: 9px 16px;
+}
+html.is-compact-frame .hero-nav {
+  display: none;
+}
+html.is-compact-frame .hero-ctrl {
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  justify-content: center;
+}
+html.is-compact-frame .sp-video {
+  aspect-ratio: auto;
+  height: clamp(240px, calc(100vh - 260px), 320px);
+}
+html.is-compact-frame .episodes-list {
+  max-height: min(300px, 42vh);
+}
+html.is-compact-frame .tabs-block {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 900px) and (max-height: 700px) {
+  :root {
+    --header-h: 56px;
+  }
+  body > #outlet.container {
+    min-height: auto;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .header {
+    margin-bottom: 12px;
+  }
+  .header .container {
+    min-height: var(--header-h);
+    padding: 7px 16px;
+  }
+  .logo-img {
+    height: 50px;
+  }
+  .mobile-menu-button {
+    padding: 7px 13px;
+  }
+  .hero-carousel {
+    height: min(300px, calc(100vh - 118px));
+    margin-bottom: 16px;
+  }
+  .hero-content {
+    padding: 16px 16px 54px;
+  }
+  .hero-title {
+    font-size: clamp(22px, 4vw, 30px);
+    margin-bottom: 8px;
+  }
+  .hero-stats {
+    margin-bottom: 10px;
+  }
+  .hero-desc {
+    -webkit-line-clamp: 2;
+    margin-bottom: 12px;
+  }
+  .hero-actions .btn {
+    padding: 9px 16px;
+  }
+  .cinema-hero {
+    min-height: 250px;
+    margin-bottom: 12px;
+  }
+  .cinema-content {
+    padding: 16px;
+    gap: 16px;
+    align-items: flex-end;
+  }
+  .cinema-poster {
+    width: 96px;
+    transform: none;
+  }
+  .cinema-title {
+    font-size: clamp(22px, 4vw, 30px);
+    line-height: 1.12;
+  }
+  .cinema-sub,
+  .cinema-stats,
+  .cinema-desc {
+    margin-bottom: 10px;
+  }
+  .cinema-desc {
+    -webkit-line-clamp: 2;
+  }
+  .cinema-actions .btn {
+    padding: 9px 14px;
+    font-size: 12px;
+  }
+  .av-support {
+    display: none;
+  }
+  .detail-grid {
+    gap: 12px;
+  }
+  .seasons-bar {
+    margin-bottom: 10px;
+    padding: 5px;
+  }
+  .season-tab {
+    min-width: 120px;
+    padding: 7px 10px;
+  }
+  .sp-player {
+    margin-bottom: 12px;
+    border-radius: var(--r-md);
+  }
+  .sp-head {
+    padding: 9px 12px;
+    gap: 10px;
+  }
+  .sp-ep-num {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  .sp-dub-trigger {
+    padding: 7px 12px 7px 10px;
+    max-width: min(280px, 42vw);
+  }
+  .sp-dub-label {
+    max-width: 150px;
+  }
+  .sp-dub-pop {
+    top: 54px;
+    right: 10px;
+    left: 10px;
+    width: auto;
+    max-height: min(320px, 70vh);
+  }
+  .sp-dub-pop-inner {
+    max-height: min(320px, 70vh);
+  }
+  .sp-video {
+    aspect-ratio: auto;
+    height: clamp(230px, 48vh, 320px);
+  }
+  .sp-foot {
+    padding: 9px 12px;
+    gap: 8px;
+  }
+  .sp-nav {
+    min-height: 34px;
+    padding: 7px 11px;
+  }
+  .sp-auto-txt {
+    font-size: 12px;
+  }
+  .ep-sidebar {
+    padding: 12px;
+    border-radius: var(--r-md);
+  }
+  .ep-side-head {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+  }
+  .episodes-list {
+    max-height: min(300px, 44vh);
+    padding-right: 0;
+  }
+  .ep-row {
+    min-height: 40px;
+    padding: 9px 12px;
+  }
+  .tabs-block,
+  .content-block {
+    margin-bottom: 12px;
+  }
+  footer {
+    display: none;
+  }
+  .to-top {
+    display: none;
+  }
+}
+
 /* =====================================================================
    Search form (страница /search)
    ===================================================================== */

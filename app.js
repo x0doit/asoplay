@@ -11,6 +11,23 @@
 
 import * as account from "./js/account.js?v=20260430-7";
 
+// Mark iframe embeds early enough for compact app-like layout rules.
+(() => {
+  const root = document.documentElement;
+  const syncFrameMode = () => {
+    let embedded = false;
+    try { embedded = window.self !== window.top; }
+    catch (_) { embedded = true; }
+    root.classList.toggle("is-embedded", embedded);
+    root.classList.toggle(
+      "is-compact-frame",
+      embedded && (window.innerWidth <= 1100 || window.innerHeight <= 760)
+    );
+  };
+  syncFrameMode();
+  window.addEventListener("resize", syncFrameMode, { passive: true });
+})();
+
 // ---------- backend URL ----------
 // When the page is served by FastAPI (same-origin, port 8787), fetches use
 // relative paths. When running under Live Server on :5500 / :3000 / :8000,
