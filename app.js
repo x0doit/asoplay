@@ -1808,6 +1808,7 @@ class Player {
   }
 
   async addTitles(newTitles) {
+    if (this._gated) return;
     const before = this.titles.length;
     this.titles = uniq([...this.titles, ...newTitles]).filter(Boolean);
     if (this.titles.length === before) return;
@@ -1832,7 +1833,7 @@ class Player {
   }
 
   async rediscover() {
-    if (this._red) return; this._red = true;
+    if (this._gated || this._red) return; this._red = true;
     try {
       await this.discoverWithFallback();
       if (this.destroyed) return;
@@ -1843,7 +1844,13 @@ class Player {
   async init() {
     this.status("Ищу аниме…");
     if (!state.backendAvailable) { this.renderUnavailable("Бэкенд не запущен"); return; }
-    if (this._isNonAnime()) { this.renderUnavailable(); return; }
+    if (this._isNonAnime()) {
+      // Late titles must not start a search behind this banner.
+      this._gated = true;
+      this.renderUnavailable("Это клип или промо-ролик",
+        "Плеер показывает сериалы, фильмы и спешлы. Если вы хотите посмотреть конкретно этот ролик, воспользуйтесь поиском.");
+      return;
+    }
     const releaseAt = this._nextAiringDate();
     if (releaseAt === "unknown" || (releaseAt instanceof Date && releaseAt > new Date())) {
       this.renderComingSoon(releaseAt);
@@ -1875,6 +1882,9 @@ class Player {
     if (!srcData?.episodes?.length) return false;
     if (this._rendered) return true;
     this._rendered = true;
+    // A source found after "not found" (late titles) needs the status area back.
+    const overlay = $("#avPlayerOverlay");
+    if (overlay?.querySelector(".unavail")) overlay.innerHTML = `<div class="spinner"></div><div id="avPlayerStatus"></div>`;
     this.episodes = this._buildEpisodeList(srcData.episodes);
 
     $("#avEpCount").textContent = `${this.episodes.length} эп.`;
@@ -1902,6 +1912,7 @@ class Player {
           preview: e.preview,
           key: e.key,
           yummyKey: e.key,
+          _src: e._src,
         };
       })
       .filter(e => {
@@ -1921,18 +1932,19 @@ class Player {
     if (!src) return false;
     const currentNum = this.episodes[this.currentEp]?.num;
     try {
-      await this.discoverBackend(src);
+      if (!await this.discoverBackend(src, { refresh: true })) return false;
     } catch (_) {
       return false;
     }
-    if (reqId !== this._reqId || this.destroyed) return false;
+    if (reqId !== this._reqId || this.destroyed || src !== this._activeSource) return false;
     const fresh = this.sources[`backend:${src}`]?.episodes;
     if (!fresh?.length) return false;
 
     const nextEpisodes = this._buildEpisodeList(fresh);
     const currentIdx = nextEpisodes.findIndex(e => e.num === currentNum);
+    if (currentIdx < 0) return false;
     this.episodes = nextEpisodes;
-    if (currentIdx >= 0) this.currentEp = currentIdx;
+    this.currentEp = currentIdx;
     this._dubsCache.clear();
     this.renderEpisodes();
     $$("#avEpisodesList .ep-row").forEach((b, idx) => b.classList.toggle("active", idx === this.currentEp));
@@ -1949,13 +1961,14 @@ class Player {
   }
 
   async _loadEpisodeDubs(ep, reqId, { retryStale = true } = {}) {
-    const src = this._activeSource;
+    const src = ep?._src || this._activeSource;
     try {
       return await this._loadEpisodeDubsFromSource(src, ep, reqId);
     } catch (err) {
-      if (retryStale && this._isStaleBackendKeyError(err)) {
+      if (retryStale && src === this._activeSource && this._isStaleBackendKeyError(err)) {
         const refreshed = await this._refreshActiveSourceKeys(reqId);
-        if (!refreshed || reqId !== this._reqId) return [];
+        if (reqId !== this._reqId || this.destroyed) return [];
+        if (!refreshed) throw err;
         const freshEp = this.episodes[this.currentEp];
         return this._loadEpisodeDubs(freshEp, reqId, { retryStale: false });
       }
@@ -1995,6 +2008,7 @@ class Player {
 
   async _tryAlternativeSourceForEpisode(episodeNum, reqId) {
     const available = new Set(state.backendSources || []);
+    let lastError = null;
     for (const src of this._backendSourcePriority()) {
       if (src === this._activeSource || !available.has(src)) continue;
       try {
@@ -2030,9 +2044,11 @@ class Player {
         this._dubsCache.set(activeEp.num, dubs);
         return { ep: activeEp, dubs };
       } catch (err) {
+        lastError = err;
         console.warn("episode source fallback skipped", src, err);
       }
     }
+    if (lastError) throw lastError;
     return null;
   }
 
@@ -2586,14 +2602,9 @@ class Player {
   }
 
   _isNonAnime() {
-    const a = this.anime || {};
-    if (NON_ANIME_TYPES.has(a.type)) return true;
-    const dur = parseEpDurationMin(a.duration);
-    if (dur != null) {
-      if (a.type === "Movie") return dur < MIN_MOVIE_DURATION;
-      return dur < MIN_EPISODE_DURATION;
-    }
-    return false;
+    // Type only: real ONA/TV shorts can run a minute per episode. Catalog grids
+    // keep their own duration filter (_isRealAnime).
+    return NON_ANIME_TYPES.has(this.anime?.type);
   }
 
   _nextAiringDate() {
@@ -2658,7 +2669,7 @@ class Player {
     this._countdownInt = setInterval(tick, 1000);
   }
 
-  renderUnavailable(msg) {
+  renderUnavailable(msg, sub = "") {
     const ruTitle = this.anime._ru || "";
     const enTitle = this.anime.title_english || this.anime.title || "";
     const jpTitle = this.anime.title_japanese || "";
@@ -2678,7 +2689,7 @@ class Player {
           </svg>
         </div>
         <div class="unavail-title">${msg ? esc(msg) : "Видео пока не найдено"}</div>
-        <div class="unavail-sub">К сожалению, ни один из API-источников не содержит данный контент. Если вы хотите посмотреть конкретно это аниме, воспользуйтесь поиском.</div>
+        <div class="unavail-sub">${sub ? esc(sub) : "К сожалению, ни один из API-источников не содержит данный контент. Если вы хотите посмотреть конкретно это аниме, воспользуйтесь поиском."}</div>
         <div class="unavail-links">
           <a href="${esc(ddg)}" target="_blank" rel="noopener" class="unavail-ddg">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M10 2a8 8 0 1 0 4.9 14.3l5.4 5.4 1.4-1.4-5.4-5.4A8 8 0 0 0 10 2m0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12"/></svg>
@@ -2709,8 +2720,8 @@ class Player {
     return [...out].slice(0, 10);
   }
 
-  async discoverBackend(src) {
-    if (this.sources[`backend:${src}`]?.episodes?.length) return;
+  async discoverBackend(src, { refresh = false } = {}) {
+    if (!refresh && this.sources[`backend:${src}`]?.episodes?.length) return true;
     const yr = this.anime?.year;
     const mal = this.malId;
     const queries = this._expandQueries(this.titles);
@@ -2753,12 +2764,12 @@ class Player {
       for (const r of results) consider(r);
       if (bestScore >= 1.0) break;
     }
-    if (!best || bestScore < 0.3) return;
+    if (!best || bestScore < 0.3) return false;
     let eps = [];
-    try { eps = await api.backendEpisodes(best.key, src); } catch { return; }
+    try { eps = await api.backendEpisodes(best.key, src); } catch { return false; }
     if (!eps?.length) {
       if (bestScore >= 1.0) this._matchedNoEps = true;
-      return;
+      return false;
     }
     this.sources[`backend:${src}`] = {
       label: src,
@@ -2770,6 +2781,7 @@ class Player {
       meta: { title: best.title || this.titles[0], year: best.year },
       _isBackend: true,
     };
+    return true;
   }
 
   async discoverWithFallback() {
@@ -2823,6 +2835,10 @@ class Player {
   }
 
   _adoptAnyReadySource() {
+    // A late discovery must not pair another source with already-rendered keys.
+    if (this._activeSource && this.sources[`backend:${this._activeSource}`]?.episodes?.length) {
+      return this._renderFoundSource();
+    }
     const priority = ["yummy_anime", "oldyummy", "animego", "yummy_anime_org",
                       "dreamcast", "anilibria", "anilibme", "sameband"];
     for (const s of priority) {
@@ -2984,9 +3000,11 @@ class Player {
     try {
       let dubs = this._dubsCache.get(ep.num);
       if (!dubs) {
+        let loadError = null;
         try {
           dubs = await this._loadEpisodeDubs(ep, reqId, { retryStale: true });
         } catch (err) {
+          loadError = err;
           console.warn("episode dubs failed", err);
           dubs = [];
         }
@@ -2999,7 +3017,11 @@ class Player {
             dubs = fallback.dubs;
           }
         }
-        if (!dubs.length) { this.status("Озвучки не найдены"); return; }
+        if (!dubs.length) {
+          if (loadError) throw loadError;
+          this.status("Озвучки не найдены");
+          return;
+        }
         this._dubsCache.set(ep.num, dubs);
       }
       this.currentDubs = dubs;
@@ -3019,7 +3041,15 @@ class Player {
       this.currentDubIdx = idx;
       this.renderDubs();
       await this.playDub(idx);
-    } catch (e) { this.status(`Ошибка: ${e.message}`); }
+    } catch (e) {
+      if (reqId !== this._reqId || this.destroyed) return;
+      console.warn("episode playback load failed", e);
+      this.currentDubs = [];
+      this.renderDubs();
+      this.status("Не удалось загрузить озвучки. Попробуйте ещё раз.", {
+        retry: () => this.playEpisode(this.currentEp),
+      });
+    }
   }
 
   _isKodikUrl(url) {
@@ -3225,7 +3255,24 @@ class Player {
     if (c) c.innerHTML = "";
     this._iframeEl = null;
   }
-  status(m) { const s = $("#avPlayerStatus"); if (s) s.textContent = m; const o = $("#avPlayerOverlay"); if (o) o.classList.remove("hide"); }
+  status(m, { retry } = {}) {
+    const s = $("#avPlayerStatus");
+    if (s) s.textContent = m;
+    const o = $("#avPlayerOverlay");
+    if (!o) return;
+    o.querySelector(".player-retry")?.remove();
+    const spinner = o.querySelector(".spinner");
+    if (spinner) spinner.hidden = !!retry;
+    if (retry) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn btn-primary player-retry";
+      button.textContent = "Повторить";
+      button.onclick = retry;
+      o.append(button);
+    }
+    o.classList.remove("hide");
+  }
   hideOverlay() { const o = $("#avPlayerOverlay"); if (o) o.classList.add("hide"); }
   destroy() {
     this.destroyed = true;

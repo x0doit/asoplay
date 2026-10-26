@@ -47,6 +47,9 @@ from server import (
     title_pages, user_lists, activity_log, profile_pages, adblock, player_proxy,
     source_health, jikan_catalog,
 )
+from server.player_sources import (
+    VK_SCORE, iframe_preference_score, is_disabled_player_url, vk_video_ref,
+)
 
 
 import httpx
@@ -434,15 +437,20 @@ def _norm_dub_name(name: str) -> str:
     return s
 
 
-def _iframe_preference_score(url: str) -> int:
-    value = (url or "").lower()
-    if "iframecvh.html" in value:
-        return 30
-    if "kodikplayer.com" in value:
-        return 20
-    if "alloha.yani.tv" in value:
-        return 10
-    return 0
+def _unplayable_player_url(url: str) -> bool:
+    # VK plays only through the clean frame, which needs the owner/video ids.
+    return is_disabled_player_url(url) and not vk_video_ref(url)
+
+
+def _vk_last(identities: list, scores: dict) -> list:
+    # VK is the last resort: its dubs follow every other player, order kept.
+    return sorted(identities, key=lambda identity: scores[identity] <= VK_SCORE)
+
+
+async def _filter_source_videos(videos: list[dict]) -> list[dict]:
+    return await adblock.filter_videos([
+        video for video in videos if not _unplayable_player_url(video.get("url", ""))
+    ])
 
 
 @app.get("/src/dubs")
@@ -465,15 +473,24 @@ async def dubs_for_episode(key: str, source: str = "anilibria"):
         log.exception("sources failed")
         raise HTTPException(502, f"sources failed: {exc}")
 
-    seen: dict[str, dict] = {}
+    seen: dict[tuple[str, str], dict] = {}
+    scores: dict[tuple[str, str], int] = {}
     for s in sources_list:
+        url = getattr(s, "url", None) or ""
+        if _unplayable_player_url(url):
+            continue
         name = getattr(s, "title", None) or getattr(s, "name", None) or "—"
         norm = _norm_dub_name(name)
-        if not norm or norm in seen:
+        if not norm:
             continue
         kind = "sub" if "субтитры" in name.lower() or "sub" in name.lower() else "voice"
-        seen[norm] = {"name": name.strip(), "norm": norm, "kind": kind, "key": _put(s)}
-    return list(seen.values())
+        identity = (norm, kind)
+        score = iframe_preference_score(url)
+        if identity in seen and score <= scores[identity]:
+            continue
+        scores[identity] = score
+        seen[identity] = {"name": name.strip(), "norm": norm, "kind": kind, "key": _put(s)}
+    return [seen[identity] for identity in _vk_last(list(seen), scores)]
 
 
 @app.get("/src/videos")
@@ -485,15 +502,17 @@ async def videos(key: str, source: str = "anilibria"):
             _native_videos(source, key),
             timeout=15.0,
         )
-        return await adblock.filter_videos(vids)
+        return await _filter_source_videos(vids)
 
     obj = _get(key)
     if hasattr(obj, "get_videos") or hasattr(obj, "a_get_videos"):
         name = getattr(obj, "title", None) or getattr(obj, "name", None)
         iframe_url = getattr(obj, "url", None) or ""
+        if _unplayable_player_url(iframe_url):
+            return []
 
         if iframe_url.startswith("http"):
-            return await adblock.filter_videos([{
+            return await _filter_source_videos([{
                 "url": iframe_url, "quality": None, "type": "iframe",
                 "headers": {}, "source_name": name,
             }])
@@ -514,7 +533,7 @@ async def videos(key: str, source: str = "anilibria"):
                 })
         except Exception as exc:
             log.debug("videos extract failed: %s", exc)
-        return await adblock.filter_videos(out)
+        return await _filter_source_videos(out)
 
     # Legacy branch — extractor gave us an Episode, we'd enumerate sources × videos.
     episode = obj
@@ -525,6 +544,8 @@ async def videos(key: str, source: str = "anilibria"):
         sem = asyncio.Semaphore(8)
 
         async def fetch_one(s):
+            if is_disabled_player_url(getattr(s, "url", None) or ""):
+                return []
             async with sem:
                 try:
                     get_videos = getattr(s, "a_get_videos", None) or s.get_videos
@@ -570,7 +591,7 @@ async def videos(key: str, source: str = "anilibria"):
         return (1 if v["type"] == "m3u8" else 0, q)
 
     all_videos.sort(key=score, reverse=True)
-    return await adblock.filter_videos(all_videos)
+    return await _filter_source_videos(all_videos)
 
 
 # ---------- native source glue ----------
@@ -659,7 +680,7 @@ async def _native_episodes(source: str, key: str):
 async def _native_dubs(source: str, key: str):
     obj = _get(key)
     if source == "oldyummy" and obj.get("source") == "oldyummy":
-        seen: dict[str, dict] = {}
+        seen: dict[tuple[str, str], dict] = {}
         for v in obj.get("dubs", []):
             d = v.get("data") or {}
             name = (d.get("dubbing") or d.get("player") or "—").strip()
@@ -667,16 +688,20 @@ async def _native_dubs(source: str, key: str):
             if not norm:
                 continue
             iframe_url = v.get("iframe_url") or ""
-            score = _iframe_preference_score(iframe_url)
-            if norm in seen and score <= seen[norm].get("_score", -1):
+            if _unplayable_player_url(iframe_url):
                 continue
             kind = "sub" if "субтитры" in name.lower() else "voice"
+            identity = (norm, kind)
+            score = iframe_preference_score(iframe_url)
+            if identity in seen and score <= seen[identity].get("_score", -1):
+                continue
             dk = _put({"type": "dub", "source": "oldyummy",
                        "iframe_url": iframe_url, "name": name})
-            seen[norm] = {"name": name, "norm": norm, "kind": kind, "key": dk, "_score": score}
+            seen[identity] = {"name": name, "norm": norm, "kind": kind, "key": dk, "_score": score}
+        scores = {identity: item["_score"] for identity, item in seen.items()}
         return [
-            {item_key: item_value for item_key, item_value in item.items() if item_key != "_score"}
-            for item in seen.values()
+            {item_key: item_value for item_key, item_value in seen[identity].items() if item_key != "_score"}
+            for identity in _vk_last(list(seen), scores)
         ]
     return []
 

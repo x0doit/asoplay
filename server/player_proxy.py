@@ -15,14 +15,16 @@ import json
 import logging
 import os
 import re
+from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urljoin, urlparse, urlsplit, urlunsplit
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 
 from server import adblock
+from server.player_sources import is_disabled_player_url, vk_video_ref
 
 log = logging.getLogger("animeviev.player_proxy")
 
@@ -31,10 +33,11 @@ kodik_router = APIRouter()
 
 _client: httpx.AsyncClient | None = None
 _MAX_TEXT_REWRITE = int(os.environ.get("AV_PLAYER_PROXY_MAX_TEXT_REWRITE", str(3 * 1024 * 1024)))
-_PROXY_VERSION = "20260504-player26"
+_PROXY_VERSION = "20261027-player35"
 _KODIK_SKIN_CSS = Path(__file__).resolve().parent.parent / "assets" / "player" / "kodik-skin.css"
 _SHIELD_LOGGER_JS = (
-    '(function(){var q=[],c={};try{["log","warn","error","info","debug"].forEach(function(m){'
+    '(function(){if(typeof window.__asoplayShieldLog==="function")return;'
+    'var q=[],c={};try{["log","warn","error","info","debug"].forEach(function(m){'
     'var f=typeof console!=="undefined"&&console[m];if(typeof f==="function")c[m]=f.bind(console);});}catch(_){}'
     'function flush(){try{var x;while((x=q.shift())){var f=c[x.m]||c.info;'
     'if(typeof f==="function")f.apply(console,x.a);}}catch(_){}}'
@@ -215,6 +218,40 @@ def _guess_base(url: str, base: str | None) -> str:
     return url
 
 
+def _path_proxy_url(url: str, base: str, *, document: bool = False) -> str:
+    absolute = urljoin(base, html.unescape(url).strip())
+    if not _valid_http_url(absolute):
+        return url
+    parsed = urlsplit(_ascii_url(absolute))
+    if parsed.username or parsed.password:
+        return _proxy_url(url, base)
+    # Keep native ESM resolution and HTML location.search independent of proxy args.
+    kind = "documents" if document else "modules"
+    return urlunsplit(("", "", f"/player/{kind}/{parsed.scheme}/{parsed.netloc}{parsed.path or '/'}",
+                       parsed.query, parsed.fragment))
+
+
+def _module_proxy_url(url: str, base: str) -> str:
+    return _path_proxy_url(url, base)
+
+
+class _ResourceTagParser(HTMLParser):
+    def handle_starttag(self, tag, attrs):
+        self.tag = tag
+        self.attrs = dict(attrs)
+
+
+def _rewrite_resource_tag(tag: str, base: str) -> str:
+    parsed = _ResourceTagParser()
+    parsed.feed(tag)
+    attrs = getattr(parsed, "attrs", {})
+    is_module = (
+        getattr(parsed, "tag", "") == "script" and (attrs.get("type") or "").lower() == "module"
+        or getattr(parsed, "tag", "") == "link" and "modulepreload" in (attrs.get("rel") or "").lower().split()
+    )
+    return _rewrite_attrs(tag, base, module=is_module, document=getattr(parsed, "tag", "") == "iframe")
+
+
 def _headers_for_upstream(request: Request, url: str, base: str | None) -> dict[str, str]:
     headers: dict[str, str] = {}
     for key, value in request.headers.items():
@@ -289,10 +326,12 @@ def _decode_text(response: httpx.Response) -> str:
     return response.content.decode(encoding, errors="ignore")
 
 
-def _rewrite_attrs(text: str, base: str) -> str:
+def _rewrite_attrs(text: str, base: str, *, module: bool = False, document: bool = False) -> str:
     def repl_attr(match: re.Match[str]) -> str:
         attr, quote_char, value = match.group(1), match.group(2), match.group(3)
-        return f"{attr}{quote_char}{html.escape(_proxy_url(value, base), quote=True)}{quote_char}"
+        url = (_path_proxy_url(value, base, document=True) if document
+               else _module_proxy_url(value, base) if module else _proxy_url(value, base))
+        return f"{attr}{quote_char}{html.escape(url, quote=True)}{quote_char}"
 
     def repl_srcset(match: re.Match[str]) -> str:
         attr, quote_char, value = match.group(1), match.group(2), match.group(3)
@@ -350,9 +389,28 @@ def _rewrite_m3u8(text: str, base: str) -> str:
 
 
 def _rewrite_javascript(text: str, base: str) -> str:
-    host = urlparse(base).netloc.lower()
+    parsed = urlparse(base)
+    host = parsed.netloc.lower()
     if host.endswith("player.cdnvideohub.com") and "plapi.cdnvideohub.com" in text:
         text = text.replace("https://plapi.cdnvideohub.com", "/player/cvh-api")
+    # Only adapt known optional probes; unknown upstream versions keep their behavior.
+    if host == "www.gstatic.com" and parsed.path == "/cv/js/sender/v1/cast_sender.js":
+        entry = "F=function(a){a.length?E(a.shift(),function(){F(a)}):G()}"
+        if text.count(entry) == 1:
+            text = text.replace(entry, entry.replace(
+                "F=function(a){", "F=function(a){if(window.__asoplayPrepareCast)window.__asoplayPrepareCast(a);",
+            ), 1)
+        else:
+            log.warning("Cast loader changed; leaving its candidate order unchanged")
+    if _is_kodik_base(base):
+        probe = ('$.ajax({url:cdnCheckLink,type:"GET",cache:!1,'
+                 'success:function(e){playerSettings.cdnIsWorking=!0},'
+                 'error:function(e){playerSettings.cdnIsWorking=!1}})')
+        if text.count(probe) == 1:
+            text = text.replace(probe, (
+                '(window.__asoplayCheckCdn?window.__asoplayCheckCdn(cdnCheckLink,'
+                'function(available){playerSettings.cdnIsWorking=available}):' + probe + ')'
+            ), 1)
     return text
 
 
@@ -470,7 +528,10 @@ def _clean_video_frame(
             "url": _proxy_url(raw_url, base_url),
         })
     if not source_items and source_url:
+        seen_urls.add(source_url)
         source_items.append({"label": "Auto", "url": _proxy_url(source_url, base_url)})
+    # No MSE player is bundled, so HLS needs native support; say so instead of failing silently.
+    hls_only = bool(seen_urls) and all(urlsplit(url).path.lower().endswith(".m3u8") for url in seen_urls)
 
     proxied_src = html.escape(source_items[0]["url"] if source_items else "", quote=True)
     safe_id = html.escape(element_id, quote=True)
@@ -489,6 +550,8 @@ background:rgba(255,91,103,.94);box-shadow:0 14px 40px rgba(0,0,0,.35);cursor:po
 #av-start span{{display:block;width:0;height:0;border-top:15px solid transparent;border-bottom:15px solid transparent;
 border-left:22px solid #fff;margin-left:6px}}
 #av-start.hidden{{display:none}}
+#av-note{{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100% - 32px));box-sizing:border-box;padding:16px 18px;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:rgba(8,8,12,.86);color:#f4f4f5;font:600 15px/1.45 Arial,sans-serif;text-align:center;z-index:5}}
+#av-note[hidden]{{display:none}}
 #av-shot{{position:absolute;right:12px;top:12px;width:42px;height:40px;border:0;border-radius:8px;background:rgba(8,8,12,.74);border:1px solid rgba(255,255,255,.12);color:#fff;display:grid;place-items:center;cursor:pointer;box-shadow:0 8px 20px rgba(0,0,0,.28);backdrop-filter:blur(8px);transition:background .16s ease,opacity .16s ease,transform .16s ease;z-index:3}}
 #av-shot:hover{{background:rgba(255,255,255,.22)}}
 #av-shot svg{{width:19px;height:19px;display:block}}
@@ -522,6 +585,7 @@ body.muted .av-volume-off{{display:block}}
 @media (max-width:700px){{#av-controls{{left:8px;right:8px;bottom:8px;grid-template-columns:44px minmax(70px,1fr) 92px 44px;gap:7px;padding:8px}}#av-toggle,#av-fullscreen{{width:44px;height:38px}}#av-time,#av-volume{{display:none}}#av-quality-btn{{width:92px;height:38px}}}}
 </style></head><body>
 <video id="{safe_id}" src="{proxied_src}"{poster_attr} playsinline preload="metadata" crossorigin="anonymous"></video>
+<div id="av-note" role="status" hidden></div>
 <button id="av-start" type="button" aria-label="Play"><span></span></button>
 <button id="av-shot" type="button" aria-label="Сделать скриншот" title="Сделать скриншот">
   <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 4h6l1.6 2H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3.4L9 4Zm3 5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/></svg>
@@ -559,6 +623,16 @@ body.muted .av-volume-off{{display:block}}
   const qualityMenu = document.getElementById("av-quality-menu");
   const fullscreen = document.getElementById("av-fullscreen");
   const sources = {sources_json};
+  if ({"true" if hls_only else "false"} && !video.canPlayType("application/vnd.apple.mpegurl")) {{
+    const note = document.getElementById("av-note");
+    note.textContent = "Этот браузер не воспроизводит такой поток. Откройте серию в Chrome, Edge или Safari.";
+    note.hidden = false;
+    start.classList.add("hidden");
+    controls.hidden = true;
+    shot.hidden = true;
+    video.removeAttribute("src");
+    return;
+  }}
   let controlsTimer = 0;
   let seeking = false;
   let currentQuality = 0;
@@ -999,6 +1073,78 @@ async def _sibnet_frame(request: Request, iframe_url: str) -> Response:
     return _clean_video_frame(source_url, str(frame_resp.url), poster_url, element_id="av-sibnet-video")
 
 
+_VK_STREAM_KEYS = ("hls_ondemand", "hls")
+_VK_MEDIA_HOSTS = ("okcdn.ru", "vkuser.net", "mycdn.me")
+
+
+def _json_string_field(text: str, key: str) -> str:
+    match = re.search(r'"%s"\s*:\s*"((?:[^"\\]|\\.)*)"' % re.escape(key), text)
+    if not match:
+        return ""
+    try:
+        return json.loads(f'"{match.group(1)}"')
+    except ValueError:
+        return ""
+
+
+def _is_vk_media_url(url: str) -> bool:
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
+        return False
+    host = (parsed.hostname or "").lower()
+    return parsed.scheme == "https" and any(host == h or host.endswith("." + h) for h in _VK_MEDIA_HOSTS)
+
+
+def _hls_quality_sources(master_url: str, playlist: str) -> list[dict[str, str]]:
+    variants: dict[int, str] = {}
+    stream_info = ""
+    for line in playlist.splitlines():
+        line = line.strip()
+        if line.startswith("#EXT-X-STREAM-INF:"):
+            stream_info = line
+        elif stream_info and line and not line.startswith("#"):
+            height = re.search(r"RESOLUTION=\d+x(\d+)", stream_info)
+            url = urljoin(master_url, line)
+            if height and _is_vk_media_url(url):
+                variants.setdefault(int(height.group(1)), url)
+            stream_info = ""
+    return [{"label": f"{h}p", "url": variants[h]} for h in sorted(variants, reverse=True)]
+
+
+async def _vk_frame(request: Request, ref: dict[str, str]) -> Response:
+    """VK video in AsoPlay's clean player: no VK UI, no wrapper ad scripts."""
+    params = {"oid": ref["oid"], "id": ref["id"], "hd": "2"}
+    if ref.get("hash"):
+        params["hash"] = ref["hash"]
+    client = await _get_client()
+    try:
+        embed = await client.get(
+            "https://vk.com/video_ext.php", params=params,
+            headers={"Accept": "text/html,application/xhtml+xml", "User-Agent": _CHROME_UA},
+            timeout=httpx.Timeout(12.0, connect=5.0),
+        )
+        embed.raise_for_status()
+    except httpx.HTTPError as exc:
+        log.info("vk embed unavailable: %s", type(exc).__name__)
+        return _cvh_error_frame("Видео не загрузилось")
+    text = _decode_text(embed)
+    # Stream URLs are bound to this server's IP, so the browser plays them through /player/proxy.
+    master = next((url for url in (_json_string_field(text, key) for key in _VK_STREAM_KEYS)
+                   if _is_vk_media_url(url)), "")
+    if not master:
+        return _cvh_error_frame("Видео недоступно")
+    sources = [{"label": "Auto", "url": master}]
+    try:
+        playlist = await client.get(master, headers=_headers_for_upstream(request, master, "https://vk.com/"),
+                                    timeout=httpx.Timeout(8.0, connect=4.0))
+        if playlist.status_code == 200:
+            sources += _hls_quality_sources(master, _decode_text(playlist))
+    except httpx.HTTPError:
+        pass  # Auto still plays the adaptive master playlist.
+    return _clean_video_frame(master, "https://vk.com/", element_id="av-vk-video", sources=sources)
+
+
 def _is_kodik_base(base: str) -> bool:
     try:
         host = urlparse(base).netloc.lower()
@@ -1026,14 +1172,17 @@ def _bridge_script(base: str) -> str:
     return f"""
 {kodik_skin}
 <script src="/player/asoplay-shield.js"></script>
-<script>
+<script data-asoplay-bridge>
 (() => {{
   "use strict";
+  const bridgeMarkup = document.currentScript
+    ? '<script src="/player/asoplay-shield.js"><' + '/script>' + document.currentScript.outerHTML : "";
   const BASE = {base_js};
   const IS_KODIK = {is_kodik_js};
   const IS_ALLOHA = {is_alloha_js};
   const UPSTREAM_ORIGIN = new URL(BASE).origin;
-  const LOCAL_ORIGIN = location.origin;
+  const LOCAL_ORIGIN = location.protocol === "about:"
+    ? new URL(document.baseURI).origin : location.origin;
   const AD_RE = /(casino|bookmaker|betting|vulkan|1xbet|pin[-\\s]?up|av\\s*casino|werbung|реклам|казино|ставк|букмекер|advert|preroll|vast|vpaid|popunder)/i;
   const ATTRS = new Set(["src", "href", "poster", "data", "action"]);
   const AD_EXTRA_RE = /(buzzoola|adfox|doubleclick|googlesyndication|googletag|\\/ad(?:[/?#]|$)|\\/ads(?:[/?#]|$))/i;
@@ -1055,6 +1204,30 @@ def _bridge_script(base: str) -> str:
     return fn(...args);
   }});
   const shieldInfo = (...args) => shieldConsole("info", args);
+  const diagnosticNotices = new Set();
+  const diagnosticLog = (key, message) => {{
+    if (diagnosticNotices.has(key)) return;
+    diagnosticNotices.add(key);
+    shieldInfo("%cAsoPlay Shield:%c " + message, extensionStyleA, extensionStyleB);
+  }};
+  const castQueues = new WeakSet();
+  window.__asoplayPrepareCast = (urls) => {{
+    if (!Array.isArray(urls)) return;
+    const modern = "//www.gstatic.com/eureka/clank/cast_sender.js";
+    const legacy = value => /^chrome-extension:\\/\\/(?:pkedcjkdefgpdelpbcmbmeomcjbeemfm|enhhojjnijigcajfphajepfemndkmdlo)\\/cast_sender\\.js$/.test(value);
+    if (!castQueues.has(urls)) {{
+      castQueues.add(urls);
+      const firstLegacy = urls.findIndex(legacy);
+      const modernIndex = urls.indexOf(modern);
+      if (firstLegacy >= 0 && (modernIndex < 0 || modernIndex > firstLegacy)) {{
+        if (modernIndex >= 0) urls.splice(modernIndex, 1);
+        urls.splice(firstLegacy, 0, modern);
+      }}
+    }}
+    if (urls[0] === modern && urls.some(legacy)) {{
+      diagnosticLog("cast-modern", "Google Cast заглянул в архив расширений. Сэмпай Даниэль показал ему современный вход.");
+    }}
+  }};
   const shieldState = {{ windowStart: 0, hits: 0, mutedUntil: 0 }};
   const shieldLog = () => {{
     try {{
@@ -1128,13 +1301,13 @@ def _bridge_script(base: str) -> str:
       pauseShieldState.mutedUntil = now + 30000;
     }} catch (_) {{}}
   }};
-  const extensionShieldState = {{ shown: false }};
-  const extensionShieldLog = () => {{
+  const sandboxCookieState = {{ shown: false }};
+  const sandboxCookieLog = () => {{
     try {{
-      if (extensionShieldState.shown) return;
-      extensionShieldState.shown = true;
+      if (sandboxCookieState.shown) return;
+      sandboxCookieState.shown = true;
       shieldInfo(
-        "%cAsoPlay Shield:%c Какие-то расширения пытались прочитать cookies sandbox-iframe, но Даниэль Сэмпай послал их НаАХОООЙ. :З",
+        "%cAsoPlay Shield:%c Cookies этого iframe под замком sandbox. Сэмпай Даниэль ключи не раздаёт. :З",
         extensionStyleA,
         extensionStyleB
       );
@@ -1148,7 +1321,7 @@ def _bridge_script(base: str) -> str:
       const text = String((err && err.name) || "") + " " + String((err && err.message) || "");
       blocked = /SecurityError|sandbox|cookie/i.test(text);
     }}
-    if (blocked || window.top !== window) extensionShieldLog();
+    if (blocked) sandboxCookieLog();
   }});
   const patchConsoleMethod = (name) => {{
     const native = nativeConsole[name];
@@ -1277,7 +1450,7 @@ def _bridge_script(base: str) -> str:
     return !s || s[0] === "#" || /^(about|blob|data|javascript|mailto|tel|chrome-extension|moz-extension|safari-web-extension|ms-browser-extension):/i.test(s) || /^[a-z][a-z0-9+.-]*-extension:/i.test(s);
   }};
   const isPlayerInternalPath = (value) =>
-    /^\\/player\\/(?:frame|proxy|cvh-api)(?:[/?#]|$)|^\\/player\\/(?:asoplay-shield\\.js|kodik-skin\\.css)(?:[?#]|$)/i
+    /^\\/player\\/(?:frame|proxy|modules|documents|cvh-api|cdn-check)(?:[/?#]|$)|^\\/player\\/(?:asoplay-shield\\.js|kodik-skin\\.css)(?:[?#]|$)/i
       .test(String(value || "").trim());
   const isLocalProxyPath = (value) => isPlayerInternalPath(value);
   const isLocalProxyUrl = (value) => {{
@@ -1293,6 +1466,8 @@ def _bridge_script(base: str) -> str:
     try {{
       const u = new URL(raw, LOCAL_ORIGIN);
       if (u.origin === LOCAL_ORIGIN && isLocalProxyPath(u.pathname)) {{
+        const path = u.pathname.match(/^\\/player\\/(?:documents|modules)\\/(https?)\\/([^/]+)(\\/.*)$/);
+        if (path) return path[1] + "://" + path[2] + path[3] + u.search + u.hash;
         return u.searchParams.get("url") || raw;
       }}
     }} catch (_) {{}}
@@ -1330,10 +1505,28 @@ def _bridge_script(base: str) -> str:
     if (isAdTarget(u)) shieldLog();
     return "/player/proxy?url=" + encodeURIComponent(u) + "&base=" + encodeURIComponent(BASE) + "&pv={_PROXY_VERSION}";
   }};
+  const proxiedFrame = (value) => {{
+    if (passthrough(value)) return value;
+    const mapped = proxied(value);
+    try {{
+      const proxy = new URL(mapped, LOCAL_ORIGIN);
+      if (proxy.pathname !== "/player/proxy") return mapped;
+      const target = new URL(proxy.searchParams.get("url"));
+      if (!/^https?:$/.test(target.protocol) || target.username || target.password) return mapped;
+      return "/player/documents/" + target.protocol.slice(0, -1) + "/" + target.host
+        + target.pathname + target.search + target.hash;
+    }} catch (_) {{ return mapped; }}
+  }};
   const rewriteHtml = (html) => String(html || "").replace(
     /\\b(src|href|poster|data|action)\\s*=\\s*(['"])(.*?)\\2/gi,
     (_, attr, q, val) => attr + "=" + q + proxied(val).replace(/"/g, "&quot;") + q
   );
+  const rewriteSrcdoc = (value) => {{
+    const text = rewriteHtml(value);
+    if (!bridgeMarkup || text.includes("data-asoplay-bridge")) return text;
+    return /<head\\b[^>]*>/i.test(text)
+      ? text.replace(/<head\\b[^>]*>/i, head => head + bridgeMarkup) : bridgeMarkup + text;
+  }};
   const sanitizeMessage = (message) => message;
 
   window.open = () => null;
@@ -1346,25 +1539,11 @@ def _bridge_script(base: str) -> str:
     }} catch (_) {{}}
     return origin;
   }};
-  const patchPostMessageTarget = (win) => {{
-    try {{
-      if (!win || typeof win.postMessage !== "function" || win.postMessage.__avProxyPatched) return;
-      const native = win.postMessage.bind(win);
-      const patched = (message, targetOrigin, transfer) => {{
-        message = sanitizeMessage(message);
-        targetOrigin = normalizeTargetOrigin(targetOrigin);
-        if (typeof transfer !== "undefined") return native(message, targetOrigin, transfer);
-        return native(message, targetOrigin);
-      }};
-      Object.defineProperty(patched, "__avProxyPatched", {{ value: true }});
-      win.postMessage = patched;
-    }} catch (_) {{}}
-  }};
-  patchPostMessageTarget(window.parent);
-  patchPostMessageTarget(window.top);
+  // Never install a sender wrapper into another window: that changes event.source.
+  const nativePostMessage = window.postMessage;
+  const proxiedWindows = new WeakMap();
   if (window.HTMLIFrameElement && HTMLIFrameElement.prototype) {{
     const contentWindowDesc = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, "contentWindow");
-    const proxiedWindows = new WeakMap();
     if (contentWindowDesc && contentWindowDesc.get) {{
       try {{
         Object.defineProperty(HTMLIFrameElement.prototype, "contentWindow", {{
@@ -1375,13 +1554,16 @@ def _bridge_script(base: str) -> str:
             if (!win) return win;
             if (proxiedWindows.has(win)) return proxiedWindows.get(win);
             const proxy = new Proxy(win, {{
+              set(target, prop, value) {{
+                return Reflect.set(target, prop, value, target);
+              }},
               get(target, prop, receiver) {{
                 if (prop === "postMessage") {{
                   return (message, targetOrigin, transfer) => {{
                     message = sanitizeMessage(message);
                     targetOrigin = normalizeTargetOrigin(targetOrigin);
-                    if (typeof transfer !== "undefined") return target.postMessage(message, targetOrigin, transfer);
-                    return target.postMessage(message, targetOrigin);
+                    if (typeof transfer !== "undefined") return nativePostMessage.call(target, message, targetOrigin, transfer);
+                    return nativePostMessage.call(target, message, targetOrigin);
                   }};
                 }}
                 if (prop === "fetch" && typeof target.fetch === "function") {{
@@ -1412,15 +1594,6 @@ def _bridge_script(base: str) -> str:
       }} catch (_) {{}}
     }}
   }}
-  if (window.Window && Window.prototype.postMessage) {{
-    const nativePostMessage = Window.prototype.postMessage;
-    Window.prototype.postMessage = function(message, targetOrigin, transfer) {{
-      message = sanitizeMessage(message);
-      targetOrigin = normalizeTargetOrigin(targetOrigin);
-      if (arguments.length >= 3) return nativePostMessage.call(this, message, targetOrigin, transfer);
-      return nativePostMessage.call(this, message, targetOrigin);
-    }};
-  }}
   const fallbackMessageOrigin = () => {{
     try {{
       return document.referrer ? new URL(document.referrer).origin : LOCAL_ORIGIN;
@@ -1429,10 +1602,20 @@ def _bridge_script(base: str) -> str:
     }}
   }};
   const wrapMessageEvent = (event) => {{
-    if (!event || event.type !== "message" || event.origin !== "null") return event;
+    if (!event || event.type !== "message") return event;
     return new Proxy(event, {{
       get(target, prop, receiver) {{
-        if (prop === "origin") return fallbackMessageOrigin();
+        if (prop === "origin" && target.origin === "null") return fallbackMessageOrigin();
+        if (prop === "source") {{
+          const source = target.source;
+          // SDKs identify their iframe with event.source === iframe.contentWindow.
+          if (source && !proxiedWindows.has(source)) {{
+            document.querySelectorAll("iframe").forEach(frame => {{
+              try {{ void frame.contentWindow; }} catch (_) {{}}
+            }});
+          }}
+          return proxiedWindows.get(source) || source;
+        }}
         let value;
         try {{
           value = Reflect.get(target, prop, target);
@@ -1496,6 +1679,23 @@ def _bridge_script(base: str) -> str:
   }}, true);
 
   const nativeFetch = window.fetch ? window.fetch.bind(window) : null;
+  if (IS_KODIK && nativeFetch) {{
+    window.__asoplayCheckCdn = async (url, report) => {{
+      let available = false;
+      try {{
+        const response = await nativeFetch("/player/cdn-check?url=" + encodeURIComponent(url)
+          + "&base=" + encodeURIComponent(BASE), {{ credentials: "omit", cache: "no-store" }});
+        if (!response.ok) throw new Error("CDN check failed: " + response.status);
+        available = (await response.json()).available === true;
+      }} catch (err) {{
+        nativeConsole.warn("AsoPlay CDN diagnostic failed", err);
+      }}
+      if (!available) {{
+        diagnosticLog("cdn-unavailable", "Проверочный сервер Kodik вышел из чата. Сэмпай Даниэль записал ему прогул.");
+      }}
+      report(available);
+    }};
+  }}
   if (nativeFetch) {{
     window.fetch = (input, init) => {{
       const url = input && input.url ? input.url : input;
@@ -1541,14 +1741,16 @@ def _bridge_script(base: str) -> str:
   }}
 
   const setAttr = Element.prototype.setAttribute;
+  const prepareVideoCors = (el) => {{
+    if (String(el.tagName || "").toUpperCase() !== "VIDEO"
+        || el.getAttribute("crossorigin") === "anonymous") return;
+    try {{ setAttr.call(el, "crossorigin", "anonymous"); }} catch (_) {{}}
+  }};
   Element.prototype.setAttribute = function(name, value) {{
-    if (String(name).toLowerCase() === "src" && String(this.tagName || "").toUpperCase() === "VIDEO") {{
-      try {{
-        this.crossOrigin = "anonymous";
-        setAttr.call(this, "crossorigin", "anonymous");
-      }} catch (_) {{}}
-    }}
-    if (ATTRS.has(String(name).toLowerCase())) value = proxied(value);
+    if (String(name).toLowerCase() === "srcdoc") value = rewriteSrcdoc(value);
+    if (String(name).toLowerCase() === "src") prepareVideoCors(this);
+    if (ATTRS.has(String(name).toLowerCase())) value = String(name).toLowerCase() === "src"
+      && this.tagName === "IFRAME" ? proxiedFrame(value) : proxied(value);
     return setAttr.call(this, name, value);
   }};
   const patchProp = (proto, prop) => {{
@@ -1559,13 +1761,8 @@ def _bridge_script(base: str) -> str:
       enumerable: desc.enumerable,
       get: desc.get,
       set(value) {{
-        if (prop === "src" && String(this.tagName || "").toUpperCase() === "VIDEO") {{
-          try {{
-            this.crossOrigin = "anonymous";
-            setAttr.call(this, "crossorigin", "anonymous");
-          }} catch (_) {{}}
-        }}
-        return desc.set.call(this, proxied(value));
+        if (prop === "src") prepareVideoCors(this);
+        return desc.set.call(this, prop === "src" && this.tagName === "IFRAME" ? proxiedFrame(value) : proxied(value));
       }}
     }});
   }};
@@ -1582,18 +1779,19 @@ def _bridge_script(base: str) -> str:
   ];
   propTargets.forEach(([proto, prop]) => proto && patchProp(proto, prop));
 
-  const patchHtmlProp = (proto, prop) => {{
+  const patchHtmlProp = (proto, prop, rewrite = rewriteHtml) => {{
     const desc = Object.getOwnPropertyDescriptor(proto, prop);
     if (!desc || !desc.set) return;
     Object.defineProperty(proto, prop, {{
       configurable: true,
       enumerable: desc.enumerable,
       get: desc.get,
-      set(value) {{ return desc.set.call(this, rewriteHtml(value)); }}
+      set(value) {{ return desc.set.call(this, rewrite(value)); }}
     }});
   }};
   patchHtmlProp(Element.prototype, "innerHTML");
   patchHtmlProp(Element.prototype, "outerHTML");
+  if (window.HTMLIFrameElement) patchHtmlProp(HTMLIFrameElement.prototype, "srcdoc", rewriteSrcdoc);
   const nativeInsertAdjacentHTML = Element.prototype.insertAdjacentHTML;
   if (nativeInsertAdjacentHTML) {{
     Element.prototype.insertAdjacentHTML = function(position, html) {{
@@ -1608,10 +1806,7 @@ def _bridge_script(base: str) -> str:
   const prepareScreenshotVideo = (video) => {{
     if (!video || String(video.tagName || "").toUpperCase() !== "VIDEO") return;
     if (video.currentSrc || video.readyState > 0) return;
-    try {{
-      video.crossOrigin = "anonymous";
-      video.setAttribute("crossorigin", "anonymous");
-    }} catch (_) {{}}
+    prepareVideoCors(video);
   }};
   const postScreenshot = (payload) => {{
     try {{ window.parent.postMessage(payload, "*"); }} catch (_) {{}}
@@ -1803,7 +1998,11 @@ def _bridge_script(base: str) -> str:
       : [...root.querySelectorAll(selector)];
     nodes.forEach((el) => {{
       for (const attr of ATTRS) {{
-        if (el.hasAttribute && el.hasAttribute(attr)) el.setAttribute(attr, el.getAttribute(attr));
+        if (!el.hasAttribute || !el.hasAttribute(attr)) continue;
+        const current = el.getAttribute(attr);
+        const rewritten = attr === "src" && el.tagName === "IFRAME" ? proxiedFrame(current) : proxied(current);
+        // Reassigning even an identical media src restarts loading and aborts play().
+        if (rewritten !== current) el.setAttribute(attr, rewritten);
       }}
       prepareScreenshotVideo(el);
       const marker = [el.id, el.className, el.title, el.alt, el.textContent].join(" ");
@@ -1825,15 +2024,17 @@ def _bridge_script(base: str) -> str:
 
 
 def _rewrite_html(text: str, base: str) -> str:
-    chunks = re.split(r"(<script\b[^>]*>.*?</script\s*>)", text, flags=re.I | re.S)
+    chunks = re.split(r"(<script\b[^>]*>.*?</script\s*>|<(?:link|iframe)\b[^>]*>)", text, flags=re.I | re.S)
     rewritten: list[str] = []
     for chunk in chunks:
         if re.match(r"<script\b", chunk, flags=re.I):
             tag_match = re.match(r"(<script\b[^>]*>)(.*?)(</script\s*>)", chunk, flags=re.I | re.S)
             if tag_match:
-                rewritten.append(_rewrite_attrs(tag_match.group(1), base) + tag_match.group(2) + tag_match.group(3))
+                rewritten.append(_rewrite_resource_tag(tag_match.group(1), base) + tag_match.group(2) + tag_match.group(3))
             else:
                 rewritten.append(_rewrite_attrs(chunk, base))
+        elif re.match(r"<(?:link|iframe)\b", chunk, flags=re.I):
+            rewritten.append(_rewrite_resource_tag(chunk, base))
         else:
             rewritten.append(_rewrite_attrs(chunk, base))
     text = "".join(rewritten)
@@ -1865,6 +2066,8 @@ def _rewrite_body(content: bytes, content_type: str, base: str, *, frame: bool =
 async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = False) -> Response:
     if not _valid_http_url(url):
         raise HTTPException(400, "invalid player url")
+    if is_disabled_player_url(url):
+        raise HTTPException(403, "player disabled")
     blocked, reason = adblock.should_block(url)
     if blocked:
         log.info("player proxy blocked %s (%s)", urlparse(url).netloc, reason)
@@ -1892,6 +2095,10 @@ async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = 
         raise HTTPException(502, f"player proxy upstream failed: {exc}") from exc
 
     final_url = str(upstream.url)
+    if is_disabled_player_url(final_url):
+        if stream_cm is not None:
+            await stream_cm.__aexit__(None, None, None)
+        raise HTTPException(403, "player disabled")
     blocked, reason = adblock.should_block(final_url)
     if blocked:
         if stream_cm is not None:
@@ -1900,6 +2107,12 @@ async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = 
         return Response(status_code=204, headers={"Access-Control-Allow-Origin": "*"})
 
     content_type = upstream.headers.get("content-type", "")
+    if (not frame and request.method == "GET" and 200 <= upstream.status_code < 300
+            and ("text/html" in content_type or "application/xhtml+xml" in content_type)):
+        if stream_cm is not None:
+            await stream_cm.__aexit__(None, None, None)
+        return RedirectResponse(_path_proxy_url(final_url, final_url, document=True), status_code=307,
+                                headers={"Cache-Control": "no-store", "Access-Control-Allow-Origin": "*"})
     headers = _response_headers(upstream, html_frame=frame)
     rewrite_base = _guess_base(final_url, base) if frame else final_url
 
@@ -1981,11 +2194,82 @@ def kodik_skin_css():
 
 @router.get("/frame")
 async def frame(request: Request, url: str = Query(..., min_length=8)):
+    vk_ref = vk_video_ref(url)
+    if vk_ref:
+        return await _vk_frame(request, vk_ref)
+    if is_disabled_player_url(url):
+        raise HTTPException(403, "player disabled")
     if _is_cvh_iframe_url(url):
         return await _cvh_frame(request, url)
     if _is_sibnet_iframe_url(url):
         return await _sibnet_frame(request, url)
-    return await _fetch(request, url, url, frame=True)
+    if not _valid_http_url(url) or urlsplit(url).username or urlsplit(url).password:
+        raise HTTPException(400, "invalid player url")
+    return RedirectResponse(_path_proxy_url(url, url, document=True), status_code=307)
+
+
+@router.get("/modules/{scheme}/{host}/{path:path}")
+async def player_module(request: Request, scheme: str, host: str, path: str):
+    return await _path_resource(request, scheme, host, document=False)
+
+
+@router.get("/documents/{scheme}/{host}/{path:path}")
+async def player_document(request: Request, scheme: str, host: str, path: str):
+    return await _path_resource(request, scheme, host, document=True)
+
+
+async def _path_resource(request: Request, scheme: str, host: str, *, document: bool):
+    if scheme not in {"http", "https"} or not re.fullmatch(r"[A-Za-z0-9.-]+(?::[0-9]+)?", host):
+        raise HTTPException(400, "invalid resource origin")
+    # Read the raw suffix so encoded slashes/query strings keep their upstream meaning.
+    kind = "documents" if document else "modules"
+    prefix = f"/player/{kind}/{scheme}/{host}/".encode("ascii")
+    raw_path = request.scope.get("raw_path", b"").split(b"?", 1)[0]
+    if not raw_path.startswith(prefix):
+        raise HTTPException(400, "invalid resource path")
+    url = f"{scheme}://{host}/" + raw_path[len(prefix):].decode("ascii")
+    query = request.scope.get("query_string", b"").decode("ascii")
+    if query:
+        url += "?" + query
+    response = await _fetch(request, url, url, frame=True) if document else await _fetch(request, url, url)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+def _is_kodik_cdn_probe(url: str) -> bool:
+    parsed = urlparse(url)
+    return (
+        parsed.scheme == "https"
+        and parsed.netloc.lower() == "cloud.solodcdn.com"
+        and not parsed.params and not parsed.fragment
+        and re.fullmatch(r"/test/[0-9a-f]{32}:[0-9]{10}/g", parsed.path) is not None
+        and (not parsed.query or re.fullmatch(r"_=[0-9]+", parsed.query) is not None)
+    )
+
+
+@router.get("/cdn-check")
+async def kodik_cdn_check(request: Request, url: str = Query(...), base: str = Query(...)):
+    if not _is_kodik_cdn_probe(url) or not _valid_http_url(base) or not _is_kodik_base(base):
+        raise HTTPException(400, "invalid Kodik CDN probe")
+    available, upstream_status, reason = False, None, None
+    try:
+        client = await _get_client()
+        # This is a fixed-host diagnostic, not another general-purpose proxy.
+        async with client.stream(
+            "GET", url, headers=_headers_for_upstream(request, url, base),
+            timeout=httpx.Timeout(10.0, connect=5.0), follow_redirects=False,
+        ) as upstream:
+            upstream_status = upstream.status_code
+            available = 200 <= upstream_status < 300
+            if not available:
+                reason = "upstream_http"
+    except httpx.HTTPError as exc:
+        reason = "network"
+        log.info("Kodik CDN probe unavailable: %s", type(exc).__name__)
+    return JSONResponse(
+        {"available": available, "upstream_status": upstream_status, "reason": reason},
+        headers={"Cache-Control": "no-store", "Access-Control-Allow-Origin": "*"},
+    )
 
 
 @router.api_route("/proxy", methods=["GET", "POST", "HEAD", "OPTIONS"])
