@@ -9,7 +9,7 @@
  * any attempt to do so surfaces a guest-gate.
  */
 
-import * as account from "./js/account.js?v=20261026-nav2";
+import * as account from "./js/account.js?v=20261027-profile6";
 import { setupNavigation } from "./js/navigation.js?v=20261026-1";
 import { getTrailerId, bindTrailer, trailerPlayIcon } from "./js/trailer.js?v=20261026-1";
 

@@ -108,6 +108,14 @@ def _resolve_kinds(group: str | None) -> list[str] | None:
     return list(kinds) if kinds else None
 
 
+def _activity_title(value: str | None) -> str:
+    title = (value or "").strip()
+    # Legacy lossy writes stored literal '?' instead of letters; decoding cannot restore them.
+    if "\ufffd" in title or (title.count("?") >= 3 and not any(c.isalpha() for c in title)):
+        return ""
+    return title
+
+
 def _fetch_recent(conn, user_id: int, *, offset: int = 0, limit: int = 10,
                   group: str | None = None, day: str | None = None) -> list[dict[str, Any]]:
     """Постраничная выборка recent events с enrich тайтлом. Возвращает список
@@ -141,27 +149,33 @@ def _fetch_recent(conn, user_id: int, *, offset: int = 0, limit: int = 10,
 
     # Enrich: тайтл из user_lists → title_pages
     titles: dict[int, str] = {}
+    posters: dict[int, str] = {}
     mal_ids = list({int(r[1]) for r in rows if r[1] is not None})
     if mal_ids:
         p = ",".join(["%s"] * len(mal_ids))
         cur.execute(
-            f"""SELECT l.mal_id, l.title FROM aviev_user_lists l
+            f"""SELECT l.mal_id, l.title, l.poster_url FROM aviev_user_lists l
                 WHERE l.user_id=%s AND l.mal_id IN ({p})
-                  AND l.title IS NOT NULL AND l.title <> ''""",
+                """,
             (user_id, *mal_ids),
         )
-        for mid, t in cur.fetchall():
-            titles[int(mid)] = t
-        missing = [m for m in mal_ids if m not in titles]
+        for mid, t, poster in cur.fetchall():
+            title = _activity_title(t)
+            if title:
+                titles[int(mid)] = title
+            if poster:
+                posters[int(mid)] = poster
+        missing = [m for m in mal_ids if m not in titles or m not in posters]
         if missing:
             p2 = ",".join(["%s"] * len(missing))
             cur.execute(
-                f"""SELECT mal_id, title_ru, title_en FROM aviev_title_pages
+                f"""SELECT mal_id, title_ru, title_en, poster_url FROM aviev_title_pages
                     WHERE mal_id IN ({p2})""",
                 tuple(missing),
             )
-            for mid, ru, en in cur.fetchall():
-                titles[int(mid)] = (ru or en or "").strip()
+            for mid, ru, en, poster in cur.fetchall():
+                titles.setdefault(int(mid), _activity_title(ru) or _activity_title(en))
+                posters.setdefault(int(mid), poster or "")
 
     out = []
     for (k, mal, m, at) in rows:
@@ -177,6 +191,7 @@ def _fetch_recent(conn, user_id: int, *, offset: int = 0, limit: int = 10,
             "meta": meta,
             "at": at.isoformat() if at else None,
             "title": titles.get(mid, "") if mid else "",
+            "poster_url": posters.get(mid, "") if mid else "",
             "episode_num": ep,
         })
     return out

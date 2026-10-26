@@ -9,6 +9,8 @@
  * prompt (guest). There is no localStorage fallback for new guest progress.
  */
 
+import { calendarMonth, dayDate, groupActivity } from "./profile-activity.js?v=20261027-profile6";
+
 let ctx = null;
 let authConfig = {
   register_url: "https://animesocial.online/register",
@@ -1317,7 +1319,8 @@ export async function viewProfile(handle) {
   ctx.setActive(null);
   let data;
   try {
-    data = await _fetchJson(`/profile/${encodeURIComponent(handle)}/summary`);
+    const period = window.matchMedia("(max-width: 720px)").matches ? 30 : 365;
+    data = await _fetchJson(`/profile/${encodeURIComponent(handle)}/summary?days=${period}`);
   } catch (exc) {
     ctx.outlet.innerHTML = ctx.errorPage({
       code: "404",
@@ -1333,12 +1336,12 @@ export async function viewProfile(handle) {
   const listsHidden = privacy.hide_lists && !is_owner;
   const activityHidden = privacy.hide_activity && !is_owner;
 
-  const tabs = counts ? LIST_ORDER_MYLISTS.map(s => {
+  const tabs = counts ? LIST_ORDER.map(s => {
     const label = LIST_LABELS[s].one;
     const c = counts[s] || 0;
-    return `<a class="seg-item" href="#lists-${s}" data-status="${s}">
+    return `<button type="button" class="seg-item" data-status="${s}" aria-pressed="false">
       <span>${esc(label)}</span><span class="seg-count">${c}</span>
-    </a>`;
+    </button>`;
   }).join("") : "";
 
   ctx.outlet.innerHTML = `
@@ -1351,25 +1354,51 @@ export async function viewProfile(handle) {
         <div class="profile-info">
           <h1 class="profile-name">${esc(user.name || ("@" + user.handle))}</h1>
           <div class="profile-handle">@${esc(user.handle)}</div>
-          ${is_owner ? `<div class="profile-owner-hint">Это ваш профиль · <a href="/my/settings/privacy">настроить приватность</a></div>` : ""}
         </div>
+        ${is_owner ? `<a class="profile-privacy" href="/my/settings/privacy">Приватность <span aria-hidden="true">↗</span></a>` : ""}
+        ${!listsHidden && counts ? `<dl class="profile-stats">
+          <div><dt>В списках</dt><dd>${LIST_ORDER_MYLISTS.reduce((n, s) => n + (counts[s] || 0), 0)}</dd></div>
+          <div><dt>Просмотрено</dt><dd>${counts.completed || 0}</dd></div>
+          <div><dt>В избранном</dt><dd>${counts.favorite || 0}</dd></div>
+        </dl>` : ""}
       </div>
 
-      <div class="tabs-block">
-        <div class="block-header">Списки</div>
+      <div class="profile-nav" role="group" aria-label="Раздел профиля">
+        <button type="button" class="active" data-profile-mode="overview" aria-pressed="true">Обзор</button>
+        <button type="button" data-profile-mode="diary" aria-pressed="false">Дневник активности</button>
+      </div>
+      <div class="profile-content" data-mode="overview">
+      <section class="profile-library" aria-labelledby="avLibraryTitle">
+        <h2 id="avLibraryTitle">Списки</h2>
         ${listsHidden
           ? `<div class="privacy-gate">Списки пользователя ограничены настройками приватности</div>`
           : `<div class="seg-tabs profile-seg" id="avProfileTabs">${tabs}</div>
              <div id="avProfileList" class="profile-list-stage" aria-live="polite"></div>`}
-      </div>
+      </section>
 
-      <div class="tabs-block">
-        <div class="block-header">Активность</div>
         ${activityHidden
-          ? `<div class="privacy-gate">Активность скрыта настройками приватности</div>`
+          ? `<div class="privacy-gate profile-activity-gate">Активность скрыта настройками приватности</div>`
           : `<div id="avProfileActivity" class="activity-box"></div>`}
       </div>
     </div>`;
+
+  const profile = ctx.outlet.querySelector(".profile-page");
+  const content = profile.querySelector(".profile-content");
+  const setMode = (mode) => {
+    content.dataset.mode = mode;
+    profile.querySelectorAll("[data-profile-mode]").forEach(button => {
+      const selected = button.dataset.profileMode === mode;
+      button.classList.toggle("active", selected);
+      button.setAttribute("aria-pressed", String(selected));
+    });
+  };
+  profile.querySelectorAll("[data-profile-mode]").forEach(button => {
+    button.addEventListener("click", () => {
+      const box = profile.querySelector("#avProfileActivity");
+      if (box?.querySelector(".gh-view-btn")) _switchActivityMode(box, button.dataset.profileMode);
+      else setMode(button.dataset.profileMode);
+    });
+  });
 
   if (!listsHidden && counts) {
     const listCache = new Map();
@@ -1401,8 +1430,8 @@ export async function viewProfile(handle) {
       return { html: grid.outerHTML, items: r.items };
     };
 
-    const paintList = (status, html, items = []) => {
-      const list = document.querySelector("#avProfileList");
+    const paintList = (status, html, items = [], seq = listSeq) => {
+      const list = profile.querySelector("#avProfileList");
       if (!list) return;
       const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
       const hadRealContent = !!list.querySelector(".profile-list-panel:not(.profile-list-loading)");
@@ -1410,6 +1439,7 @@ export async function viewProfile(handle) {
       if (h > 0) list.style.minHeight = `${h}px`;
 
       const swap = () => {
+        if (seq !== listSeq || !profile.isConnected) return;
         list.dataset.status = status;
         list.innerHTML = `<div class="profile-list-panel">${html}</div>`;
         const grid = list.querySelector(".av-grid");
@@ -1430,7 +1460,7 @@ export async function viewProfile(handle) {
     };
 
     const loadTab = async (status) => {
-      const list = document.querySelector("#avProfileList");
+      const list = profile.querySelector("#avProfileList");
       if (!list) return;
       const seq = ++listSeq;
 
@@ -1462,23 +1492,30 @@ export async function viewProfile(handle) {
         }));
       }
     };
-    const tabsEl = document.querySelector("#avProfileTabs");
+    const tabsEl = profile.querySelector("#avProfileTabs");
     const initial = LIST_ORDER_MYLISTS.find(s => (counts[s] || 0) > 0) || "watching";
     [...tabsEl.querySelectorAll(".seg-item")].forEach(el => {
       el.classList.toggle("active", el.dataset.status === initial);
+      el.setAttribute("aria-pressed", String(el.dataset.status === initial));
       el.addEventListener("click", (e) => {
         e.preventDefault();
-        [...tabsEl.querySelectorAll(".seg-item")].forEach(x => x.classList.remove("active"));
-        el.classList.add("active");
+        [...tabsEl.querySelectorAll(".seg-item")].forEach(x => {
+          x.classList.toggle("active", x === el);
+          x.setAttribute("aria-pressed", String(x === el));
+        });
         loadTab(el.dataset.status);
       });
     });
     loadTab(initial);
   }
 
-  if (!activityHidden && activity) {
-    const box = document.querySelector("#avProfileActivity");
+  if (!activityHidden) {
+    const box = profile.querySelector("#avProfileActivity");
     if (box) {
+      box._paintProfileMode = setMode;
+      box._openDiary = (chooseMonth = false) => {
+        _switchActivityMode(box, "diary", { preservePeriod: !chooseMonth });
+      };
       const fetchFn = async (days) => {
         try {
           return await _fetchJson(`/profile/${encodeURIComponent(handle)}/activity?days=${days}`);
@@ -1521,19 +1558,26 @@ const ACT_FILTER_GROUPS = [
   { key: "rate",       label: "Оценки" },
 ];
 
-function _renderRecentItem(r) {
-  const t = r.at ? new Date(r.at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
-  const label = KIND_RU[r.kind] || r.kind;
-  const titleText = r.title || (r.mal_id ? `#${r.mal_id}` : "");
-  const titleLink = r.mal_id && titleText
-    ? `<a href="/anime/${r.mal_id}/">${esc(titleText)}</a>`
-    : esc(titleText);
-  const epSuffix = (r.kind === "watch_continue" || r.kind === "watch_start") && r.episode_num
-    ? `, серия ${r.episode_num}` : "";
-  const body = titleText
-    ? `<span class="act-label">${esc(label)} <span class="act-title">${titleLink}</span>${esc(epSuffix)}</span>`
-    : `<span class="act-label">${esc(label)}</span>`;
-  return `<li><span class="act-time">${esc(t)}</span>${body}</li>`;
+function _renderRecentGroups(items) {
+  let previousDay = null;
+  return groupActivity(items).map(group => {
+    const heading = group.day !== previousDay && group.day
+      ? `<div class="act-day-heading">${esc(_ruDateLong(group.day))}</div>` : "";
+    previousDay = group.day;
+    const title = group.title || (group.mal_id ? `Аниме #${group.mal_id}` : "Активность");
+    const href = Number(group.mal_id) > 0 ? `/anime/${Number(group.mal_id)}/` : "";
+    const poster = /^(https?:\/\/|\/(?!\/))/i.test(group.poster_url || "") ? group.poster_url : "";
+    const episode = group.episodes.length === 1 ? group.episodes[0] : null;
+    const art = `<span class="act-poster" aria-hidden="true"><span>${esc(Array.from(title)[0] || "")}</span>${poster ? `<img src="${esc(poster)}" alt="" loading="lazy" referrerpolicy="no-referrer" />` : ""}</span>`;
+    return `<li class="act-entry">${heading}<article class="act-session">
+      ${href ? `<a href="${href}" tabindex="-1" aria-hidden="true">${art}</a>` : art}
+      <div class="act-session-body"><h3>${href ? `<a href="${href}">${esc(title)}</a>` : esc(title)}</h3>
+        ${episode ? `<div class="act-episode">Серия ${esc(episode)}</div>` : ""}
+        <ol class="act-events">${group.events.map(event => `<li>
+          <time datetime="${esc(event.at || "")}" title="Время UTC">${esc((event.at || "").slice(11, 16))}</time>
+          <span>${esc(KIND_RU[event.kind] || event.kind)}${!episode && event.episode_num ? `, серия ${esc(event.episode_num)}` : ""}</span></li>`).join("")}</ol>
+      </div></article></li>`;
+  }).join("");
 }
 
 // Абсолютные пороги (как у GitHub) — интенсивность не пляшет по относительной
@@ -1553,8 +1597,8 @@ const RU_MONTHS_SHORT = [
 const RU_WEEKDAYS_SUN_FIRST = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 
 function _ruDateLong(isoDate) {
-  return new Date(isoDate).toLocaleDateString("ru-RU", {
-    day: "numeric", month: "long", year: "numeric",
+  return dayDate(isoDate).toLocaleDateString("ru-RU", {
+    day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
   });
 }
 function _ruActionsWord(n) {
@@ -1568,7 +1612,7 @@ function _ruActionsWord(n) {
 function _renderActPeriodTabs(current) {
   return ACT_PERIODS.map(d => {
     const cls = d === current ? "act-period active" : "act-period";
-    return `<button type="button" class="${cls}" data-days="${d}">${d}д</button>`;
+    return `<button type="button" class="${cls}" data-days="${d}" aria-pressed="${d === current}">${d === 365 ? "Год" : `${d} дней`}</button>`;
   }).join("");
 }
 
@@ -1576,9 +1620,9 @@ function _renderActPeriodTabs(current) {
 // адаптивный размер клеток через CSS grid + aspect-ratio.
 function _buildGhWeeks(days) {
   if (!days || !days.length) return { weeks: [], firstDayShift: 0 };
-  const firstDay = new Date(days[0].d);
+  const firstDay = dayDate(days[0].d);
   // Вс=0, Пн=1, … — GitHub показывает Вс сверху.
-  const shift = firstDay.getDay();
+  const shift = firstDay.getUTCDay();
   const padded = Array(shift).fill(null).concat(days);
   while (padded.length % 7) padded.push(null);
   const weeks = [];
@@ -1594,13 +1638,17 @@ function _renderGhMonths(weeks) {
     // Находим первый реальный день в этой неделе
     const anyDay = w.find(d => d);
     if (!anyDay) return `<span class="gh-month"></span>`;
-    const m = new Date(anyDay.d).getMonth();
+    const m = dayDate(anyDay.d).getUTCMonth();
     // Показываем только если месяц сменился и эта колонка не первая
     // (на первой можем подписать, если в ней ≥3 дня нового месяца — иначе
     // подпись наедет на пустые клетки; GitHub-эвристика).
     const isFirstCol = col === 0;
-    const daysOfThisMonthInWeek = w.filter(d => d && new Date(d.d).getMonth() === m).length;
-    const showLabel = m !== lastMonth && (!isFirstCol || daysOfThisMonthInWeek >= 4);
+    const daysOfThisMonthInWeek = w.filter(d => d && dayDate(d.d).getUTCMonth() === m).length;
+    const nextMonthSoon = isFirstCol && weeks.slice(1, 3).some(week => {
+      const nextDay = week.find(Boolean);
+      return nextDay && dayDate(nextDay.d).getUTCMonth() !== m;
+    });
+    const showLabel = m !== lastMonth && (!isFirstCol || (daysOfThisMonthInWeek >= 4 && !nextMonthSoon));
     if (showLabel) {
       lastMonth = m;
       return `<span class="gh-month">${RU_MONTHS_SHORT[m]}</span>`;
@@ -1619,10 +1667,10 @@ function _renderGhCells(weeks) {
       if (!d) return `<span class="gh-cell gh-pad" aria-hidden="true"></span>`;
       const b = _bucketAbsolute(d.n);
       const label = `${_ruDateLong(d.d)} · ${d.n} ${_ruActionsWord(d.n)}`;
-      return `<button type="button" class="gh-cell gh-b${b}" role="gridcell"
+      return `<button type="button" class="gh-cell gh-b${b}"
         tabindex="-1"
         data-date="${d.d}" data-count="${d.n}" data-col="${col}" data-row="${row}"
-        aria-label="${esc(label)}"></button>`;
+        aria-pressed="false" aria-label="${esc(label)}"></button>`;
     }).join("")
   ).join("");
 }
@@ -1643,21 +1691,22 @@ function _renderGhLegend() {
 function _renderGhStreaks(totals) {
   const cur = totals?.streak_current || 0;
   const best = totals?.streak_best || 0;
-  const curWord = cur === 1 ? "день" : (cur >= 2 && cur <= 4 ? "дня" : "дней");
-  const bestWord = best === 1 ? "день" : (best >= 2 && best <= 4 ? "дня" : "дней");
+  const dayWord = n => n % 10 === 1 && n % 100 !== 11 ? "день" :
+    ([2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "дня" : "дней");
+  const curWord = dayWord(cur), bestWord = dayWord(best);
   return `
     <div class="gh-streaks">
       <div class="gh-streak">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
           <path d="M12 2s2 3 2 6-2 4-2 4 4 0 4 4-3 6-6 6-7-2-7-7c0-5 4-6 4-10 3 1 5 3 5 5z"/>
         </svg>
-        <span>Текущая серия: <b>${cur} ${curWord}</b></span>
+        <span>Сейчас подряд: <b>${cur} ${curWord}</b></span>
       </div>
       <div class="gh-streak">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
           <path d="M6 3h12v3h3v4a4 4 0 0 1-4 4h-.25A6 6 0 0 1 13 16.93V19h3v2H8v-2h3v-2.07A6 6 0 0 1 7.25 14H7a4 4 0 0 1-4-4V6h3V3zm0 5H5v2a2 2 0 0 0 2 2V8zm12 0v4a2 2 0 0 0 2-2V8h-2z"/>
         </svg>
-        <span>Лучшая серия: <b>${best} ${bestWord}</b></span>
+        <span>Лучшая серия за период: <b>${best} ${bestWord}</b></span>
       </div>
     </div>`;
 }
@@ -1679,7 +1728,7 @@ function _renderGhView(totals, days, periodDays) {
       <div class="gh-grid" style="--cols:${cols}">
         <div class="gh-months" style="--cols:${cols}">${monthsHtml}</div>
         <div class="gh-weekdays">${weekdaysHtml}</div>
-        <div class="gh-cells" role="grid" aria-label="Активность по дням"
+        <div class="gh-cells" role="group" aria-label="Активность по дням"
              style="--cols:${cols}">${cellsHtml}</div>
         ${_renderGhLegend()}
       </div>
@@ -1689,95 +1738,181 @@ function _renderGhView(totals, days, periodDays) {
   `;
 }
 
+function _renderCalendar(activity, month) {
+  const { cells, previous, next } = calendarMonth(activity.days, month);
+  const first = dayDate(`${month}-01`);
+  // "октябрь 2026 г." from toLocaleDateString would read as "Октябрь 2026 Г." once capitalised.
+  const monthName = first.toLocaleDateString("ru-RU", { month: "long", timeZone: "UTC" });
+  const title = `${monthName.charAt(0).toUpperCase()}${monthName.slice(1)} ${first.getUTCFullYear()}`;
+  const arrow = (dir, target, label) => `<button type="button" class="act-month-arrow" data-month="${target || ""}" ${target ? "" : "disabled"} aria-label="${label}" title="${label}"><svg width="18" height="18" aria-hidden="true"><use href="/assets/icons/navigation.svg#chevron-${dir}"/></svg></button>`;
+  return `<div class="act-calendar">
+    <div class="act-month-head">${arrow("left", previous, "Предыдущий месяц")}<h3>${esc(title)}</h3>${arrow("right", next, "Следующий месяц")}</div>
+    <div class="act-calendar-weekdays" aria-hidden="true">${["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map(d => `<span>${d}</span>`).join("")}</div>
+    <div class="act-calendar-days" role="group" aria-label="Календарь активности">
+      ${cells.map(({ day, number, col, row }) => day
+        ? `<button type="button" class="gh-cell gh-b${_bucketAbsolute(day.n)}" tabindex="-1" data-date="${day.d}" data-count="${day.n}" data-col="${col}" data-row="${row}" aria-pressed="false" aria-label="${esc(`${_ruDateLong(day.d)} · ${day.n} ${_ruActionsWord(day.n)}`)}">${number}${day.n ? '<i aria-hidden="true"></i>' : ""}</button>`
+        : `<span class="act-calendar-outside" aria-hidden="true">${number}</span>`).join("")}
+    </div>${_renderGhLegend()}
+  </div><div class="act-calendar-summary"><strong>${activity.totals?.events || 0}</strong><span>${_ruActionsWord(activity.totals?.events || 0)} за 30 дней</span>
+    <span>Активных дней: <b>${activity.totals?.active_days || 0}</b></span>${_renderGhStreaks(activity.totals)}</div>
+    <div class="gh-tip" id="avGhTip" role="tooltip" hidden></div>`;
+}
+
 function _renderViewToggle(view) {
   return `
     <div class="gh-view-toggle" role="group" aria-label="Вид активности">
       <button type="button" class="gh-view-btn${view === "grid" ? " active" : ""}"
-              data-view="grid">График</button>
+              data-view="grid" aria-pressed="${view === "grid"}">График</button>
       <button type="button" class="gh-view-btn${view === "list" ? " active" : ""}"
-              data-view="list">Лента</button>
+              data-view="list" aria-pressed="${view === "list"}">Лента</button>
     </div>`;
+}
+
+function _setActivityView(container, view) {
+  container._view = view;
+  try { sessionStorage.setItem("av_activity_view", view); } catch (_) {}
+  // A feed is always the full diary, never the overview's four-entry preview.
+  if (view === "list") container._openDiary?.();
+  _paintActivity(container, container._activity);
+}
+
+function _switchActivityMode(container, mode, { preservePeriod = false } = {}) {
+  if (container._profileMode === mode) return;
+  // Invalidate the previous tab's pending period request even on a cache hit.
+  container._periodSeq = (container._periodSeq || 0) + 1;
+  container._profileMode = mode;
+  container._paintProfileMode?.(mode);
+  if (preservePeriod) {
+    container._periods[mode] = container._activity?.period_days || container._periods[mode];
+    const status = container.querySelector(".act-status");
+    if (status) status.textContent = "";
+    return;
+  }
+  if (mode === "overview") _setActivityView(container, "grid");
+  return _loadActivityPeriod(container, container._periods[mode]);
+}
+
+async function _loadActivityPeriod(container, days) {
+  const mode = container._profileMode;
+  const seq = container._periodSeq = (container._periodSeq || 0) + 1;
+  const status = container.querySelector(".act-status");
+  if (status) status.textContent = "Загружаю…";
+  const fresh = container._cache.get(days) || await container._fetch(days).catch(() => null);
+  if (seq !== container._periodSeq || mode !== container._profileMode || !container.isConnected) return;
+  if (fresh?.hidden) { _hideActivity(container); return; }
+  if (fresh?.period_days === days && Array.isArray(fresh.days)) {
+    container._cache.set(days, fresh);
+    container._periods[mode] = days;
+    const changed = container._activity?.period_days !== days;
+    const hadDate = changed && !!container._dayFilter;
+    if (changed) container._month = null;
+    if (hadDate) container._dayFilter = null;
+    _paintActivity(container, fresh);
+    if (hadDate) _reloadRecent(container);
+  } else {
+    const currentStatus = container.querySelector(".act-status");
+    if (currentStatus) currentStatus.textContent = "Не удалось загрузить период. Попробуйте ещё раз.";
+  }
 }
 
 // Главная точка входа. fetchFn(days) → новые данные графа.
 function renderActivityGraph(container, activity, fetchFn) {
   container._fetch = fetchFn || container._fetch;
-  // Вид ('grid' | 'list') — хранится сессионно per-device.
-  container._view = sessionStorage.getItem("av_activity_view") === "list" ? "list" : "grid";
+  container._view = "grid";
+  try { container._view = sessionStorage.getItem("av_activity_view") === "list" ? "list" : "grid"; } catch (_) {}
+  container._cache = new Map();
+  container._profileMode = "overview";
+  container._periods = { overview: activity?.period_days || 365, diary: 30 };
+  container._activity = activity;
+  container._recentGroup = "all";
+  container._recentItems = activity?.recent || [];
+  container._recentHasMore = container._recentItems.length >= 10;
+  if (activity) container._cache.set(activity.period_days, activity);
+  if (container._view === "list") container._openDiary?.();
   _paintActivity(container, activity);
 
-  // Делегирование клика: период-табы.
   container.addEventListener("click", async (e) => {
     const periodBtn = e.target.closest(".act-period");
     if (periodBtn && container._fetch) {
-      const days = Number(periodBtn.dataset.days);
-      const fresh = await container._fetch(days);
-      if (fresh && !fresh.hidden) _paintActivity(container, fresh);
+      await _loadActivityPeriod(container, Number(periodBtn.dataset.days));
       return;
     }
     const viewBtn = e.target.closest(".gh-view-btn");
     if (viewBtn) {
       const v = viewBtn.dataset.view;
-      if (container._view !== v) {
-        container._view = v;
-        try { sessionStorage.setItem("av_activity_view", v); } catch (_) {}
-        // Перерисуем с текущими данными. Активность у нас в контейнере не
-        // хранится — просим пере-fetch текущего периода.
-        const currentDays = Number(container.querySelector(".act-period.active")?.dataset.days) || 30;
-        if (container._fetch) {
-          const fresh = await container._fetch(currentDays);
-          if (fresh && !fresh.hidden) _paintActivity(container, fresh);
-        }
-      }
+      _setActivityView(container, v);
       return;
     }
+    const monthBtn = e.target.closest("[data-month]");
+    if (monthBtn?.dataset.month) {
+      container._month = monthBtn.dataset.month;
+      _paintActivity(container, container._activity);
+      container.querySelector(`[data-month]:not(:disabled)`)?.focus();
+    }
+    if (e.target.closest("[data-open-diary]")) container._openDiary?.(true);
   });
+  _reloadRecent(container);
+}
+
+function _hideActivity(container) {
+  container._recentSeq = (container._recentSeq || 0) + 1;
+  container._periodSeq = (container._periodSeq || 0) + 1;
+  container._cache.clear();
+  container._recentItems = [];
+  container._activity = null;
+  container.innerHTML = `<div class="privacy-gate profile-activity-gate">Активность скрыта настройками приватности</div>`;
 }
 
 function _paintActivity(container, activity) {
-  if (!activity || !Array.isArray(activity.days) || !activity.days.length) {
-    container.innerHTML = `
-      <div class="act-head">
-        <div class="act-period-tabs">${_renderActPeriodTabs(activity?.period_days || 30)}</div>
-        ${_renderViewToggle(container._view || "grid")}
-      </div>
-      <div class="av-empty">Пока нет активности за выбранный период</div>`;
-    return;
-  }
-  const { days, totals, recent, period_days } = activity;
+  container._activity = activity;
+  const { days = [], totals = {}, period_days = 365 } = activity || {};
   const view = container._view || "grid";
-  const initialRecent = (recent || []).slice(0, 10);
-  const initialHasMore = (recent || []).length >= 10;
+  container.dataset.period = period_days;
+  container.dataset.view = view;
+  if (!container._month || !days.some(d => d.d.startsWith(container._month))) {
+    container._month = days[days.length - 1]?.d.slice(0, 7);
+  }
 
   const filterTabs = ACT_FILTER_GROUPS.map(g =>
-    `<button type="button" class="act-filter-btn${g.key === "all" ? " active" : ""}" data-group="${g.key}">${esc(g.label)}</button>`
+    `<button type="button" class="act-filter-btn${g.key === container._recentGroup ? " active" : ""}" data-group="${g.key}" aria-pressed="${g.key === container._recentGroup}">${esc(g.label)}</button>`
   ).join("");
 
   container.innerHTML = `
     <div class="act-head">
+      <h2>Активность</h2>
       <div class="act-period-tabs">${_renderActPeriodTabs(period_days || 30)}</div>
       ${_renderViewToggle(view)}
+      <div class="act-status" role="status"></div>
     </div>
-    ${view === "grid" ? _renderGhView(totals, days, period_days || 30) : ""}
+    ${view === "grid" ? `<section class="act-visual${period_days === 30 ? " is-calendar" : ""}" aria-label="График активности">${!days.length
+      ? '<div class="av-empty">Пока нет активности за выбранный период</div>'
+      : period_days === 30 ? _renderCalendar(activity, container._month) : _renderGhView(totals, days, period_days)}</section>` : ""}
+    <section class="act-diary" aria-label="История действий">
     <div class="act-recent-head">
-      <h4 class="act-recent-title">Недавние действия</h4>
+      <h2 class="act-recent-title">История действий</h2>
       <div class="act-filter">${filterTabs}</div>
     </div>
-    <div class="gh-date-filter" id="avDateFilter" hidden>
-      <span>Показано: <b id="avDateFilterText"></b></span>
-      <button type="button" class="gh-date-clear" id="avDateClear" aria-label="Снять фильтр по дате">×</button>
+    <div class="gh-date-filter" id="avDateFilter" ${container._dayFilter ? "" : "hidden"}>
+      <span>Показано: <b id="avDateFilterText">${container._dayFilter ? esc(_ruDateLong(container._dayFilter)) : ""}</b></span>
+      <button type="button" class="gh-date-clear" id="avDateClear" aria-label="Снять фильтр по дате" title="Снять фильтр по дате"><svg width="16" height="16" aria-hidden="true"><use href="/assets/icons/navigation.svg#x"/></svg></button>
     </div>
-    <ol class="act-recent" id="avActRecent">${initialRecent.map(_renderRecentItem).join("")}</ol>
-    <div class="act-recent-empty" id="avActRecentEmpty" ${initialRecent.length ? "hidden" : ""}>В этом разделе пока нет действий.</div>
-    <button type="button" class="act-more" id="avActMore" ${initialHasMore ? "" : "hidden"}>Показать ещё 10</button>
-    <div class="act-end" id="avActEnd" ${!initialRecent.length || initialHasMore ? "hidden" : ""}>
+    <ol class="act-recent" id="avActRecent"></ol>
+    <div class="act-recent-empty" id="avActRecentEmpty" hidden>В этом разделе пока нет действий.</div>
+    <div class="act-recent-status" role="status"></div>
+    <button type="button" class="act-more" id="avActMore" hidden>Показать ещё 10</button>
+    <div class="act-end" id="avActEnd" hidden>
       <span class="act-end-dot"></span>
-      Это вся активность — дальше ничего нет
+      Это вся активность
       <span class="act-end-dot"></span>
-    </div>`;
+    </div><button type="button" class="act-open-diary" data-open-diary>Вся активность <svg width="16" height="16" aria-hidden="true"><use href="/assets/icons/navigation.svg#chevron-right"/></svg></button>
+    </section>`;
 
   _bindGhInteractions(container);
+  // When the year does not fit, open the scrolled graph at its latest weeks.
+  const graph = container.querySelector(".gh-scroll");
+  if (graph) graph.scrollLeft = graph.scrollWidth;
   _bindRecentList(container);
+  _paintRecent(container);
 }
 
 // ==== grid interaction: tooltip + click-day filter + keyboard ====
@@ -1798,11 +1933,12 @@ function _bindGhInteractions(container) {
     tip.style.left = "0px";
     requestAnimationFrame(() => {
       const tr = tip.getBoundingClientRect();
-      let top = r.top - tr.height - 8 + window.scrollY;
-      let left = r.left + r.width / 2 - tr.width / 2 + window.scrollX;
+      if (tip.hidden || !tip.isConnected) return;
+      let top = r.top - tr.height - 8;
+      let left = r.left + r.width / 2 - tr.width / 2;
       // Не даём вылезать за viewport
       left = Math.max(8, Math.min(window.innerWidth - tr.width - 8, left));
-      if (top < window.scrollY + 8) top = r.bottom + 8 + window.scrollY;
+      if (top < 8) top = r.bottom + 8;
       tip.style.top = `${top}px`;
       tip.style.left = `${left}px`;
       tip.style.visibility = "";
@@ -1811,6 +1947,8 @@ function _bindGhInteractions(container) {
   const hideTip = () => { if (tip) tip.hidden = true; };
 
   cells.forEach(c => {
+    c.classList.toggle("active", c.dataset.date === container._dayFilter);
+    c.setAttribute("aria-pressed", String(c.dataset.date === container._dayFilter));
     c.addEventListener("mouseenter", () => showTip(c));
     c.addEventListener("mouseleave", hideTip);
     c.addEventListener("focus", () => showTip(c));
@@ -1819,7 +1957,7 @@ function _bindGhInteractions(container) {
     c.addEventListener("keydown", (e) => _handleGhKey(container, e));
   });
   // Первая клетка — единственная в tab-order'е
-  const first = cells[0];
+  const first = [...cells].find(c => c.dataset.date === container._dayFilter) || cells[0];
   if (first) first.setAttribute("tabindex", "0");
 }
 
@@ -1855,7 +1993,11 @@ function _handleGhKey(container, e) {
 
 function _activateDateFilter(container, cell) {
   const date = cell.dataset.date;
-  container.querySelectorAll(".gh-cell.active").forEach(c => c.classList.remove("active"));
+  container.querySelectorAll(".gh-cell[data-date]").forEach(c => {
+    c.classList.remove("active");
+    c.setAttribute("aria-pressed", String(c === cell));
+    c.setAttribute("tabindex", c === cell ? "0" : "-1");
+  });
   cell.classList.add("active");
   const filterBar = container.querySelector("#avDateFilter");
   const text = container.querySelector("#avDateFilterText");
@@ -1864,11 +2006,16 @@ function _activateDateFilter(container, cell) {
     filterBar.hidden = false;
   }
   container._dayFilter = date;
+  container.querySelector("#avGhTip").hidden = true;
+  container._openDiary?.();
   _reloadRecent(container);
 }
 
 function _clearDateFilter(container) {
-  container.querySelectorAll(".gh-cell.active").forEach(c => c.classList.remove("active"));
+  container.querySelectorAll(".gh-cell.active").forEach(c => {
+    c.classList.remove("active");
+    c.setAttribute("aria-pressed", "false");
+  });
   const filterBar = container.querySelector("#avDateFilter");
   if (filterBar) filterBar.hidden = true;
   container._dayFilter = null;
@@ -1877,100 +2024,68 @@ function _clearDateFilter(container) {
 
 // ==== recent list: filter pills + pagination + date-clear ====
 function _bindRecentList(container) {
-  const recentBox = container.querySelector("#avActRecent");
-  const moreBtn = container.querySelector("#avActMore");
-  const emptyBox = container.querySelector("#avActRecentEmpty");
-  const endBox = container.querySelector("#avActEnd");
-  container._recentGroup = "all";
-  container._recentOffset = recentBox?.children.length || 0;
-  container._recentBusy = false;
-
-  const setEmpty = (empty) => {
-    if (emptyBox) emptyBox.hidden = !empty;
-    if (recentBox) recentBox.hidden = !!empty;
-  };
-  const setTail = (hasMore) => {
-    const hasItems = !!recentBox && recentBox.children.length > 0;
-    if (moreBtn) moreBtn.hidden = !(hasMore && hasItems);
-    if (endBox)  endBox.hidden  = !(!hasMore && hasItems);
-  };
-  container._setEmpty = setEmpty;
-  container._setTail = setTail;
-
   container.querySelectorAll(".act-filter-btn").forEach(b => {
     b.addEventListener("click", () => {
       if (b.classList.contains("active")) return;
-      container.querySelectorAll(".act-filter-btn").forEach(x => x.classList.remove("active"));
-      b.classList.add("active");
+      container.querySelectorAll(".act-filter-btn").forEach(x => {
+        x.classList.toggle("active", x === b);
+        x.setAttribute("aria-pressed", String(x === b));
+      });
       container._recentGroup = b.dataset.group;
       _reloadRecent(container);
     });
   });
 
-  moreBtn?.addEventListener("click", async () => {
-    if (container._recentBusy || !container._fetchRecent) return;
-    container._recentBusy = true;
-    moreBtn.disabled = true;
-    moreBtn.textContent = "Загружаю…";
-    const r = await container._fetchRecent({
-      group: container._recentGroup,
-      offset: container._recentOffset,
-      limit: 10,
-      date: container._dayFilter,
-    }).catch(() => null);
-    if (r && Array.isArray(r.items)) {
-      r.items.forEach(item => recentBox.insertAdjacentHTML("beforeend", _renderRecentItem(item)));
-      container._recentOffset += r.items.length;
-      setTail(!!r.has_more);
-    }
-    moreBtn.disabled = false;
-    moreBtn.textContent = "Показать ещё 10";
-    container._recentBusy = false;
-  });
-
+  container.querySelector("#avActMore")?.addEventListener("click", () => _reloadRecent(container, true));
   container.querySelector("#avDateClear")?.addEventListener("click", () => {
     _clearDateFilter(container);
   });
-
-  // Начальный хвост: проверяем has_more, основываясь на стартовых данных.
-  // recent приходит из ответа /activity, там мы берём первые 10.
-  setTail(recentBox?.children.length >= 10);
 }
 
-async function _reloadRecent(container) {
+function _paintRecent(container) {
   const recentBox = container.querySelector("#avActRecent");
+  if (!recentBox) return;
+  const items = container._recentItems || [];
+  recentBox.innerHTML = _renderRecentGroups(items);
+  recentBox.hidden = !items.length;
+  recentBox.classList.toggle("is-loading", !!container._recentBusy);
+  recentBox.setAttribute("aria-busy", String(!!container._recentBusy));
+  recentBox.querySelectorAll("img").forEach(img => {
+    img.addEventListener("error", () => img.remove(), { once: true });
+  });
+  container.querySelector("#avActRecentEmpty").hidden = !!items.length || !!container._recentBusy || !!container._recentError;
+  container.querySelector("#avActEnd").hidden = !items.length || container._recentHasMore || !!container._recentError;
+  container.querySelector(".act-recent-status").innerHTML = container._recentError
+    ? 'Не удалось загрузить действия. <button type="button" class="act-retry">Повторить</button>' : "";
+  container.querySelector(".act-retry")?.addEventListener("click", () => _reloadRecent(container, container._failedAppend));
   const moreBtn = container.querySelector("#avActMore");
-  const emptyBox = container.querySelector("#avActRecentEmpty");
-  if (!container._fetchRecent || !recentBox) return;
+  moreBtn.hidden = !items.length || !container._recentHasMore || !!container._recentError;
+  moreBtn.disabled = !!container._recentBusy;
+  moreBtn.textContent = container._recentBusy ? "Загружаю…" : "Показать ещё 10";
+}
+
+async function _reloadRecent(container, append = false) {
+  if (!container._fetchRecent || (append && container._recentBusy)) return;
+  const seq = container._recentSeq = (container._recentSeq || 0) + 1;
   container._recentBusy = true;
-  // «Stale-while-revalidate»: старые элементы остаются в DOM, просто
-  // приглушаются, пока не приедет ответ. Иначе блок схлопывается в 0 →
-  // расширяется обратно = визуальный прыжок.
-  recentBox.classList.add("is-loading");
-  if (moreBtn) moreBtn.disabled = true;
+  container._recentError = false;
+  _paintRecent(container);
   const r = await container._fetchRecent({
     group: container._recentGroup,
-    offset: 0, limit: 10,
+    offset: append ? (container._recentItems || []).length : 0, limit: 10,
     date: container._dayFilter,
   }).catch(() => null);
-  recentBox.classList.remove("is-loading");
-  container._recentOffset = 0;
+  if (seq !== container._recentSeq || !container.isConnected) return;
+  if (r?.hidden) { _hideActivity(container); return; }
   if (r && Array.isArray(r.items)) {
-    if (!r.items.length) {
-      recentBox.innerHTML = "";
-      if (emptyBox) emptyBox.hidden = false;
-      recentBox.hidden = true;
-      container._setTail?.(false);
-    } else {
-      recentBox.innerHTML = r.items.map(_renderRecentItem).join("");
-      if (emptyBox) emptyBox.hidden = true;
-      recentBox.hidden = false;
-      container._recentOffset = r.items.length;
-      container._setTail?.(!!r.has_more);
-    }
+    container._recentItems = append ? [...container._recentItems, ...r.items] : r.items;
+    container._recentHasMore = !!r.has_more;
+  } else {
+    container._recentError = true;
+    container._failedAppend = append;
   }
-  if (moreBtn) { moreBtn.disabled = false; moreBtn.textContent = "Показать ещё 10"; }
   container._recentBusy = false;
+  _paintRecent(container);
 }
 
 // ==== helpers ====
