@@ -29,7 +29,7 @@
 .profile-content { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 24px 30px; align-items: start; }
 .profile-page .activity-box { display: contents; }
 .profile-library { grid-column: 1; grid-row: 3; min-width: 0; }
-.profile-page .profile-seg { background: none; border: 0; padding: 0; gap: 4px; margin: 18px 0 22px; }
+.profile-page .profile-seg { background: none; border: 0; padding: 0; gap: 6px 4px; margin: 18px 0 22px; }
 .profile-page .seg-item { padding: 8px 10px; font-size: 12px; gap: 5px; white-space: nowrap; box-shadow: none; }
 .profile-page .seg-count { padding: 1px 5px; }
 .profile-page .profile-list-panel .av-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px 16px; }
@@ -94,7 +94,7 @@
 .profile-page .act-diary { grid-column: 2; grid-row: 3; min-width: 0; padding-left: 30px; border-left: 1px solid var(--border-2); }
 .profile-page .act-recent-head { margin: 0 0 18px; gap: 16px; }
 .profile-page .act-recent-title { font-size: 20px; line-height: 1.35; text-transform: none; letter-spacing: 0; color: var(--text); }
-.profile-page .act-filter { background: none; border: 0; padding: 0; gap: 2px; }
+.profile-page .act-filter { background: none; border: 0; padding: 0; gap: 4px 2px; }
 .profile-page .act-filter-btn { font-size: 11px; padding: 7px 9px; color: var(--text-2); }
 .profile-page .act-filter-btn.active { color: #fff; }
 .profile-page .act-recent { gap: 0; margin: 0; }
@@ -176,11 +176,8 @@
   .profile-page .act-calendar-summary .gh-streaks { flex-basis: 100%; }
   .profile-page .gh-streaks { gap: 8px; }
   .profile-page .profile-library { grid-column: 1; grid-row: 3; }
-  .profile-page .profile-seg { flex-wrap: nowrap; overflow-x: auto; padding: 4px; margin: 12px -4px 16px; scrollbar-width: thin; }
-  .profile-page .seg-item { flex-shrink: 0; }
+  .profile-page .profile-seg { margin: 12px 0 16px; }
   .profile-page .act-diary { grid-column: 1; grid-row: 4; padding: 22px 0 0; border-left: 0; border-top: 1px solid var(--border-2); }
-  .profile-page .act-filter { flex-wrap: nowrap; max-width: 100%; overflow-x: auto; padding: 4px; margin: -4px; }
-  .profile-page .act-filter-btn { flex-shrink: 0; }
   .profile-content[data-mode="diary"] .activity-box[data-period="30"][data-view="grid"] .act-visual { grid-column: 1; padding-right: 0; }
   .profile-content[data-mode="diary"] .activity-box[data-period="30"][data-view="grid"] .act-diary { grid-column: 1; grid-row: 3; padding: 22px 0 0; border-left: 0; }
 }

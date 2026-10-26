@@ -3864,12 +3864,15 @@ html.is-mobile-nav .menu-account-sep { margin: 8px 14px; }
   overflow-x: auto;
   padding-bottom: 4px;
   margin: 0 -2px;
-  scrollbar-width: thin;
 }
 .gh-scroll::-webkit-scrollbar { height: 6px; }
 .gh-scroll::-webkit-scrollbar-thumb {
   background: var(--border-2);
   border-radius: 3px;
+}
+/* Chromium ignores ::-webkit-scrollbar once scrollbar-width is set, so only Firefox gets it. */
+@supports not selector(::-webkit-scrollbar) {
+  .gh-scroll { scrollbar-width: thin; scrollbar-color: var(--border-2) transparent; }
 }
 
 /* Grid layout: левая колонка — weekday labels, правая — месяцы сверху + клетки.
