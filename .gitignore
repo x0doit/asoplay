@@ -18,6 +18,9 @@ deploy/
 server/__pycache__/
 *.pyc
 
+# Installed PHP dependencies; reproducible from composer.lock, included in deploy.
+server/jikan/vendor/
+
 # Старые/внешние агентские workspace-артефакты
 .claude/
 claude-playbook-*/

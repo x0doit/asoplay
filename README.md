@@ -37,7 +37,8 @@ JavaScript, бэкенд работает на Python/FastAPI, а пользов
 
 ## Возможности
 
-- **Каталог и поиск** на базе данных Jikan, AniList и Shikimori.
+- **Каталог MAL** через встроенную PHP-библиотеку Jikan 5. Публичный API
+  Jikan не используется; AniList дополняет баннеры, Shikimori даёт русские названия.
 - **Страницы тайтлов** `/anime/{mal_id}-{slug}/` с мета-тегами на стороне
   сервера, Open Graph, JSON-LD, canonical URL, sitemap и `<noscript>`
   fallback для просмотра без JavaScript.
@@ -111,6 +112,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   ├── profile_pages.py        public profile API и SSR shell
 │   ├── title_pages.py          canonical anime pages, sitemap, robots
 │   ├── proxies.py              Jikan/AniList/Shiki/translate/image proxies
+│   ├── jikan_catalog.py        встроенный каталог MAL, кэш и лимит запросов
+│   ├── jikan/                 PHP-мост, Composer manifest и lockfile
 │   ├── player_proxy.py         same-origin player proxy, Shield, iframe bridge
 │   ├── source_health.py        source failure/cooldown state
 │   ├── vpn_bridge.py           optional xray runtime bridge
@@ -137,6 +140,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 - **Database:** MySQL 8 / OpenServer-compatible AnimeSocial database.
 - **Auth:** существующая users-таблица AnimeSocial + локальные `aviev_sessions`.
 - **Metadata:** Jikan, AniList, Shikimori.
+- **Embedded parser:** Jikan 5.0.0, PHP 8.4.4+ с DOM и mbstring.
 - **Player layer:** same-origin iframe/media proxy, sandbox bridge,
   request-level ad filtering.
 - **Network bridge:** optional xray/Shadowsocks через `.env`.
@@ -154,6 +158,22 @@ AsoPlayer — это не отдельная библиотека, а прикл
 ```bash
 pip install -r server/requirements.txt
 ```
+
+Установить зафиксированные зависимости встроенного парсера:
+
+```bash
+composer --working-dir=server/jikan install --no-dev --no-scripts --no-plugins --optimize-autoloader
+```
+
+Используйте актуальную исправленную версию PHP 8.4/8.5. На Windows бэкенд
+находит PHP в OSPanel, на Linux использует `php` из PATH. Другой путь можно
+задать через `AV_JIKAN_PHP` в `.env`. Отдельный PHP-сайт, Jikan REST, Docker,
+MongoDB и поисковый сервер не нужны. Бэкенд получает HTML MyAnimeList,
+а библиотека Jikan разбирает его в дочернем CLI-процессе без сетевого доступа.
+Результаты кэшируются; одинаковые запросы объединяются, новые запросы к MAL
+ограничены одним в секунду на процесс AsoPlay. Доступ к MAL всё ещё необходим:
+это встроенный парсер, а не локальная копия всей базы MAL. `/health` показывает
+версию и готовность движка в поле `catalog`; это не гарантия доступности MAL.
 
 Создать runtime configuration:
 
@@ -335,7 +355,8 @@ JavaScript, the backend runs on Python/FastAPI, and user data is stored in MySQL
 
 ## Features
 
-- **Catalog and search** powered by Jikan, AniList and Shikimori data.
+- **MAL catalog** through the embedded Jikan 5 PHP library, without the public
+  Jikan API. AniList supplies banners; Shikimori supplies Russian titles.
 - **Title pages** at `/anime/{mal_id}-{slug}/` with server-rendered
   metadata, Open Graph tags, JSON-LD, canonical URLs, sitemap support and
   `<noscript>` fallbacks.
@@ -409,6 +430,8 @@ Key capabilities:
 │   ├── profile_pages.py        public profile API and SSR shell
 │   ├── title_pages.py          canonical anime pages, sitemap, robots
 │   ├── proxies.py              Jikan/AniList/Shiki/translate/image proxies
+│   ├── jikan_catalog.py        embedded MAL catalog, cache and rate limiting
+│   ├── jikan/                 PHP bridge, Composer manifest and lockfile
 │   ├── player_proxy.py         same-origin player proxy, Shield, iframe bridge
 │   ├── source_health.py        source failure/cooldown state
 │   ├── vpn_bridge.py           optional xray runtime bridge
@@ -435,6 +458,7 @@ Key capabilities:
 - **Database:** MySQL 8 / OpenServer-compatible AnimeSocial database.
 - **Auth:** existing AnimeSocial users table + project-local `aviev_sessions`.
 - **Metadata:** Jikan, AniList, Shikimori.
+- **Embedded parser:** Jikan 5.0.0, PHP 8.4.4+ with DOM and mbstring.
 - **Player layer:** same-origin iframe/media proxy, sandbox bridge,
   request-level ad filtering.
 - **Network bridge:** optional xray/Shadowsocks through `.env`.
@@ -452,6 +476,22 @@ Install Python dependencies:
 ```bash
 pip install -r server/requirements.txt
 ```
+
+Install the pinned parser dependencies:
+
+```bash
+composer --working-dir=server/jikan install --no-dev --no-scripts --no-plugins --optimize-autoloader
+```
+
+Use a currently patched PHP 8.4/8.5 release. Windows detects OSPanel PHP;
+Linux uses `php` from PATH. Set `AV_JIKAN_PHP` in `.env` to override the path.
+No separate PHP website, Jikan REST deployment, Docker, MongoDB or search
+server is required. Python fetches MyAnimeList HTML and Jikan parses it in a
+CLI child process without network access. Results are cached, concurrent
+identical requests are coalesced, and uncached MAL requests are limited to
+one per second per AsoPlay process. MAL must remain reachable: this is an
+embedded parser, not an offline copy of its database. `/health.catalog`
+reports the parser version and runtime readiness, not MAL availability.
 
 Create runtime configuration:
 

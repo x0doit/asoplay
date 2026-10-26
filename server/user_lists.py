@@ -31,7 +31,7 @@ import json as _json
 
 from server.animesocial import connect, current_user_required
 from server.activity_log import record_event
-from server.proxies import cached_fetch
+from server import jikan_catalog
 
 log = logging.getLogger("animeviev.user_lists")
 
@@ -51,10 +51,7 @@ async def _mal_id_exists(mal_id: int) -> bool:
     «сильная валидация для откровенных мертвецов, мягкая для флейковой сети».
     """
     try:
-        _, _, status = await cached_fetch(
-            "GET", f"https://api.jikan.moe/v4/anime/{mal_id}",
-            ttl=3600, timeout=6,
-        )
+        _, _, status = await jikan_catalog.fetch(f"anime/{mal_id}", timeout=6)
     except Exception:
         return True
     if status == 404:

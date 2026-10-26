@@ -34,7 +34,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from pydantic import BaseModel, Field, conint
 
 from server.animesocial import connect
-from server.proxies import cached_fetch
+from server import jikan_catalog
 
 log = logging.getLogger("animeviev.title_pages")
 
@@ -217,20 +217,14 @@ def title_record(payload: RecordIn) -> dict[str, Any]:
 
 # ---------- on-demand Jikan backfill ----------
 async def _fetch_and_store(mal_id: int) -> dict[str, Any] | None:
-    try:
-        content, _, status = await cached_fetch(
-            "GET", f"https://api.jikan.moe/v4/anime/{mal_id}/full", ttl=3600, timeout=10
-        )
-    except HTTPException:
+    content, _, status = await jikan_catalog.fetch(f"anime/{mal_id}/full", timeout=10)
+    if status == 404:
         return None
     if status != 200:
-        return None
-    try:
-        data = json.loads(content.decode("utf-8")).get("data") or {}
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        return None
-    if not data:
-        return None
+        raise HTTPException(503, "Title catalog unavailable")
+    data = json.loads(content).get("data")
+    if not isinstance(data, dict) or data.get("mal_id") != mal_id:
+        raise HTTPException(502, "Invalid title catalog response")
     images = data.get("images") or {}
     jpg = images.get("jpg") or {}
     payload: dict[str, Any] = {
@@ -250,6 +244,9 @@ async def _fetch_and_store(mal_id: int) -> dict[str, Any] | None:
         "studios": ", ".join(s.get("name") for s in (data.get("studios") or []) if s.get("name")),
     }
     return _store_title(payload)
+
+
+
 
 
 # ---------- HTML rendering ----------
@@ -435,7 +432,14 @@ async def canonical_title(stub: str):
 
     info = _load_cached(mal_id)
     if info is None:
-        info = await _fetch_and_store(mal_id)
+        try:
+            info = await _fetch_and_store(mal_id)
+        except HTTPException:
+            shell = _render_generic()
+            shell.status_code = 503
+            shell.headers["Retry-After"] = "30"
+            shell.headers["X-Robots-Tag"] = "noindex"
+            return shell
         if info is None:
             # ID нет ни в кеше, ни в MAL (например, уже удалён или это невалидный
             # id типа 2). Отдаём HTML-оболочку SPA со статусом 404 + noindex,
@@ -551,6 +555,10 @@ def register_shell_routes(app) -> None:
     for path in ("/top", "/season", "/trending", "/movies",
                  "/catalog", "/filter", "/random", "/login", "/search"):
         _attach_shell(app, path)
+
+    @app.get("/genre/{genre_id}/{name:path}", response_class=HTMLResponse, include_in_schema=False)
+    def _genre_shell(genre_id: int, name: str):
+        return _render_generic()
 
     # /my/favorites, /my/history, /my/watching, /my/settings …
     @app.get("/my/{tail:path}", response_class=HTMLResponse, include_in_schema=False)

@@ -3,8 +3,8 @@
 AnimeViev — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
 All rights reserved. See /COPYRIGHT for full terms.
 
-Upstream proxy layer — Jikan, AniList, Shikimori, Google Translate, images.
-Shared disk cache, single keep-alive HTTP client, Jikan-specific rate limiter
+Upstream proxy layer — AniList, Shikimori, Google Translate, images.
+Shared disk cache, single keep-alive HTTP client, MAL request rate limiter
 and a small fallback to stale data when upstreams are flaky.
 
 Register routes with:
@@ -40,6 +40,8 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _CACHE_DIR = _PROJECT_ROOT / ".cache"
 _CACHE_DIR.mkdir(exist_ok=True)
 
+SHIKI_ORIGIN = "https://shikimori.io"
+SHIKI_HOST = urlparse(SHIKI_ORIGIN).hostname
 SHIKI_HEADERS = {"User-Agent": "AnimeViev/1.1 (+https://animeviev.example.com)"}
 
 _IMG_HOSTS = (
@@ -47,10 +49,13 @@ _IMG_HOSTS = (
     "myanimelist.net",
     "s4.anilist.co",
     "img.anili.st",
+    SHIKI_HOST,
+    # Preserve compatibility with image URLs stored in older cache entries.
     "shikimori.one",
     "nyaa.shikimori.one",
     "cache.libria.fun",
     "static-libria.weekstorm.one",
+    "static.yani.tv",
     "moe.shikimori.one",
 )
 _IMG_TTL = 86400 * 7
@@ -62,8 +67,11 @@ _httpx_limits = httpx.Limits(
 _http_client: httpx.AsyncClient | None = None
 _http_client_proxy_env: tuple[str, str, str, str] | None = None
 _direct_client: httpx.AsyncClient | None = None
+_pending_fetches: dict[str, asyncio.Task] = {}
+_upstream_retry_after: dict[str, float] = {}
+_upstream_connect_failures: dict[str, int] = {}
 
-_NETWORK_ERRORS: tuple[type[BaseException], ...] = (httpx.HTTPError, OSError, TimeoutError)
+_NETWORK_ERRORS: tuple[type[BaseException], ...] = (httpx.HTTPError, OSError, TimeoutError, asyncio.TimeoutError)
 try:
     import anyio
 
@@ -192,8 +200,8 @@ class _RateLimiter:
                 self.last = now
 
 
-# Jikan docs say 3 RPS but the free tier trips 429 often; 2 RPS is calm.
-_JIKAN_LIMIT = _RateLimiter(rps=2.0)
+# The embedded parser shares this per-process limit for uncached MAL pages.
+_MAL_LIMIT = _RateLimiter(rps=1.0)
 
 
 async def cached_fetch(
@@ -211,50 +219,109 @@ async def cached_fetch(
     if cached:
         return cached
 
-    global _http_client, _http_client_proxy_env
-    is_jikan = "api.jikan.moe" in url
+    parsed = urlparse(url)
+    host = parsed.hostname or ""
+    catalog_api = host == "graphql.anilist.co" or (
+        host == SHIKI_HOST and parsed.path.startswith("/api/")
+    ) or (
+        host == "old.yummyani.me" and parsed.path == "/api/search"
+    )
+    stale = _cache_get_any(key)
+    if catalog_api and _upstream_retry_after.get(host, 0) > time.monotonic():
+        if stale:
+            return stale
+        raise HTTPException(503, "catalog upstream temporarily unavailable")
+
+    pending = _pending_fetches.get(key)
+    if pending is None:
+        async def fetch_once():
+            try:
+                return await _fetch_uncached(
+                    method, url, params=params, json_body=json_body,
+                    timeout=timeout, headers=headers, key=key, stale=stale,
+                    catalog_api=catalog_api,
+                )
+            except HTTPException:
+                if stale:
+                    return stale
+                raise
+
+        pending = asyncio.create_task(fetch_once())
+        _pending_fetches[key] = pending
+        def finished(task):
+            _pending_fetches.pop(key, None)
+            if not task.cancelled():
+                task.exception()  # A disconnected caller must not leave an unhandled task.
+        pending.add_done_callback(finished)
+    return await asyncio.shield(pending)
+
+
+async def _fetch_uncached(method, url, *, params, json_body, timeout, headers, key, stale,
+                          catalog_api=False):
+    attempts = 1 if stale else (2 if catalog_api else 4)
+    # Bound upstream I/O independently from the embedded catalog worker queue.
+    remaining = min(timeout, 10.0) if catalog_api else timeout * attempts
+    if stale:
+        remaining = min(remaining, 2.5)
+    host = urlparse(url).hostname or ""
     last_exc: Exception | None = None
     force_direct = False
-    for attempt in range(4):
-        if is_jikan:
-            await _JIKAN_LIMIT.wait()
+    for attempt in range(attempts):
+        if catalog_api and _upstream_retry_after.get(host, 0) > time.monotonic():
+            raise HTTPException(503, "catalog upstream connection unavailable")
         client = await get_direct_client() if force_direct else await get_client()
+        budget = min(timeout, remaining)
+        started = time.monotonic()
         try:
-            resp = await client.request(
-                method, url, params=params, json=json_body, headers=headers, timeout=timeout
+            resp = await asyncio.wait_for(
+                client.request(
+                    method, url, params=params, json=json_body, headers=headers,
+                    timeout=httpx.Timeout(budget, connect=min(budget, 4.0)),
+                ),
+                timeout=budget,
             )
         except _NETWORK_ERRORS as exc:
+            remaining -= time.monotonic() - started
             last_exc = exc
-            if _http_client is not None:
-                try:
-                    await _http_client.aclose()
-                except _NETWORK_ERRORS:
-                    pass
-            _http_client = None
-            _http_client_proxy_env = None
             if not force_direct and vpn_bridge.is_active():
                 log.warning("proxy path failed for %s, retrying direct outbound: %s", url, exc)
                 force_direct = True
-            if attempt < 3:
+            elif catalog_api and isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout)):
+                failures = _upstream_connect_failures.get(host, 0) + 1
+                _upstream_connect_failures[host] = failures
+                if failures >= 2:
+                    _upstream_retry_after[host] = time.monotonic() + 10
+                    log.warning("catalog connection failed (%s); retrying after 10s", host)
+                    break
+            if remaining <= 0:
+                raise HTTPException(504, "catalog upstream timed out") from exc
+            if attempt < attempts - 1:
                 await asyncio.sleep(0.4 + attempt * 0.6)
                 continue
             break
+        remaining -= time.monotonic() - started
+        # An HTTP response proves connectivity, even if this particular query failed.
+        _upstream_connect_failures.pop(host, None)
+        _upstream_retry_after.pop(host, None)
         ct = resp.headers.get("content-type", "application/octet-stream")
         if resp.status_code == 200:
-            _cache_put(key, resp.content, ct, resp.status_code)
+            graphql_errors = False
+            if host == "graphql.anilist.co":
+                try:
+                    graphql_errors = bool(resp.json().get("errors"))
+                except (ValueError, AttributeError):
+                    graphql_errors = True
+            if not graphql_errors:
+                _cache_put(key, resp.content, ct, resp.status_code)
             return resp.content, ct, resp.status_code
         if resp.status_code in _RETRY_STATUS_CODES:
             last_exc = HTTPException(resp.status_code, f"upstream status {resp.status_code}")
-            if attempt < 3:
+            if attempt < attempts - 1 and remaining > 0:
                 await asyncio.sleep(0.7 + attempt * 1.2)
                 continue
             break
         return resp.content, ct, resp.status_code
 
-    stale = _cache_get(key, ttl * 12) or _cache_get_any(key)
-    if stale:
-        log.warning("using stale proxy cache for %s after upstream failure: %s", url, last_exc)
-        return stale
     raise HTTPException(502, f"proxy upstream: {last_exc or 'retry exhausted'}")
 
 
@@ -266,7 +333,7 @@ shiki_cache: dict[str, Any] = {}
 
 @router.get("/shiki/anime/{mal_id}")
 async def shiki_anime(mal_id: int):
-    url = f"https://shikimori.one/api/animes/{mal_id}"
+    url = f"{SHIKI_ORIGIN}/api/animes/{mal_id}"
     content, ct, status = await cached_fetch(
         "GET", url, ttl=86400, timeout=10, headers=SHIKI_HEADERS
     )
@@ -284,7 +351,7 @@ async def shiki_batch(ids: str = Query(..., description="comma-separated MAL ids
     try:
         content, ct, status = await cached_fetch(
             "GET",
-            "https://shikimori.one/api/animes",
+            f"{SHIKI_ORIGIN}/api/animes",
             params={"ids": sorted_ids, "limit": 50},
             ttl=86400,
             timeout=12,
@@ -317,46 +384,64 @@ async def shiki_search(
 ):
     """Прокси к Shikimori /api/animes с поддержкой постраничной выборки.
     Русскоязычные запросы фронтенд гонит сюда (Jikan на MAL их не находит)."""
-    content, ct, status = await cached_fetch(
-        "GET",
-        "https://shikimori.one/api/animes",
-        params={"search": q, "limit": limit, "page": page},
-        ttl=3600,
-        timeout=10,
-        headers=SHIKI_HEADERS,
-    )
+    try:
+        content, ct, status = await cached_fetch(
+            "GET", f"{SHIKI_ORIGIN}/api/animes",
+            params={"search": q, "limit": limit, "page": page},
+            ttl=3600, timeout=3.5, headers=SHIKI_HEADERS,
+        )
+    except HTTPException:
+        status = 503
     if status != 200:
-        return []
+        return await _yummy_search(q, limit, page)
     return Response(content=content, media_type=ct)
+
+
+async def _yummy_search(q: str, limit: int, page: int):
+    """Preserve the existing Shikimori-shaped search contract and MAL identity."""
+    content, _, status = await cached_fetch(
+        "GET", "https://old.yummyani.me/api/search",
+        params={"q": q, "limit": limit, "offset": (page - 1) * limit},
+        ttl=3600, timeout=3.5, headers={"User-Agent": "Mozilla/5.0"},
+    )
+    try:
+        items = json.loads(content).get("response")
+    except (ValueError, AttributeError) as exc:
+        raise HTTPException(502, "search reserve invalid response") from exc
+    if status != 200 or not isinstance(items, list):
+        raise HTTPException(502, "search providers unavailable")
+    result = []
+    for item in items:
+        mal_id = (item.get("remote_ids") or {}).get("myanimelist_id")
+        if not str(mal_id or "").isdigit() or int(mal_id) <= 0:
+            continue
+        poster = item.get("poster") or {}
+        image = poster.get("big") or poster.get("medium") or ""
+        if image.startswith("//"):
+            image = "https:" + image
+        status_alias = (item.get("anime_status") or {}).get("alias")
+        result.append({
+            "id": int(mal_id), "russian": item.get("title") or "",
+            "name": next(iter(item.get("other_titles") or []), item.get("title") or ""),
+            "image": {"original": image}, "kind": (item.get("type") or {}).get("alias") or "",
+            "status": {"released": "released", "ongoing": "ongoing", "announced": "anons"}.get(status_alias, ""),
+            "score": (item.get("rating") or {}).get("myanimelist_rating"),
+            "aired_on": str(item["year"]) if item.get("year") else None,
+            "episodes": (item.get("episodes") or {}).get("count"),
+            "duration": round(item["duration"] / 60) if item.get("duration") else None,
+        })
+    return {"data": result, "pagination": {
+        "has_next_page": len(items) >= limit,
+        "last_visible_page": page + 1 if len(items) >= limit else page,
+    }}
 
 
 @router.get("/proxy/jikan/{path:path}")
 async def proxy_jikan(path: str, request: Request):
-    url = f"https://api.jikan.moe/v4/{path}"
-    if path.startswith("random/"):
-        client = await get_client()
-        try:
-            r = await client.get(url, params=dict(request.query_params))
-        except httpx.HTTPError as exc:
-            raise HTTPException(502, f"proxy upstream: {exc}")
-        if r.status_code in _RETRY_STATUS_CODES:
-            raise HTTPException(502, f"jikan upstream status {r.status_code}")
-        return Response(
-            content=r.content,
-            status_code=r.status_code,
-            media_type=r.headers.get("content-type", "application/json"),
-            headers={"Cache-Control": "no-store"},
-        )
-    ttl = 3600 if path.startswith("anime/") and "/" not in path[6:] else 900
-    content, ct, status = await cached_fetch(
-        "GET", url, params=dict(request.query_params), ttl=ttl
-    )
-    return Response(
-        content=content,
-        status_code=status,
-        media_type=ct,
-        headers={"Cache-Control": f"public, max-age={ttl}"},
-    )
+    from server import jikan_catalog
+    content, ct, status = await jikan_catalog.fetch(path, dict(request.query_params))
+    return Response(content=content, status_code=status, media_type=ct,
+                    headers={"Cache-Control": "no-store" if path == "random/anime" or status != 200 else "public, max-age=300"})
 
 
 @router.post("/proxy/anilist")
@@ -409,25 +494,21 @@ async def proxy_img(url: str = Query(...)):
 
 # ---------- lifecycle ----------
 async def startup() -> None:
-    """Prime the in-process cache with endpoints the home page needs."""
-    urls: list[tuple[str, str, dict | None, float]] = [
-        ("GET", "https://api.jikan.moe/v4/top/anime", {"limit": 25, "filter": "bypopularity"}, 900),
-        ("GET", "https://api.jikan.moe/v4/seasons/now", {"limit": 25, "sfw": "true"}, 900),
-        ("GET", "https://api.jikan.moe/v4/genres/anime", None, 86400),
-    ]
-
-    async def _warm(method, url, params, ttl):
-        try:
-            await cached_fetch(method, url, params=params, ttl=ttl, timeout=20)
-        except HTTPException as exc:
-            log.debug("warmup %s failed: %s", url, exc)
-
-    await asyncio.gather(*[_warm(*t) for t in urls])
-    log.info("warmup complete (%d endpoints)", len(urls))
+    from server import jikan_catalog
+    await jikan_catalog.startup()
 
 
 async def shutdown() -> None:
     global _http_client, _http_client_proxy_env, _direct_client
+    from server import jikan_catalog
+    await jikan_catalog.shutdown()
+    pending = list(_pending_fetches.values())
+    for task in pending:
+        task.cancel()
+    await asyncio.gather(*pending, return_exceptions=True)
+    _pending_fetches.clear()
+    _upstream_retry_after.clear()
+    _upstream_connect_failures.clear()
     if _http_client and not _http_client.is_closed:
         await _http_client.aclose()
     _http_client = None

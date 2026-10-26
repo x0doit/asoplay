@@ -1,0 +1,17 @@
+{
+  "name": "asoplay/embedded-catalog",
+  "description": "Embedded MyAnimeList parser for AsoPlay",
+  "type": "project",
+  "license": "proprietary",
+  "require": {
+    "php": "^8.4.4",
+    "ext-dom": "*",
+    "ext-mbstring": "*",
+    "jikan-me/jikan": "5.0.0"
+  },
+  "config": {
+    "allow-plugins": false,
+    "platform": { "php": "8.4.4" },
+    "sort-packages": true
+  }
+}

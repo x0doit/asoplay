@@ -60,7 +60,14 @@ _watchdog_stop = threading.Event()
 _watchdog_thread: threading.Thread | None = None
 
 
+def is_enabled() -> bool:
+    return os.environ.get("AV_VPN_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
+
+
 def _restart_bridge_locked() -> bool:
+    if not is_enabled():
+        clear_env()
+        return False
     if _port_alive(VPN_HOST, VPN_HTTP_PORT, timeout=0.25):
         _export_env()
         return True
@@ -205,6 +212,11 @@ def activate() -> bool:
     """Spin up xray and export HTTP_PROXY/HTTPS_PROXY. Returns True if the
     proxy is up and outbound traffic is now routed through it."""
     global _xray_proc, _bridge_desired
+    if not is_enabled():
+        _bridge_desired = False
+        clear_env()
+        log.info("VPN bridge disabled by AV_VPN_ENABLED; using direct outbound")
+        return False
     if _port_alive(VPN_HOST, VPN_HTTP_PORT):
         _bridge_desired = True
         log.info("VPN already listening on %s (reusing)", VPN_PROXY_URL)
@@ -264,6 +276,11 @@ def ensure_active(*, blocking: bool = True) -> bool:
     proxy env so callers can fall back to direct outbound instead of waiting on
     a dead local proxy.
     """
+    global _bridge_desired
+    if not is_enabled():
+        _bridge_desired = False
+        clear_env()
+        return False
     if _port_alive(VPN_HOST, VPN_HTTP_PORT, timeout=0.25):
         _export_env()
         return True
@@ -281,6 +298,8 @@ def ensure_active(*, blocking: bool = True) -> bool:
 def start_watchdog() -> None:
     """Start a lightweight supervisor for the local xray bridge."""
     global _watchdog_thread
+    if not is_enabled():
+        return
     if _watchdog_thread and _watchdog_thread.is_alive():
         return
     _watchdog_stop.clear()
@@ -327,6 +346,9 @@ def shutdown() -> None:
 
 def is_active() -> bool:
     """Quick probe for the HTTP_PROXY being set AND the port being alive."""
+    if not is_enabled():
+        clear_env()
+        return False
     active = bool(os.environ.get("HTTPS_PROXY")) and _port_alive(VPN_HOST, VPN_HTTP_PORT)
     if not active and _env_uses_bridge():
         clear_env()

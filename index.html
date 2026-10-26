@@ -14,13 +14,12 @@
 <meta name="robots" content="index, follow, max-image-preview:large" />
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='11' fill='%23ff6666'/%3E%3Ctext x='12' y='16' text-anchor='middle' fill='white' font-family='Arial' font-weight='700' font-size='12'%3EA%3C/text%3E%3C/svg%3E" />
 
-<link rel="preconnect" href="https://api.jikan.moe" />
 <link rel="preconnect" href="https://graphql.anilist.co" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-<link rel="stylesheet" href="/styles.css?v=20260507-2" />
+<link rel="stylesheet" href="/styles.css?v=20261026-hero1" />
 
 <!--av:head-extra-->
 
@@ -53,9 +52,17 @@
       <img src="/assets/logo.png?v=20260424-2" alt="AnimeViev" class="logo-img" height="46" decoding="async" />
     </a>
 
-    <div class="mobile-menu-button" id="mobileMenuBtn">Меню</div>
+    <button type="button" class="mobile-menu-button" id="mobileMenuBtn" aria-label="Открыть меню" title="Открыть меню" aria-controls="topMenu" aria-expanded="false">
+      <svg width="24" height="24" aria-hidden="true"><use href="/assets/icons/navigation.svg#menu"/></svg>
+    </button>
 
     <ul class="menu" id="topMenu">
+      <li class="mobile-menu-head">
+        <img src="/assets/logo.png?v=20260424-2" alt="AsoPlay" width="120" height="44" />
+        <button type="button" id="mobileMenuClose" aria-label="Закрыть меню" title="Закрыть меню">
+          <svg width="24" height="24" aria-hidden="true"><use href="/assets/icons/navigation.svg#x"/></svg>
+        </button>
+      </li>
       <li><a href="/" data-view="home">Главная</a></li>
       <li><a href="/top" data-view="top">ТОП-100</a></li>
       <li><a href="/season" data-view="season">Сезон <span>сейчас</span></a></li>
@@ -101,6 +108,6 @@
 
 <!--av:preload-->
 
-<script src="/app.js?v=20260507-2" type="module"></script>
+<script src="/app.js?v=20261026-hero1" type="module"></script>
 </body>
 </html>

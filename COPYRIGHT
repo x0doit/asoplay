@@ -3,7 +3,13 @@ Author: Чепела Даниэль Максимович — x0doit — https://
 
 AnimeViev — proprietary software. This source tree, its data schema, its
 design assets and every individual file in the repository are the exclusive
-property of the author named above.
+property of the author named above, except for third-party dependencies.
+
+Third-party dependencies, including the embedded Jikan library and its
+dependencies in server/jikan/vendor, remain the property of their respective
+authors and are governed by their own licenses. Those license notices are
+preserved with the dependencies. This notice does not override their terms
+and does not grant any license to the AsoPlay application itself.
 
 No licence — express or implied — is granted to any third party. Without the
 prior direct written permission of the author you MAY NOT:

@@ -9,7 +9,9 @@
  * any attempt to do so surfaces a guest-gate.
  */
 
-import * as account from "./js/account.js?v=20260430-7";
+import * as account from "./js/account.js?v=20261026-nav2";
+import { setupNavigation } from "./js/navigation.js?v=20261026-1";
+import { getTrailerId, bindTrailer, trailerPlayIcon } from "./js/trailer.js?v=20261026-1";
 
 // Mark iframe embeds early enough for compact app-like layout rules.
 (() => {
@@ -40,11 +42,11 @@ const BACKEND = (() => {
   return "";  // same-origin
 })();
 
-const JIKAN_DIRECT = "https://api.jikan.moe/v4";
 const ANILIST_DIRECT = "https://graphql.anilist.co";
-const JIKAN = () => state.useProxy ? `${BACKEND}/proxy/jikan` : JIKAN_DIRECT;
+const SHIKI_ORIGIN = "https://shikimori.io";
+const JIKAN = () => `${BACKEND}/proxy/jikan`;
 const ANILIST = () => state.useProxy ? `${BACKEND}/proxy/anilist` : ANILIST_DIRECT;
-const imgUrl = (u) => (u && state.useProxy ? `${BACKEND}/proxy/img?url=${encodeURIComponent(u)}` : (u || ""));
+const imgUrl = (u) => (u && state.proxyImages ? `${BACKEND}/proxy/img?url=${encodeURIComponent(u)}` : (u || ""));
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -140,12 +142,12 @@ function fitHeroTitle(el) {
   if (!el) return;
   const len = (el.textContent || "").length;
   let fs = "";
-  if (len > 180) fs = "clamp(14px, 1.4vw, 18px)";
-  else if (len > 140) fs = "clamp(16px, 1.6vw, 22px)";
-  else if (len > 100) fs = "clamp(18px, 1.9vw, 26px)";
-  else if (len > 70)  fs = "clamp(22px, 2.4vw, 32px)";
-  else if (len > 45)  fs = "clamp(26px, 2.8vw, 38px)";
-  el.style.fontSize = fs;
+  if (len > 180) fs = "18px";
+  else if (len > 140) fs = "22px";
+  else if (len > 100) fs = "26px";
+  else if (len > 70)  fs = "32px";
+  else if (len > 45)  fs = "38px";
+  el.style.setProperty("--title-size", fs);
 }
 
 function ruEpisodeTitle(title, num) {
@@ -231,6 +233,7 @@ const state = {
   autoNext: true,     // guests default ON; authed loaded from /account/settings
   backendAvailable: false,
   useProxy: false,
+  proxyImages: false,
   backendSources: [],
   user: null,         // set by account.setup/refresh
   current: null,      // currently-mounted Player
@@ -312,55 +315,68 @@ async function fetchJson(url, opts = {}) {
     return await r.json();
   } finally { clearTimeout(t); }
 }
+const CATALOG_TIMEOUT = 30000; // Includes MAL rate limiting and local parser work.
 const debounce = (fn, ms = 400) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
-async function retry429(fn, n = 5, delay = 500) {
-  try { return await fn(); }
-  catch (e) {
-    const msg = String(e);
-    if (n && /429|502|503|504/.test(msg)) {
-      await new Promise(r => setTimeout(r, delay));
-      return retry429(fn, n - 1, Math.min(delay * 1.8, 5000));
-    }
-    throw e;
-  }
-}
 
 const season = () => { const m = new Date().getMonth() + 1; return m <= 3 ? "winter" : m <= 6 ? "spring" : m <= 9 ? "summer" : "fall"; };
 const SEASON_RU = { winter: "Зима", spring: "Весна", summer: "Лето", fall: "Осень" };
 const year = () => new Date().getFullYear();
 
+async function loadCatalogData(path, select = response => response.data) {
+  const response = await fetchJson(`${JIKAN()}${path}`, { timeout: CATALOG_TIMEOUT });
+  const data = select(response);
+  if (data == null) throw new Error("Invalid catalog response");
+  return data;
+}
+
+function catalogPage(response) {
+  if (!Array.isArray(response.data)) throw new Error("Invalid catalog response");
+  return { data: response.data, pagination: response.pagination || {} };
+}
+function renderCatalogFailure(container, error, russianSearch = false) {
+  if (!container.isConnected) return;
+  container.innerHTML = errorPage({
+    title: "Каталог временно недоступен",
+    message: error.catalogMessage || ([400, 422].includes(error.status)
+      ? "Проверьте параметры поиска и фильтров. Источник не смог обработать этот запрос."
+      : russianSearch
+      ? "Сервис поиска по русским названиям не отвечает. Попробуйте оригинальное название или повторите позже."
+      : "Не удалось загрузить данные каталога. Выбранные фильтры сохранены. Попробуйте ещё раз чуть позже."),
+    action: { href: location.pathname + location.search, label: "Повторить" },
+    secondary: { href: "/catalog", label: "Изменить фильтры" },
+  });
+}
+function loadCatalogPage(params = {}, seasonal = false) {
+  const query = new URLSearchParams({ sfw: "true", limit: "24" });
+  for (const [key, value] of Object.entries(params)) if (value !== "" && value != null) query.set(key, value);
+  const path = seasonal ? `/seasons/${year()}/${season()}` : "/anime";
+  return loadCatalogData(`${path}?${query}`, catalogPage);
+}
+
 // ---------- API ----------
 const api = {
-  search: (q, lim = 24) => retry429(() => fetchJson(`${JIKAN()}/anime?q=${encodeURIComponent(q)}&limit=${lim}&sfw=true&order_by=popularity`)).then(d => d.data || []),
-  top: (lim = 18) => retry429(() => fetchJson(`${JIKAN()}/top/anime?limit=${lim}&filter=bypopularity`)).then(d => d.data || []),
-  season: (lim = 18) => retry429(() => fetchJson(`${JIKAN()}/seasons/${year()}/${season()}?limit=${lim}&sfw=true`)).then(d => (d.data || []).slice(0, lim)),
-  details: id => retry429(() => fetchJson(`${JIKAN()}/anime/${id}/full`)).then(d => d.data),
-  characters: id => retry429(() => fetchJson(`${JIKAN()}/anime/${id}/characters`)).then(d => d.data || []).catch(() => []),
-  recommendations: id => retry429(() => fetchJson(`${JIKAN()}/anime/${id}/recommendations`)).then(d => d.data || []).catch(() => []),
-  byGenre: (g, l = 24) => retry429(() => fetchJson(`${JIKAN()}/anime?genres=${g}&limit=${l}&order_by=popularity&sfw=true`)).then(d => d.data || []),
-  genres: () => retry429(() => fetchJson(`${JIKAN()}/genres/anime`)).then(d => (d.data || []).filter(g => !/Hentai|Erotica/i.test(g.name))),
-  movies: (lim = 24, page = 1) => retry429(() => fetchJson(`${JIKAN()}/anime?type=movie&order_by=popularity&sfw=true&limit=${lim}&page=${page}`)).then(d => d.data || []),
-  random: () => retry429(() => fetchJson(`${JIKAN()}/random/anime?sfw=true&_=${Date.now()}`, { timeout: 15000 })).then(d => d.data),
-  catalog: (params) => {
-    const usp = new URLSearchParams({ sfw: "true", limit: "24" });
-    for (const [k, v] of Object.entries(params)) if (v !== "" && v != null) usp.set(k, v);
-    return retry429(() => fetchJson(`${JIKAN()}/anime?${usp.toString()}`)).then(d => ({ data: d.data || [], pagination: d.pagination || {} }));
-  },
-  seasonNow: (params) => {
-    const usp = new URLSearchParams({ sfw: "true", limit: "24" });
-    for (const [k, v] of Object.entries(params)) if (v !== "" && v != null) usp.set(k, v);
-    return retry429(() => fetchJson(`${JIKAN()}/seasons/now?${usp.toString()}`)).then(d => ({ data: d.data || [], pagination: d.pagination || {} }));
-  },
+  search: (q, lim = 24) => loadCatalogPage({ q, limit: lim, order_by: "popularity" }).then(d => d.data),
+  top: (lim = 18) => loadCatalogData(`/top/anime?limit=${lim}&filter=bypopularity`),
+  season: (lim = 18) => loadCatalogData(`/seasons/${year()}/${season()}?limit=${lim}&sfw=true`),
+  details: id => loadCatalogData(`/anime/${id}/full`),
+  characters: id => loadCatalogData(`/anime/${id}/characters`).catch(() => []),
+  recommendations: id => loadCatalogData(`/anime/${id}/recommendations`).catch(() => []),
+  byGenre: (g, l = 24) => loadCatalogPage({ genres: g, limit: l, order_by: "popularity" }).then(d => d.data),
+  genres: () => loadCatalogData("/genres/anime")
+    .then(data => (data || []).filter(g => !/Hentai|Erotica/i.test(g.name))),
+  movies: (lim = 24, page = 1) => loadCatalogPage({ type: "movie", order_by: "popularity", limit: lim, page }).then(d => d.data),
+  random: () => loadCatalogData(`/random/anime?sfw=true&_=${Date.now()}`),
+  catalog: params => loadCatalogPage(params),
+  seasonNow: params => loadCatalogPage(params, true),
   topPaged: (page = 1) =>
-    retry429(() => fetchJson(`${JIKAN()}/top/anime?limit=24&filter=bypopularity&page=${page}`))
-      .then(d => ({ data: d.data || [], pagination: d.pagination || {} })),
+    loadCatalogData(`/top/anime?limit=24&filter=bypopularity&page=${page}`, catalogPage),
 
   trendingRich: async (n = 8) => {
     try {
       const j = await fetchJson(ANILIST(), {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          query: `query ($n:Int){ Page(perPage:$n){ media(type:ANIME, sort:TRENDING_DESC, status_in:[RELEASING,FINISHED]){
+          query: `query ($n:Int){ Page(perPage:$n){ media(type:ANIME, isAdult:false, sort:TRENDING_DESC, status_in:[RELEASING,FINISHED]){
             idMal title{romaji english native} coverImage{large extraLarge} bannerImage averageScore episodes format seasonYear genres description(asHtml:false)
           }}}`, variables: { n },
         }),
@@ -380,28 +396,7 @@ const api = {
         }));
     } catch { return []; }
   },
-  trending: async (lim = 18) => {
-    try {
-      const j = await fetchJson(ANILIST(), {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          query: `query ($n:Int){ Page(perPage:$n){ media(type:ANIME, sort:TRENDING_DESC){
-            idMal title{romaji english} coverImage{large} averageScore episodes format seasonYear genres
-          }}}`, variables: { n: lim },
-        }),
-      });
-      const seen = new Set();
-      return (j.data?.Page?.media || [])
-        .filter(m => m.idMal && !seen.has(m.idMal) && (seen.add(m.idMal), true))
-        .map(m => ({
-          mal_id: m.idMal, title: m.title.english || m.title.romaji,
-          images: { jpg: { large_image_url: m.coverImage.large, image_url: m.coverImage.large } },
-          score: m.averageScore ? (m.averageScore / 10).toFixed(1) : null,
-          episodes: m.episodes, type: m.format, year: m.seasonYear,
-          genres: (m.genres || []).map(g => ({ name: g })),
-        }));
-    } catch { return []; }
-  },
+  trending: (lim = 18) => loadCatalogPage({ status: "airing", order_by: "popularity", limit: lim }).then(d => d.data),
 
   shiki: async id => { try { return await fetchJson(`${BACKEND}/shiki/anime/${id}`, { timeout: 6000 }); } catch { return null; } },
   shikiBatch: async ids => {
@@ -410,19 +405,17 @@ const api = {
     try { return await fetchJson(`${BACKEND}/shiki/batch?ids=${list.join(",")}`, { timeout: 6000 }); } catch { return {}; }
   },
   shikiSearch: async (q, lim = 24, page = 1) => {
-    try {
-      return await fetchJson(
-        `${BACKEND}/shiki/search?q=${encodeURIComponent(q)}&limit=${lim}&page=${page}`,
-        { timeout: 8000 }
-      );
-    } catch { return []; }
+    return fetchJson(
+      `${BACKEND}/shiki/search?q=${encodeURIComponent(q)}&limit=${lim}&page=${page}`,
+      { timeout: 8000 }
+    );
   },
   anilistByMal: async id => {
     try {
       const j = await fetchJson(ANILIST(), {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          query: `query($id:Int){Media(idMal:$id,type:ANIME){bannerImage coverImage{extraLarge large} description(asHtml:false) tags{name}}}`,
+          query: `query($id:Int){Media(idMal:$id,type:ANIME){idMal title{romaji english native} synonyms bannerImage coverImage{extraLarge large} description(asHtml:false) tags{name} averageScore episodes format seasonYear genres status duration studios{nodes{name}}}}`,
           variables: { id },
         }),
         timeout: 6000,
@@ -517,7 +510,7 @@ async function enrichWithShiki(container, list, limit) {
       const shikiImg = entry.image;
       const shikiPath = shikiImg?.preview || shikiImg?.original || shikiImg?.x96 || "";
       const shikiUrl = shikiPath
-        ? (shikiPath.startsWith("http") ? shikiPath : "https://shikimori.one" + shikiPath)
+        ? (shikiPath.startsWith("http") ? shikiPath : SHIKI_ORIGIN + shikiPath)
         : "";
       const needReplace = !img.getAttribute("src")
                         || img.getAttribute("src") === ""
@@ -598,99 +591,175 @@ function renderSkeletons(el, n = 12) {
 let heroTimer = null;
 async function renderHeroCarousel(container) {
   container.innerHTML = `
-    <div class="hero-carousel" id="avHero">
+    <div class="hero-carousel" id="avHero" role="region" aria-roledescription="карусель" aria-label="Аниме в тренде">
       <div id="avHeroSlides"></div>
-      <div class="hero-ctrl">
-        <button class="hero-nav prev" aria-label="Предыдущий">
-          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M15.5 4 7.5 12l8 8 1.4-1.4L10.3 12l6.6-6.6z"/></svg>
-        </button>
-        <div class="hero-dots"></div>
-        <button class="hero-nav next" aria-label="Следующий">
-          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M8.5 4 7.1 5.4 13.7 12l-6.6 6.6L8.5 20l8-8z"/></svg>
-        </button>
+      <div class="hero-footer" hidden>
+        <a class="btn btn-primary hero-watch">
+          ${trailerPlayIcon} Смотреть
+        </a>
+        <div class="hero-ctrl">
+          <span class="hero-counter" role="status" aria-live="off"><b>01</b><span> / <span class="hero-total"></span></span></span>
+          <button type="button" class="hero-nav prev" aria-label="Предыдущее аниме" title="Предыдущее аниме">
+            <svg width="20" height="20" aria-hidden="true"><use href="/assets/icons/navigation.svg?v=20261026-hero1#chevron-left"/></svg>
+          </button>
+          <button type="button" class="hero-nav next" aria-label="Следующее аниме" title="Следующее аниме">
+            <svg width="20" height="20" aria-hidden="true"><use href="/assets/icons/navigation.svg?v=20261026-hero1#chevron-right"/></svg>
+          </button>
+        </div>
       </div>
     </div>`;
 
   const slides = await api.trendingRich(8).catch(() => []);
+  if (!container.isConnected) return;
   if (!slides.length) { container.innerHTML = ""; return; }
-  if (state.backendAvailable) {
-    const map = await api.shikiBatch(slides.map(s => s.mal_id));
-    slides.forEach(s => { const ru = map?.[s.mal_id]?.russian; if (ru) s.title = ru; });
-  }
-  {
-    const seen = new Set();
-    for (let i = slides.length - 1; i >= 0; i--) {
-      const k = normTitle(slides[i].title);
-      if (seen.has(k)) slides.splice(i, 1);
-      else seen.add(k);
-    }
-  }
-
+  const hero = $("#avHero", container);
   const sw = $("#avHeroSlides", container);
-  const dots = $(".hero-dots", container);
+  const watch = $(".hero-watch", container);
+  const counter = $(".hero-counter", container);
+  const rendered = new Map();
   slides.forEach((s, i) => {
     const el = document.createElement("div");
     el.className = "hero-slide" + (i === 0 ? " active" : "");
+    el.setAttribute("role", "group");
+    el.setAttribute("aria-roledescription", "слайд");
     el.innerHTML = `
-      <div class="hero-bg" style="background-image:url('${imgUrl(s.banner)}')"></div>
+      <div class="hero-bg"><img src="${esc(imgUrl(s.banner))}" alt="" loading="${i === 0 ? "eager" : "lazy"}" fetchpriority="${i === 0 ? "high" : "low"}" decoding="async" /></div>
       <div class="hero-content">
         <span class="hero-badge">#${i + 1} В тренде</span>
-        <h1 class="hero-title">${esc(s.title)}</h1>
+        <h1 class="hero-title" title="${esc(s.title)}">${esc(s.title)}</h1>
         <div class="hero-stats">
           ${s.score ? `<span>★ <b>${s.score}</b></span>` : ""}
           ${s.episodes ? `<span>${s.episodes} эп.</span>` : ""}
           ${s.type ? `<span>${tr(TYPE_RU, s.type)}</span>` : ""}
           ${s.year ? `<span>${s.year}</span>` : ""}
-          ${s.genres?.length ? `<span>${s.genres.map(trGenre).join(", ")}</span>` : ""}
         </div>
+        ${s.genres?.length ? `<p class="hero-genres">${esc(s.genres.map(trGenre).join(", "))}</p>` : ""}
         <p class="hero-desc">${esc(s.description).slice(0, 280)}</p>
-        <div class="hero-actions">
-          <a class="btn btn-primary" href="/anime/${s.mal_id}/">
-            <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
-            Смотреть
-          </a>
-        </div>
       </div>`;
     sw.appendChild(el);
-    const dot = document.createElement("button");
-    if (i === 0) dot.classList.add("active");
-    dot.addEventListener("click", () => goTo(i));
-    dots.appendChild(dot);
+    rendered.set(s.mal_id, { el });
   });
 
   let idx = 0;
   const go = n => {
     idx = (n + slides.length) % slides.length;
-    $$(".hero-slide", container).forEach((el, i) => el.classList.toggle("active", i === idx));
-    $$(".hero-dots button", container).forEach((el, i) => el.classList.toggle("active", i === idx));
+    $$(".hero-slide", container).forEach((el, i) => {
+      el.classList.toggle("active", i === idx);
+      el.inert = i !== idx;
+      el.setAttribute("aria-hidden", String(i !== idx));
+      el.setAttribute("aria-label", `${i + 1} из ${slides.length}`);
+    });
+    $("b", counter).textContent = String(idx + 1).padStart(2, "0");
+    $(".hero-total", counter).textContent = String(slides.length).padStart(2, "0");
+    counter.setAttribute("aria-label", `Аниме ${idx + 1} из ${slides.length}`);
+    watch.href = `/anime/${slides[idx].mal_id}/`;
+    watch.setAttribute("aria-label", `Смотреть: ${slides[idx].title}`);
+    $(".hero-ctrl", container).hidden = slides.length < 2;
   };
-  function goTo(n) { clearInterval(heroTimer); go(n); heroTimer = setInterval(() => go(idx + 1), 6500); }
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let hovering = false;
+  let touch = null;
+  const restartTimer = () => {
+    clearInterval(heroTimer);
+    if (slides.length < 2 || reducedMotion.matches) return;
+    heroTimer = setInterval(() => {
+      if (!container.isConnected) { clearInterval(heroTimer); return; }
+      if (!document.hidden && !hovering && !touch && !hero.contains(document.activeElement)) go(idx + 1);
+    }, 6500);
+  };
+  function goTo(n) { go(n); restartTimer(); }
   $(".hero-nav.prev", container).addEventListener("click", () => goTo(idx - 1));
   $(".hero-nav.next", container).addEventListener("click", () => goTo(idx + 1));
-  heroTimer = setInterval(() => go(idx + 1), 6500);
-
-  slides.forEach(async (s, i) => {
-    if (!s.description || hasCyrillic(s.description)) return;
-    let ru = "";
-    try {
-      const shiki = await api.shiki(s.mal_id);
-      const cleaned = cleanBBCode(shiki?.description || "");
-      if (cleaned && hasCyrillic(cleaned)) ru = cleaned;
-    } catch {}
-    if (!ru) ru = await translateToRu(s.description);
-    if (!ru) return;
-    const slideEl = $$(".hero-slide", container)[i];
-    const p = slideEl?.querySelector(".hero-desc");
-    if (p) p.textContent = ru.slice(0, 280);
+  hero.addEventListener("pointerenter", e => { if (e.pointerType === "mouse") hovering = true; });
+  hero.addEventListener("pointerleave", e => { if (e.pointerType === "mouse") hovering = false; });
+  hero.addEventListener("keydown", e => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    goTo(idx + (e.key === "ArrowRight" ? 1 : -1));
   });
+  hero.addEventListener("pointerdown", e => {
+    if (e.pointerType !== "touch" || !e.isPrimary || e.target.closest("a, button")) return;
+    touch = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    hero.setPointerCapture(e.pointerId);
+  });
+  hero.addEventListener("pointerup", e => {
+    if (!touch || touch.id !== e.pointerId) return;
+    const dx = e.clientX - touch.x;
+    const dy = e.clientY - touch.y;
+    touch = null;
+    if (Math.abs(dx) >= 48 && Math.abs(dx) > Math.abs(dy) * 1.5) goTo(idx + (dx < 0 ? 1 : -1));
+  });
+  hero.addEventListener("pointercancel", () => { touch = null; });
+  hero.addEventListener("lostpointercapture", () => { touch = null; });
+  go(0);
+  restartTimer();
+  $(".hero-footer", container).hidden = false;
+
+  // Enrichment must not hold back the first slide or its image request.
+  const applyTitles = (map) => {
+    if (!container.isConnected) return;
+    const activeSlide = slides[idx];
+    slides.forEach(s => {
+      const ru = map?.[s.mal_id]?.russian;
+      if (ru) {
+        s.title = ru;
+        const title = $(".hero-title", rendered.get(s.mal_id).el);
+        title.textContent = ru;
+        title.title = ru;
+      }
+    });
+    const seen = new Set();
+    for (let i = slides.length - 1; i >= 0; i--) {
+      const s = slides[i];
+      const key = normTitle(s.title);
+      if (seen.has(key)) {
+        const { el } = rendered.get(s.mal_id);
+        el.remove();
+        rendered.delete(s.mal_id);
+        slides.splice(i, 1);
+      } else seen.add(key);
+    }
+    slides.forEach((s, i) => {
+      const { el } = rendered.get(s.mal_id);
+      $(".hero-badge", el).textContent = `#${i + 1} В тренде`;
+    });
+    const activeIndex = slides.indexOf(activeSlide);
+    go(activeIndex >= 0 ? activeIndex : Math.min(idx, slides.length - 1));
+    restartTimer();
+  };
+  async function enrichSlides() {
+    const map = state.backendAvailable ? await api.shikiBatch(slides.map(s => s.mal_id)) : {};
+    if (!container.isConnected) return;
+    applyTitles(map);
+    slides.forEach(async s => {
+      if (!s.description || hasCyrillic(s.description)) return;
+      let ru = "";
+      try {
+        const shiki = await api.shiki(s.mal_id);
+        const cleaned = cleanBBCode(shiki?.description || "");
+        if (cleaned && hasCyrillic(cleaned)) ru = cleaned;
+      } catch {}
+      if (!ru) ru = await translateToRu(s.description);
+      if (!ru || !container.isConnected) return;
+      const slideEl = rendered.get(s.mal_id)?.el;
+      const p = slideEl?.querySelector(".hero-desc");
+      if (p) p.textContent = ru.slice(0, 280);
+    });
+  }
+  enrichSlides();
 }
 
 // ---------- views: catalog family ----------
 function setActiveNav(view) {
+  $("#topMenu").dataset.activeView = view || "";
   $$("#topMenu [data-view]").forEach(el => {
     const li = el.closest("li");
     if (!li) return;
-    li.classList.toggle("active", el.dataset.view === view);
+    const active = el.dataset.view === view || (!view &&
+      el.getAttribute("href").replace(/\/$/, "") === location.pathname.replace(/\/$/, ""));
+    li.classList.toggle("active", active);
+    if (active) el.setAttribute("aria-current", "page");
+    else el.removeAttribute("aria-current");
   });
 }
 
@@ -713,14 +782,19 @@ async function viewHome() {
     </div>`;
   renderHeroCarousel($("#avCarousel"));
   ["topGrid", "seasonGrid", "trendGrid"].forEach(id => renderSkeletons($(`#${id}`), 12));
-  try {
-    const [t, s, tr] = await Promise.all([api.top(18), api.season(18), api.trending(18).catch(() => [])]);
-    renderGrid($("#topGrid"), t, 12);
-    renderGrid($("#seasonGrid"), s, 12);
-    renderGrid($("#trendGrid"), tr, 12);
-  } catch (e) {
-    $("#topGrid").innerHTML = `<div class="av-empty">Ошибка: ${esc(e.message)}</div>`;
-  }
+  const sections = [
+    [$("#topGrid"), () => api.top(18)],
+    [$("#seasonGrid"), () => api.season(18)],
+    [$("#trendGrid"), () => api.trending(18)],
+  ];
+  await Promise.all(sections.map(async ([container, load]) => {
+    try {
+      const data = await load();
+      if (container.isConnected) renderGrid(container, data, 12);
+    } catch {
+      if (container.isConnected) container.innerHTML = '<div class="av-empty">Подборка временно недоступна</div>';
+    }
+  }));
 }
 
 let _genresCache = null;
@@ -752,7 +826,7 @@ function _shikiToJikan(a) {
   if (!a || !a.id) return null;
   const raw = a.image?.original || a.image?.preview || a.image?.x96 || "";
   const image_url = raw
-    ? (raw.startsWith("http") ? raw : "https://shikimori.one" + raw)
+    ? (raw.startsWith("http") ? raw : SHIKI_ORIGIN + raw)
     : "";
   const ru = (a.russian || "").trim();
   const en = (a.name || "").trim();
@@ -765,6 +839,8 @@ function _shikiToJikan(a) {
     title_english: en,
     _ru: ru || undefined,
     type: SHIKI_KIND_TO_JIKAN[a.kind] || a.kind || "",
+    status: { released: "Finished Airing", ongoing: "Currently Airing", anons: "Not yet aired" }[a.status] || "",
+    duration: a.duration ? `${a.duration} min per ep` : "",
     episodes: a.episodes || null,
     year,
     score: score && !Number.isNaN(score) && score > 0 ? score : null,
@@ -887,9 +963,10 @@ async function viewCatalog(kind, queryStr) {
   const activeCount = [q, type, status, fromYear, toYear, order, sort, genres.length ? "y" : ""].filter(Boolean).length;
   if (activeCount) $("#filterCount").textContent = ` · ${activeCount}`;
 
+  const genreBox = $("#cfGenres");
   getGenres().then(list => {
-    const box = $("#cfGenres");
-    if (!box) return;
+    const box = genreBox;
+    if (!box.isConnected) return;
     box.innerHTML = "";
     list.forEach(g => {
       const chip = document.createElement("button");
@@ -933,14 +1010,15 @@ async function viewCatalog(kind, queryStr) {
   $("#searchForm")?.addEventListener("submit", e => { e.preventDefault(); applyFilters(); });
 
   const g = $("#g");
+  const pager = $("#pager");
+  const russianSearch = isSearch && q && hasCyrillic(q);
   renderSkeletons(g, 24);
   try {
     let data, pagination;
-    const seasonSimple = kind === "season" && !genres.length && !fromYear && !toYear && !q;
+    const seasonSimple = kind === "season" && !genres.length && !fromYear && !toYear && !q && !status && !order && !sort;
     // Поиск на русском — MAL/Jikan не индексирует русские названия, поэтому при
     // кириллическом запросе мы идём через Shikimori и нормализуем его ответ
     // в Jikan-формат, чтобы остальной рендер не изменился.
-    const russianSearch = isSearch && q && hasCyrillic(q);
 
     if (seasonSimple) {
       const p = { page: String(page) };
@@ -953,7 +1031,7 @@ async function viewCatalog(kind, queryStr) {
       // Shikimori не отдаёт pagination.last_visible_page. Чтобы у пользователя
       // был пэйджер, эвристика: если на странице полный 24-row блок, считаем,
       // что может быть ещё одна. Jikan-совместимая форма.
-      pagination = {
+      pagination = raw?.pagination || {
         last_visible_page: list.length >= 24 ? page + 1 : page,
         has_next_page: list.length >= 24,
       };
@@ -974,9 +1052,7 @@ async function viewCatalog(kind, queryStr) {
         if (genres.length) params.genres = genres.join(",");
         ({ data, pagination } = await api.catalog(params));
       } else {
-        const results = await Promise.all(
-          genres.map(gid => api.catalog({ ...baseParams, genres: gid }).catch(() => ({ data: [], pagination: {} })))
-        );
+        const results = await Promise.all(genres.map(gid => api.catalog({ ...baseParams, genres: gid })));
         const seen = new Set();
         const merged = [];
         let maxPage = 0;
@@ -993,9 +1069,10 @@ async function viewCatalog(kind, queryStr) {
         pagination = { last_visible_page: maxPage, has_next_page: maxPage > page };
       }
     }
+    if (!g.isConnected) return;
     renderGrid(g, data, 24, kind);
-    renderPager($("#pager"), kind, queryStr || "", page, pagination);
-  } catch (e) { g.innerHTML = `<div class="av-empty">${esc(e.message)}</div>`; }
+    renderPager(pager, kind, queryStr || "", page, pagination);
+  } catch (e) { renderCatalogFailure(g, e, russianSearch); }
 }
 
 function catalogPathFor(kind) { return kind === "search" ? "catalog" : kind; }
@@ -1036,6 +1113,7 @@ function renderPager(el, kind, queryStr, page, pag) {
 }
 
 async function viewRandom() {
+  const route = routeVersion;
   setActiveNav("random");
   const outlet = $("#outlet");
   outlet.innerHTML = `
@@ -1048,21 +1126,24 @@ async function viewRandom() {
   const setStatus = (txt) => { const el = $("#avRandStatus"); if (el) el.textContent = txt; };
   const setProgress = (i, max) => { const el = $("#avRandProgress"); if (el) el.textContent = max ? `Попытка ${i} из ${max}` : ""; };
 
-  for (let i = 0; i < 3; i++) {
-    setProgress(i + 1, 3);
+  for (let i = 0; i < 2; i++) {
+    if (route !== routeVersion) return;
+    setProgress(i + 1, 2);
+    if (i) setStatus("Подбираю аниме из каталога MAL…");
     try {
-      const r = await fetchJson(`${BACKEND}/random/watchable?_=${Date.now()}`, { timeout: 25000 });
+      const r = i ? await api.random() : await fetchJson(`${BACKEND}/random/watchable?_=${Date.now()}`, { timeout: 9000 });
+      if (route !== routeVersion) return;
       if (r?.mal_id) {
         setStatus(`Открываю: ${r.title || 'MAL #' + r.mal_id}`);
         nav(`/anime/${r.mal_id}/`);
         return;
       }
     } catch { /* retry */ }
-    await new Promise(r => setTimeout(r, 400));
   }
+  if (route !== routeVersion) return;
   outlet.innerHTML = errorPage({
     title: "Каталог временно недоступен",
-    message: "Не удалось получить случайное аниме. Проблема обычно на стороне yummy/Jikan и быстро проходит.",
+    message: "Не удалось получить случайное аниме из доступных источников. Попробуйте ещё раз чуть позже.",
     action: { href: "/random", label: "Попробовать ещё раз" },
     secondary: { href: "/", label: "На главную" },
   });
@@ -1072,8 +1153,10 @@ async function viewGenre(id, name) {
   setActiveNav(null);
   $("#outlet").innerHTML = `<div class="block-header">Жанр: ${esc(name)}</div><div class="av-grid" id="g"></div>`;
   const g = $("#g"); renderSkeletons(g, 18);
-  try { renderGrid(g, await api.byGenre(id, 24)); }
-  catch (e) { g.innerHTML = `<div class="av-empty">${esc(e.message)}</div>`; }
+  try {
+    const data = await api.byGenre(id, 24);
+    if (g.isConnected) renderGrid(g, data);
+  } catch (e) { renderCatalogFailure(g, e); }
 }
 
 // ---------- anime detail ----------
@@ -1084,6 +1167,7 @@ function cleanBBCode(s) {
 }
 
 async function viewAnime(malId) {
+  const route = routeVersion;
   setActiveNav(null);
   $("#outlet").innerHTML = `<div class="av-empty" style="padding:80px 0">Загружаю…</div>`;
 
@@ -1097,6 +1181,7 @@ async function viewAnime(malId) {
   let a;
   try { a = await jikanP; }
   catch (e) {
+    if (route !== routeVersion) return;
     const msg = String(e.message || "");
     if (msg.includes("404")) {
       // MAL ID может быть удалён (например, /anime/2 — обычный тестовый id,
@@ -1117,6 +1202,7 @@ async function viewAnime(malId) {
       }
       const ru = suggest ? (await api.shikiBatch([suggest.mal_id]).catch(() => ({})))?.[suggest.mal_id]?.russian : null;
       const suggestedTitle = ru || suggest?.title_english || suggest?.title || "";
+      if (route !== routeVersion) return;
       $("#outlet").innerHTML = errorPage({
         code: "404",
         title: "Этот идентификатор удалён в MyAnimeList",
@@ -1135,8 +1221,8 @@ async function viewAnime(malId) {
         code: is5xx ? (msg.match(/\b(5\d\d)\b/) || [])[1] : "",
         title: "Не удалось загрузить аниме",
         message: is5xx
-          ? "Внешний источник временно недоступен. Обычно это самоустраняется за минуту."
-          : `Что-то пошло не так: ${msg}.`,
+          ? "Не удалось получить данные MyAnimeList. Попробуйте повторить запрос чуть позже."
+          : "Не удалось получить данные об аниме. Проверьте соединение и повторите попытку.",
         action: { href: `/anime/${malId}/`, label: "Повторить" },
         secondary: { href: "/", label: "На главную" },
       });
@@ -1144,6 +1230,7 @@ async function viewAnime(malId) {
     return;
   }
 
+  if (route !== routeVersion) return;
   const poster = a.images?.jpg?.large_image_url || a.images?.jpg?.image_url || "";
   const titleEn = a.title_english || a.title;
 
@@ -1167,10 +1254,10 @@ async function viewAnime(malId) {
   });
 
   anilistP
-    .then(al => { if (al) applyAnilist(al); })
-    .finally(() => setTimeout(ensureRussianDescription, 400));
-  charsP.then(renderCharacters);
-  recsP.then(renderRecommendations);
+    .then(al => { if (al && !player.destroyed) applyAnilist(al); })
+    .finally(() => setTimeout(() => { if (!player.destroyed) ensureRussianDescription(); }, 400));
+  charsP.then(chars => { if (!player.destroyed) renderCharacters(chars); });
+  recsP.then(recs => { if (!player.destroyed) renderRecommendations(recs); });
 
   // If Shikimori is slow, still record the English-only snapshot so the
   // canonical page gets cached quickly for crawlers.
@@ -1214,7 +1301,8 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
   const cleanup = [];
   const shortDesc = synopsis.slice(0, 260) + (synopsis.length > 260 ? "…" : "");
   const genres = (a.genres || []).concat(a.themes || []).map(g => esc(trGenre(g.name))).join(", ");
-  const trailerId = a.trailer?.youtube_id;
+  const trailerId = getTrailerId(a.trailer);
+  const trailerButton = trailerId ? `<button class="btn btn-ghost cinema-trailer-action" type="button" data-open-trailer aria-haspopup="dialog">${trailerPlayIcon}Трейлер</button>` : "";
   const seasons = (a.relations || []).filter(r =>
     /Sequel|Prequel|Side story|Parent story|Alternative version|Summary/i.test(r.relation)
   ).flatMap(r => r.entry.filter(e => e.type === "anime").map(e => ({ ...e, relation: r.relation })));
@@ -1224,7 +1312,7 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
   const badgeCls = statusRu === "Онгоинг" ? "badge attention" : "badge";
 
   $("#outlet").innerHTML = `
-    <div class="cinema-hero" id="avHero" style="background-image:url('${imgUrl(banner)}')">
+    <div class="cinema-hero${trailerId ? " has-trailer" : ""}" id="avHero" style="background-image:url('${imgUrl(banner)}')">
       <div class="cinema-overlay"></div>
       <div class="cinema-content">
         <div class="cinema-poster"><img src="${imgUrl(poster)}" alt=""></div>
@@ -1243,11 +1331,21 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
             ${genres ? `<span>${genres.slice(0, 80)}${genres.length > 80 ? "…" : ""}</span>` : ""}
           </div>
           <p class="cinema-desc" id="avHeroDesc">${esc(shortDesc)}</p>
+        </div>
+        ${trailerId ? `
+        <div class="cinema-trailer">
+          <span class="cinema-trailer-label">Трейлер</span>
+          <button class="cinema-trailer-preview" type="button" data-open-trailer aria-label="Смотреть трейлер" aria-haspopup="dialog">
+            <img src="https://i.ytimg.com/vi/${trailerId}/hqdefault.jpg" alt="" width="480" height="360" decoding="async" />
+            <span class="cinema-trailer-play">${trailerPlayIcon}</span>
+          </button>
+        </div>` : ""}
           <div class="cinema-actions">
             <button class="btn btn-primary" id="avCtaPlay">
               <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
               Смотреть
             </button>
+            ${trailerButton}
             <div class="list-picker" id="avListPicker">
               <button class="btn btn-ghost list-picker-trigger" id="avListPickerBtn" type="button" aria-haspopup="menu" aria-expanded="false">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4 6h16v2H4zM4 11h16v2H4zM4 16h10v2H4z"/></svg>
@@ -1269,10 +1367,9 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
               <span class="fav-label">В избранное</span>
             </button>
             <a href="${a.url || '#'}" target="_blank" rel="noopener" class="btn btn-ghost">MyAnimeList ↗</a>
-            <a href="https://shikimori.one/animes?search=${encodeURIComponent(titleMain)}" target="_blank" rel="noopener" class="btn btn-ghost">Shikimori ↗</a>
+            <a href="${SHIKI_ORIGIN}/animes?search=${encodeURIComponent(titleMain)}" target="_blank" rel="noopener" class="btn btn-ghost">Shikimori ↗</a>
             <a href="https://anilist.co/search/anime?search=${encodeURIComponent(titleMain)}" target="_blank" rel="noopener" class="btn btn-ghost">AniList ↗</a>
           </div>
-        </div>
       </div>
     </div>
 
@@ -1289,6 +1386,7 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
 
     <div class="detail-grid">
       <div class="watch-main">
+        ${trailerId ? `<div class="trailer-compact-action">${trailerButton}</div>` : ""}
         <div class="seasons-bar" id="avSeasonsBar" hidden></div>
 
         <div class="sp-player" id="avPlayerCard">
@@ -1362,14 +1460,6 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
           </div>
         </div>
 
-        ${trailerId ? `
-        <div class="tabs-block">
-          <div class="block-header">Трейлер</div>
-          <div class="trailer">
-            <iframe src="https://www.youtube-nocookie.com/embed/${trailerId}" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" loading="lazy"></iframe>
-          </div>
-        </div>` : ""}
-
         <div class="tabs-block">
           <div class="block-header">Персонажи</div>
           <div class="chars-grid" id="avChars">
@@ -1385,6 +1475,7 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
     </div>`;
 
   fitHeroTitle($("#avHeroTitle"));
+  cleanup.push(bindTrailer($("#outlet"), trailerId, () => $("#avHeroTitle")?.textContent || titleMain));
 
   $("#avCtaPlay")?.addEventListener("click", () => $("#avPlayerCard").scrollIntoView({ behavior: "smooth", block: "start" }));
 
@@ -3149,7 +3240,10 @@ class Player {
 }
 
 // ---------- router ----------
+let routeVersion = 0;
 async function router() {
+  closeMobileMenu();
+  routeVersion++;
   state.current?.destroy?.();
   state.current = null;
   clearInterval(heroTimer);
@@ -3200,7 +3294,7 @@ function nav(to) {
   if (to.startsWith("#/")) to = to.slice(1);          // legacy hash → pathname
   if (!to.startsWith("/")) to = "/" + to;
   const current = location.pathname + location.search;
-  if (to === current) return;
+  if (to === current) { router(); return; }
   history.pushState(null, "", to);
   router();
 }
@@ -3216,27 +3310,19 @@ function _migrateHashOnBoot() {
 async function refreshBackend() {
   const { ok, sources, vpn } = await api.pingBackend();
   state.backendAvailable = ok;
-  state.useProxy = ok && vpn;
+  state.useProxy = ok;
+  state.proxyImages = ok && vpn;
   state.backendSources = sources;
 }
 
 // ---------- events ----------
+let closeMobileMenu = () => {};
 function bind() {
   document.addEventListener("keydown", e => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); nav("/catalog"); }
   });
 
-  const mobBtn = $("#mobileMenuBtn");
-  if (mobBtn) {
-    mobBtn.addEventListener("click", () => {
-      $("#topMenu").classList.toggle("show");
-      $("#darkOverlay").classList.toggle("show");
-    });
-    $("#darkOverlay").addEventListener("click", () => {
-      $("#topMenu").classList.remove("show");
-      $("#darkOverlay").classList.remove("show");
-    });
-  }
+  closeMobileMenu = setupNavigation();
 
   const toTop = $("#toTop");
   window.addEventListener("scroll", () => {

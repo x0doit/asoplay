@@ -276,9 +276,11 @@ export function socialSiteName() {
 }
 
 // ==== header slot ====
+let cleanupHeader = () => {};
 export function renderHeader() {
   const slot = document.querySelector("#avAccountSlot");
   if (!slot) return;
+  cleanupHeader();
   const user = ctx.state.user;
   if (!user) {
     slot.innerHTML = `
@@ -292,8 +294,15 @@ export function renderHeader() {
   const letter = (name || "A").trim().slice(0, 1).toUpperCase();
   const avatar = user.avatar || "";
   slot.innerHTML = `
-    <button type="button" class="menu-account-btn" id="avAccountBtn" title="${esc(name)}">
-      <span class="menu-avatar menu-avatar-fallback" id="avAccountAva">${esc(letter)}</span>
+    <div class="menu-account-identity">
+      <span class="menu-avatar menu-avatar-fallback" data-account-avatar>${esc(letter)}</span>
+      <div class="menu-account-details">
+        <span class="menu-account-name">${esc(name)}</span>
+        ${user.handle ? `<span class="menu-account-handle">@${esc(user.handle.replace(/^@/, ""))}</span>` : ""}
+      </div>
+    </div>
+    <button type="button" class="menu-account-btn" id="avAccountBtn" title="${esc(name)}" aria-controls="avAccountDrop" aria-expanded="false">
+      <span class="menu-avatar menu-avatar-fallback" data-account-avatar>${esc(letter)}</span>
       <span class="menu-account-name">${esc(name)}</span>
       <svg class="menu-account-chev" viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
     </button>
@@ -309,12 +318,14 @@ export function renderHeader() {
   // Try to upgrade the letter-fallback with a real avatar. Preload with a
   // throwaway Image so CORS/404 failures don't show a broken-image icon
   // in the header — the letter stays visible until the real image is ready.
-  const avaBox = document.querySelector("#avAccountAva");
-  if (avatar && avaBox) {
+  const avaBoxes = slot.querySelectorAll("[data-account-avatar]");
+  if (avatar) {
     const probe = new Image();
     probe.referrerPolicy = "no-referrer";
     probe.onload = () => {
-      avaBox.outerHTML = `<img class="menu-avatar" src="${esc(avatar)}" alt="" referrerpolicy="no-referrer" />`;
+      avaBoxes.forEach(box => {
+        box.outerHTML = `<img class="menu-avatar" src="${esc(avatar)}" alt="" referrerpolicy="no-referrer" />`;
+      });
     };
     probe.onerror = () => { /* keep letter fallback */ };
     probe.src = avatar;
@@ -322,6 +333,7 @@ export function renderHeader() {
   const btn = document.querySelector("#avAccountBtn");
   const drop = document.querySelector("#avAccountDrop");
   const setOpen = (open) => {
+    if (document.documentElement.classList.contains("is-mobile-nav")) return;
     drop.hidden = !open;
     btn.classList.toggle("open", open);
     btn.setAttribute("aria-expanded", open ? "true" : "false");
@@ -330,26 +342,32 @@ export function renderHeader() {
     e.stopPropagation();
     setOpen(drop.hidden);
   });
-  // Global click handler: close on outside click. Replaces previous listener
-  // on every re-render so we don't stack up.
-  if (window._avDropCloser) document.removeEventListener("click", window._avDropCloser);
-  window._avDropCloser = (e) => {
-    const d = document.querySelector("#avAccountDrop");
-    const b = document.querySelector("#avAccountBtn");
-    if (!d || d.hidden) return;
-    if (!d.contains(e.target) && !b?.contains(e.target)) {
-      d.hidden = true;
-      b?.classList.remove("open");
-      b?.setAttribute("aria-expanded", "false");
+  const closeOutside = (e) => {
+    if (!btn.contains(e.target)) setOpen(false);
+  };
+  const closeEscape = (e) => {
+    if (e.key === "Escape" && !drop.hidden &&
+        !document.documentElement.classList.contains("is-mobile-nav")) {
+      setOpen(false);
+      btn.focus();
     }
   };
-  document.addEventListener("click", window._avDropCloser);
-  // Close on Escape for keyboard users.
-  if (window._avDropEsc) document.removeEventListener("keydown", window._avDropEsc);
-  window._avDropEsc = (e) => {
-    if (e.key === "Escape" && !drop.hidden) setOpen(false);
+  const syncMode = () => {
+    drop.hidden = !document.documentElement.classList.contains("is-mobile-nav");
+    btn.classList.remove("open");
+    btn.setAttribute("aria-expanded", "false");
   };
-  document.addEventListener("keydown", window._avDropEsc);
+  document.addEventListener("click", closeOutside);
+  document.addEventListener("keydown", closeEscape);
+  document.addEventListener("av:navigation-mode", syncMode);
+  cleanupHeader = () => {
+    document.removeEventListener("click", closeOutside);
+    document.removeEventListener("keydown", closeEscape);
+    document.removeEventListener("av:navigation-mode", syncMode);
+  };
+  syncMode();
+  const activeView = document.querySelector("#topMenu").dataset.activeView;
+  ctx.setActive(activeView || null);
   document.querySelector("#avLogoutBtn")?.addEventListener("click", async () => {
     await logout();
     ctx.nav("/");

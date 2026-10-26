@@ -1,0 +1,9 @@
+AsoPlay embeds Jikan v5.0.0 (https://github.com/jikan-me/jikan), MIT licensed.
+Copyright (c) 2018-2024 Jikan API.
+
+Jikan and its Composer dependencies are not authored by AsoPlay's owner.
+Their licenses are included in vendor alongside each installed package.
+composer.lock records exact versions and source revisions. Do not remove
+upstream license notices when packaging the application.
+
+bridge.php is the AsoPlay adapter. It does not modify Jikan's parser sources.

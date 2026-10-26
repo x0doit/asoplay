@@ -45,7 +45,7 @@ except ImportError:
 from server import (
     vpn_bridge, proxies, animesocial, account_api,
     title_pages, user_lists, activity_log, profile_pages, adblock, player_proxy,
-    source_health,
+    source_health, jikan_catalog,
 )
 
 
@@ -269,6 +269,7 @@ def health():
         "ok": True,
         "sources": active_sources,
         "vpn": vpn_bridge.is_active(),
+        "catalog": jikan_catalog.status(),
         "db": animesocial.health(),
         "adblock": adblock.status(),
         "source_health": source_health.snapshot(_all_sources()),
@@ -708,6 +709,13 @@ _OLDYUMMY_CATALOG_MAX = 10000
 
 @app.get("/random/watchable")
 async def random_watchable():
+    try:
+        return await asyncio.wait_for(_random_watchable(), timeout=8)
+    except asyncio.TimeoutError as exc:
+        raise HTTPException(504, "random pool timed out") from exc
+
+
+async def _random_watchable():
     client = await proxies.get_client()
     tried: set[int] = set()
     for _ in range(15):
@@ -743,13 +751,11 @@ async def random_watchable():
             if rating and rating < 6:
                 continue
             try:
-                check = await client.get(
-                    f"https://api.jikan.moe/v4/anime/{mal_id}", timeout=5,
-                )
-                if check.status_code != 200:
+                _, _, status = await jikan_catalog.fetch(f"anime/{mal_id}", timeout=4)
+                if status == 404:
                     continue
-            except httpx.HTTPError:
-                continue
+            except HTTPException:
+                pass  # A Jikan outage doesn't invalidate the source's MAL mapping.
             return {
                 "mal_id": int(mal_id),
                 "anime_id": a.get("anime_id"),
