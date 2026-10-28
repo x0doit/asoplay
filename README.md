@@ -60,8 +60,8 @@ JavaScript, бэкенд работает на Python/FastAPI, а пользов
   и графиком активности.
 - **Прокси, health-state и кэш во время работы** для внешних API, источников
   видео, данных и изображений.
-- **Опциональный xray/Shadowsocks bridge** для окружений, где внешние anime API
-  недоступны напрямую.
+- **Опциональный xray bridge (VLESS + Reality или Shadowsocks)** для окружений,
+  где внешние anime API недоступны напрямую.
 
 ---
 
@@ -143,7 +143,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 - **Embedded parser:** Jikan 5.0.0, PHP 8.4.4+ с DOM и mbstring.
 - **Player layer:** same-origin iframe/media proxy, sandbox bridge,
   request-level ad filtering.
-- **Network bridge:** optional xray/Shadowsocks через `.env`.
+- **Network bridge:** optional xray (VLESS + Reality или Shadowsocks) через `.env`.
 
 ---
 
@@ -253,7 +253,11 @@ Backend читает runtime settings из `.env`, `animesocial-db.php` и
   для runtime filters.
 - `AV_PLAYER_PROXY_MAX_TEXT_REWRITE` — лимит размера текстовых player-ресурсов
   для rewriting.
-- `SS_ADDRESS`, `SS_PORT`, `SS_METHOD`, `SS_PASSWORD` — optional xray outbound.
+- `AV_VPN_ENABLED` — `0` временно отключает xray bridge, не стирая параметры
+  сервера.
+- `AV_VPN_URL` — ссылка `vless://` (VLESS + Reality) для xray bridge.
+- `SS_ADDRESS`, `SS_PORT`, `SS_METHOD`, `SS_PASSWORD` — Shadowsocks для старых
+  серверов; используются, только если `AV_VPN_URL` не задан.
 
 Production secrets должны храниться только на сервере. Нельзя коммитить реальные
 пароли, токены, proxy credentials, session data или приватные ключи.
@@ -378,8 +382,8 @@ JavaScript, the backend runs on Python/FastAPI, and user data is stored in MySQL
   graph rendering.
 - **Runtime proxy, health state and cache** for external APIs, video sources,
   data and media images.
-- **Optional xray/Shadowsocks bridge** for environments where upstream anime
-  metadata APIs are blocked.
+- **Optional xray bridge (VLESS + Reality or Shadowsocks)** for environments
+  where upstream anime metadata APIs are blocked.
 
 ---
 
@@ -461,7 +465,7 @@ Key capabilities:
 - **Embedded parser:** Jikan 5.0.0, PHP 8.4.4+ with DOM and mbstring.
 - **Player layer:** same-origin iframe/media proxy, sandbox bridge,
   request-level ad filtering.
-- **Network bridge:** optional xray/Shadowsocks through `.env`.
+- **Network bridge:** optional xray (VLESS + Reality or Shadowsocks) through `.env`.
 
 ---
 
@@ -571,7 +575,11 @@ Important environment groups:
   for runtime filters.
 - `AV_PLAYER_PROXY_MAX_TEXT_REWRITE` — maximum textual player resource size for
   rewriting.
-- `SS_ADDRESS`, `SS_PORT`, `SS_METHOD`, `SS_PASSWORD` — optional xray outbound.
+- `AV_VPN_ENABLED` — `0` temporarily disables the xray bridge without erasing the
+  server settings.
+- `AV_VPN_URL` — `vless://` share link (VLESS + Reality) for the xray bridge.
+- `SS_ADDRESS`, `SS_PORT`, `SS_METHOD`, `SS_PASSWORD` — Shadowsocks for older
+  servers; used only when `AV_VPN_URL` is not set.
 
 Production secrets must stay outside Git. Never commit real passwords, tokens,
 private proxy credentials, session data or private keys.

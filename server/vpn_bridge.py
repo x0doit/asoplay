@@ -5,8 +5,11 @@ All rights reserved. See /COPYRIGHT for full terms.
 
 VPN bridge — builds an xray runtime config from vpn.template.json + .env and
 launches a dedicated xray.exe on a pair of local ports. Upstream targets
-(Jikan, AniList, Shikimori, translate) that are blocked in some regions then
+(MAL, AniList, Shikimori, translate) that are blocked in some regions then
 become reachable through HTTP_PROXY/HTTPS_PROXY.
+
+The server comes from a vless:// share link in AV_VPN_URL (VLESS + Reality) or,
+for older setups, from the SS_* Shadowsocks variables.
 
 This module is side-effect free at import time. The app calls `activate()`
 from the FastAPI startup hook, not during module loading. That keeps imports
@@ -25,6 +28,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 log = logging.getLogger("animeviev.vpn")
 
@@ -106,15 +110,74 @@ def _find_xray() -> str | None:
     return shutil.which("xray") or shutil.which("xray.exe")
 
 
+def _vless_outbound(link: str) -> dict | None:
+    """Turn a vless:// share link, as exported by Xray panels and Happ, into the
+    "proxy" outbound. Only the TCP transport with Reality, TLS or no security
+    is supported; anything else is rejected rather than half-configured."""
+    try:
+        parts = urlsplit(link)
+        port = parts.port
+    except ValueError:
+        parts, port = None, None
+    if not parts or parts.scheme != "vless" or not parts.username or not parts.hostname or not port:
+        log.warning("AV_VPN_URL is not a vless://uuid@host:port link; ignoring it")
+        return None
+    # Share links percent-encode values; unquote keeps a literal "+" intact.
+    query = {}
+    for pair in parts.query.split("&"):
+        key, _, value = pair.partition("=")
+        if key:
+            query[unquote(key)] = unquote(value)
+    security = query.get("security") or "none"
+    if query.get("type", "tcp") not in {"tcp", "raw"} or security not in {"reality", "tls", "none"}:
+        log.warning("AV_VPN_URL uses an unsupported transport (type=%s, security=%s)",
+                    query.get("type"), security)
+        return None
+    user = {"id": unquote(parts.username), "encryption": query.get("encryption") or "none"}
+    if query.get("flow"):
+        user["flow"] = query["flow"]
+    stream: dict = {"network": "tcp", "security": security}
+    if security == "reality":
+        if not query.get("pbk"):
+            log.warning("AV_VPN_URL uses Reality without a public key (pbk); ignoring it")
+            return None
+        stream["realitySettings"] = {
+            "serverName": query.get("sni", ""),
+            "fingerprint": query.get("fp") or "chrome",
+            "publicKey": query["pbk"],
+            "shortId": query.get("sid", ""),
+            "spiderX": query.get("spx", ""),
+        }
+    elif security == "tls":
+        stream["tlsSettings"] = {
+            "serverName": query.get("sni") or parts.hostname,
+            "fingerprint": query.get("fp") or "chrome",
+        }
+    return {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {"vnext": [{"address": parts.hostname, "port": port, "users": [user]}]},
+        "streamSettings": stream,
+    }
+
+
 def _build_config() -> dict | None:
+    link = os.environ.get("AV_VPN_URL", "").strip()
+    vless = _vless_outbound(link) if link else None
     ss_addr = os.environ.get("SS_ADDRESS", "").strip()
     ss_pass = os.environ.get("SS_PASSWORD", "").strip()
-    if VPN_TEMPLATE.is_file() and ss_addr and ss_pass:
+    if VPN_TEMPLATE.is_file() and (vless or (ss_addr and ss_pass)):
         try:
             cfg = json.loads(VPN_TEMPLATE.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             log.warning("vpn.template.json is not valid JSON: %s", exc)
             return None
+        if vless:
+            # The proxy outbound stays first: xray sends unmatched traffic to it.
+            cfg["outbounds"] = [vless] + [o for o in cfg.get("outbounds", []) if o.get("tag") != "proxy"]
+            log.info("VPN config prepared from template + AV_VPN_URL (VLESS host %s)",
+                     vless["settings"]["vnext"][0]["address"])
+            return cfg
         try:
             ss_port = int(os.environ.get("SS_PORT") or 0)
         except ValueError:
@@ -152,8 +215,8 @@ def _prepare_runtime() -> Path | None:
     if cfg is None:
         log.warning(
             "VPN config not available — expected vpn.template.json + .env "
-            "(SS_ADDRESS/SS_PASSWORD) or a legacy vpn.json. Falling back to "
-            "direct connection."
+            "(AV_VPN_URL or SS_ADDRESS/SS_PASSWORD) or a legacy vpn.json. "
+            "Falling back to direct connection."
         )
         return None
     for inbound in cfg.get("inbounds", []):
