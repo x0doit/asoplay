@@ -21,10 +21,13 @@ TIMEOUT = 12.0
 class Animevost:
     """Stateless клиент. Все операции идут через простой HTTP."""
 
-    def __init__(self) -> None:
+    def __init__(self, proxy: str | None = None) -> None:
+        # proxy задаётся только у экземпляра для повтора через VPN.
         self._client = httpx.AsyncClient(
             headers={"User-Agent": UA, "Accept": "application/json"},
             timeout=TIMEOUT,
+            trust_env=False,
+            proxy=proxy,
         )
 
     async def close(self) -> None:
@@ -39,6 +42,8 @@ class Animevost:
             r = await self._client.post(f"{BASE}/search", data={"name": query})
             r.raise_for_status()
             data = r.json()
+        except httpx.TransportError:
+            raise  # an unreachable host is not an empty result: the caller may retry via VPN
         except Exception as exc:
             log.warning("animevost search failed: %s", exc)
             return []
@@ -55,6 +60,8 @@ class Animevost:
             r = await self._client.post(f"{BASE}/playlist", data={"id": str(vost_id)})
             r.raise_for_status()
             data = r.json()
+        except httpx.TransportError:
+            raise
         except Exception as exc:
             log.warning("animevost playlist failed: %s", exc)
             return []

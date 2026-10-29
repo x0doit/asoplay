@@ -255,7 +255,10 @@ Backend читает runtime settings из `.env`, `animesocial-db.php` и
   для rewriting.
 - `AV_VPN_ENABLED` — `0` временно отключает xray bridge, не стирая параметры
   сервера.
-- `AV_VPN_URL` — ссылка `vless://` (VLESS + Reality) для xray bridge.
+- `AV_VPN_URL` — ссылка `vless://` (VLESS + Reality) для xray bridge. Запросы
+  идут напрямую; через bridge повторяется только запрос к хосту, недоступному
+  напрямую, и такой хост 10 минут ходит через bridge первым. Плееры всегда идут
+  напрямую.
 - `SS_ADDRESS`, `SS_PORT`, `SS_METHOD`, `SS_PASSWORD` — Shadowsocks для старых
   серверов; используются, только если `AV_VPN_URL` не задан.
 
@@ -578,6 +581,9 @@ Important environment groups:
 - `AV_VPN_ENABLED` — `0` temporarily disables the xray bridge without erasing the
   server settings.
 - `AV_VPN_URL` — `vless://` share link (VLESS + Reality) for the xray bridge.
+  Requests go out directly; only a request to a host that is unreachable
+  directly is retried through the bridge, and that host then uses the bridge
+  first for 10 minutes. Players always connect directly.
 - `SS_ADDRESS`, `SS_PORT`, `SS_METHOD`, `SS_PASSWORD` — Shadowsocks for older
   servers; used only when `AV_VPN_URL` is not set.
 

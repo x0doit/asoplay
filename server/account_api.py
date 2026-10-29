@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-AnimeViev — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
+AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
 All rights reserved. See /COPYRIGHT for full terms.
 
 Per-account data API: favorites, watch history, per-episode progress, 1..10
@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field, conint
 from server.animesocial import connect, current_user_required
 from server.activity_log import record_event
 
-log = logging.getLogger("animeviev.account")
+log = logging.getLogger("asoplay.account")
 
 router = APIRouter(prefix="/account")
 

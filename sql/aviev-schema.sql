@@ -1,4 +1,4 @@
--- AnimeViev — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
+-- AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
 -- All rights reserved. See /COPYRIGHT for full terms.
 --
 -- Tables owned by the anime-site project. Every name starts with `aviev_` —

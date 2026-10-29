@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-AnimeViev — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
+AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
 All rights reserved. See /COPYRIGHT for full terms.
 
 FastAPI wiring. The heavy lifting lives in sibling modules:
@@ -29,7 +29,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-log = logging.getLogger("animeviev")
+log = logging.getLogger("asoplay")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -135,7 +135,7 @@ else:
     ALLOWED_ORIGINS = _DEFAULT_ORIGINS
 log.info("CORS allowed origins: %s", ALLOWED_ORIGINS)
 
-app = FastAPI(title="AnimeViev Backend", version="2.0")
+app = FastAPI(title="AsoPlay Backend", version="2.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -191,6 +191,11 @@ async def _shutdown() -> None:
     await player_proxy.shutdown()
     await adblock.shutdown()
     await proxies.shutdown()
+    for _proxy, client in list(_vpn_natives.values()):
+        await client.close()
+    if _vpn_http is not None:
+        await _vpn_http[2].aclose()
+        _vpn_http[1].close()
     vpn_bridge.shutdown()
 
 
@@ -264,6 +269,101 @@ async def _guard_source(source: str, op: str, awaitable, timeout: float):
         return result
 
 
+# ---------- direct-first source routing ----------
+# Sources are reached directly. When a source fails that way, the same step is
+# repeated through the VPN bridge, and the source keeps using the bridge for a
+# while (proxies.route_order). Players stay direct: their stream links are bound
+# to the IP that opened them.
+_ROUTE_ERRORS = (httpx.TransportError, OSError, asyncio.TimeoutError, TimeoutError)
+_vpn_http: tuple[str, Any, Any] | None = None
+_vpn_extractors: dict[str, Any] = {}
+_vpn_natives: dict[str, tuple[str, Any]] = {}
+
+
+def _bridge_proxy() -> str:
+    proxy = vpn_bridge.proxy_url()
+    if proxy is None:
+        raise httpx.ConnectError("VPN bridge is not available")
+    return proxy
+
+
+def _anicli_http(source: str, route: str) -> tuple[Any, Any]:
+    global _vpn_http
+    if route == "direct":
+        return SOURCES[source].http, SOURCES[source].http_async
+    proxy = _bridge_proxy()
+    if _vpn_http is None or _vpn_http[0] != proxy:
+        from anicli_api._http import HTTPAsync, HTTPSync
+        _vpn_http = (proxy, HTTPSync(proxy=proxy, trust_env=False), HTTPAsync(proxy=proxy, trust_env=False))
+    return _vpn_http[1], _vpn_http[2]
+
+
+def _extractor(source: str, route: str):
+    if route == "direct":
+        return SOURCES[source]
+    sync_client, async_client = _anicli_http(source, route)
+    ext = _vpn_extractors.get(source)
+    if ext is None or ext.http is not sync_client:
+        ext = type(SOURCES[source])(http_client=sync_client, http_async_client=async_client)
+        _vpn_extractors[source] = ext
+    return ext
+
+
+def _on_route(source: str, obj, route: str):
+    """Point a cached anicli result at a route's clients; its children inherit them."""
+    if hasattr(obj, "http") and hasattr(obj, "http_async"):
+        obj.http, obj.http_async = _anicli_http(source, route)
+    return obj
+
+
+def _native(source: str, route: str):
+    if route == "direct":
+        return NATIVE_SOURCES[source]
+    proxy = _bridge_proxy()
+    cached = _vpn_natives.get(source)
+    if cached is None or cached[0] != proxy:
+        cached = (proxy, type(NATIVE_SOURCES[source])(proxy=proxy))
+        _vpn_natives[source] = cached
+    return cached[1]
+
+
+async def _source_call(source: str, op: str, run, timeout: float):
+    """Await run(route) directly and, when the source is unreachable that way,
+    through the VPN bridge. A failure counts against the source only when every
+    route failed, so a direct outage that the bridge covers never cools it down."""
+    if not source_health.is_available(source):
+        raise _source_unavailable(source)
+    route_key = f"source:{source}"
+    routes = proxies.route_order(route_key)
+    deadline = time.monotonic() + timeout
+    started = time.perf_counter()
+    last_exc: BaseException | None = None
+    for n, route in enumerate(routes):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0.2:
+            break
+        # The first route leaves at least half of the budget to the second one.
+        budget = remaining / 2 if n + 1 < len(routes) else remaining
+        try:
+            result = await asyncio.wait_for(run(route), timeout=budget)
+        except HTTPException:
+            raise
+        except _ROUTE_ERRORS as exc:
+            last_exc = exc
+            log.info("%s %s failed via %s: %s", source, op, route, str(exc) or type(exc).__name__)
+            continue
+        except Exception as exc:
+            source_health.mark_failure(source, exc)
+            raise
+        proxies.remember_route(route_key, route)
+        source_health.mark_success(source, int((time.perf_counter() - started) * 1000))
+        return result
+    source_health.mark_failure(source, last_exc or f"{op} timeout after {timeout}s")
+    if last_exc is None or isinstance(last_exc, (asyncio.TimeoutError, TimeoutError)):
+        raise HTTPException(504, f"{op} timeout")
+    raise HTTPException(502, f"{op} failed: {last_exc}")
+
+
 # ---------- status endpoints ----------
 @app.get("/health")
 def health():
@@ -324,10 +424,10 @@ async def search(
 ):
     if source in NATIVE_SOURCES:
         try:
-            results = await _guard_source(
+            results = await _source_call(
                 source,
                 "search",
-                _native_search(source, q, mal_id=mal_id),
+                lambda route: _native_search(source, q, mal_id=mal_id, route=route),
                 timeout=10.0,
             )
         except Exception as exc:
@@ -335,9 +435,15 @@ async def search(
             return []
         return _filter_by_year(results, year)
 
-    ext = _get_extractor(source)
+    _get_extractor(source)
+
+    def run_search(route):
+        ext = _extractor(source, route)
+        # The async API can be cancelled when a route runs out of time; a thread cannot.
+        return _run(getattr(ext, "a_search", None) or ext.search, q)
+
     try:
-        results = await _guard_source(source, "search", _run(ext.search, q), timeout=10.0)
+        results = await _source_call(source, "search", run_search, timeout=10.0)
     except Exception as exc:
         # Source-скрейперы anicli-api (animego, dreamcast, yummy_anime_org…)
         # регулярно падают: у них сайт-цель или блокирует запрос, или сменил
@@ -399,19 +505,24 @@ async def search(
 @app.get("/src/episodes")
 async def episodes(key: str, source: str = "anilibria"):
     if source in NATIVE_SOURCES:
-        return await _guard_source(
+        return await _source_call(
             source,
             "episodes",
-            _native_episodes(source, key),
+            lambda route: _native_episodes(source, key, route=route),
             timeout=12.0,
         )
 
     search_result = _get(key)
-    try:
-        get_anime = getattr(search_result, "a_get_anime", None) or search_result.get_anime
-        anime = await _guard_source(source, "anime", _run(get_anime), timeout=12.0)
+
+    async def run_episodes(route):
+        found = _on_route(source, search_result, route)
+        get_anime = getattr(found, "a_get_anime", None) or found.get_anime
+        anime = await _run(get_anime)
         get_eps = getattr(anime, "a_get_episodes", None) or anime.get_episodes
-        episodes_list = await _guard_source(source, "episodes", _run(get_eps), timeout=12.0)
+        return await _run(get_eps)
+
+    try:
+        episodes_list = await _source_call(source, "episodes", run_episodes, timeout=24.0)
     except HTTPException:
         raise
     except Exception as exc:
@@ -464,9 +575,13 @@ async def dubs_for_episode(key: str, source: str = "anilibria"):
         )
 
     episode = _get(key)
+
+    def run_dubs(route):
+        found = _on_route(source, episode, route)
+        return _run(getattr(found, "a_get_sources", None) or found.get_sources)
+
     try:
-        get_sources = getattr(episode, "a_get_sources", None) or episode.get_sources
-        sources_list = await _guard_source(source, "dubs", _run(get_sources), timeout=12.0)
+        sources_list = await _source_call(source, "dubs", run_dubs, timeout=12.0)
     except HTTPException:
         raise
     except Exception as exc:
@@ -518,9 +633,13 @@ async def videos(key: str, source: str = "anilibria"):
             }])
 
         out: list[dict] = []
+
+        def run_videos(route):
+            found = _on_route(source, obj, route)
+            return _run(getattr(found, "a_get_videos", None) or found.get_videos)
+
         try:
-            get_videos = getattr(obj, "a_get_videos", None) or obj.get_videos
-            vids = await _guard_source(source, "videos", _run(get_videos), timeout=15.0)
+            vids = await _source_call(source, "videos", run_videos, timeout=15.0)
             for v in vids:
                 url = getattr(v, "url", None) or str(v)
                 if not url:
@@ -537,9 +656,13 @@ async def videos(key: str, source: str = "anilibria"):
 
     # Legacy branch — extractor gave us an Episode, we'd enumerate sources × videos.
     episode = obj
+
+    def run_video_sources(route):
+        found = _on_route(source, episode, route)
+        return _run(getattr(found, "a_get_sources", None) or found.get_sources)
+
     try:
-        get_sources = getattr(episode, "a_get_sources", None) or episode.get_sources
-        sources_list = await _guard_source(source, "video sources", _run(get_sources), timeout=12.0)
+        sources_list = await _source_call(source, "video sources", run_video_sources, timeout=12.0)
 
         sem = asyncio.Semaphore(8)
 
@@ -595,9 +718,9 @@ async def videos(key: str, source: str = "anilibria"):
 
 
 # ---------- native source glue ----------
-async def _native_search(source: str, q: str, mal_id: int | None = None):
+async def _native_search(source: str, q: str, mal_id: int | None = None, route: str = "direct"):
     if source == "animevost":
-        vost: Animevost = NATIVE_SOURCES["animevost"]
+        vost: Animevost = _native("animevost", route)
         results = await vost.search(q, limit=20)
         out = []
         for item in results:
@@ -616,7 +739,7 @@ async def _native_search(source: str, q: str, mal_id: int | None = None):
         return out
 
     if source == "oldyummy":
-        oy: OldYummy = NATIVE_SOURCES["oldyummy"]
+        oy: OldYummy = _native("oldyummy", route)
         results = await oy.search(q, limit=20)
         if mal_id:
             exact = [r for r in results if r.get("mal_id") == mal_id]
@@ -643,11 +766,11 @@ async def _native_search(source: str, q: str, mal_id: int | None = None):
     raise HTTPException(400, f"unknown native source {source}")
 
 
-async def _native_episodes(source: str, key: str):
+async def _native_episodes(source: str, key: str, route: str = "direct"):
     obj = _get(key)
 
     if source == "animevost" and obj.get("source") == "animevost":
-        vost: Animevost = NATIVE_SOURCES["animevost"]
+        vost: Animevost = _native("animevost", route)
         eps = await vost.episodes(obj["vost_id"])
         out = []
         for e in eps:
@@ -656,7 +779,7 @@ async def _native_episodes(source: str, key: str):
         return out
 
     if source == "oldyummy" and obj.get("source") == "oldyummy":
-        oy: OldYummy = NATIVE_SOURCES["oldyummy"]
+        oy: OldYummy = _native("oldyummy", route)
         raw = await oy.videos(obj["anime_id"])
         by_num: dict[int, list[dict]] = {}
         for v in raw:

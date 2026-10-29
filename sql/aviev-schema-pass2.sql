@@ -1,4 +1,4 @@
--- AnimeViev — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
+-- AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
 -- All rights reserved. See /COPYRIGHT for full terms.
 --
 -- Pass-2 migration. Idempotent — safe to run on top of pass-1 schema.

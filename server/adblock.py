@@ -29,7 +29,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-log = logging.getLogger("animeviev.adblock")
+log = logging.getLogger("asoplay.adblock")
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _CACHE_DIR = _PROJECT_ROOT / ".cache" / "adblock"

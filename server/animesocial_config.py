@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-AnimeViev — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
+AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
 All rights reserved. See /COPYRIGHT for full terms.
 
 AnimeSocial link-and-assets config. Reads /animesocial.json once, applies
@@ -24,7 +24,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-log = logging.getLogger("animeviev.animesocial_config")
+log = logging.getLogger("asoplay.animesocial_config")
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _CONFIG_FILE = _PROJECT_ROOT / "animesocial.json"

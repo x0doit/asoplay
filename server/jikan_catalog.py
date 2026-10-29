@@ -109,9 +109,9 @@ async def _fetch_native(path: str, params: dict) -> dict:
         await proxies._MAL_LIMIT.wait()
         if time.monotonic() < _retry_after:
             raise HTTPException(503, "MyAnimeList rate limit; retry shortly")
-        client = await proxies.get_client()
         try:
-            response = await client.get(url, timeout=httpx.Timeout(12, connect=4), headers={"User-Agent": "AsoPlay/1.0 (Jikan/5.0)"})
+            response = await proxies.request("GET", url, timeout=httpx.Timeout(12, connect=4),
+                                             headers={"User-Agent": "AsoPlay/1.0 (Jikan/5.0)"})
         except httpx.HTTPError as exc:
             raise HTTPException(502, "MyAnimeList connection failed") from exc
         empty_page = response.status_code == 404 and (path == "anime" or path.endswith("/episodes"))

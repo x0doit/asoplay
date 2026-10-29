@@ -1,6 +1,6 @@
 // -*- coding: utf-8 -*-
 /*
- * AnimeViev — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
+ * AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
  * All rights reserved. See /COPYRIGHT for full terms.
  *
  * SPA entry point, router and public views. Personal sections (login,
@@ -9,7 +9,7 @@
  * any attempt to do so surfaces a guest-gate.
  */
 
-import * as account from "./js/account.js?v=20261027-profile6";
+import * as account from "./js/account.js?v=20261028-brand1";
 import { setupNavigation } from "./js/navigation.js?v=20261026-1";
 import { getTrailerId, bindTrailer, trailerPlayIcon } from "./js/trailer.js?v=20261026-1";
 
@@ -1745,6 +1745,51 @@ function renderRecommendations(recs) {
 }
 
 // ---------- player ----------
+// Player frames served from our own origin run sandboxed with no storage, so
+// the page keeps the volume (and the volume keys a third-party player saves)
+// and hands them to every new frame in its URL fragment.
+const PLAYER_VOLUME_KEY = "av_player_volume";
+const FRAME_STORAGE_KEY = "av_frame_storage";
+const playerVolume = {
+  _read(key) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || "null");
+      return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+    } catch (_) { return null; }
+  },
+  load() {
+    const saved = this._read(PLAYER_VOLUME_KEY);
+    const volume = saved?.volume;
+    return typeof volume === "number" && volume >= 0 && volume <= 1
+      ? { volume, muted: saved.muted === true } : null;
+  },
+  // Takes our frame's {volume, muted} and Kodik's volume_change payload.
+  save(value) {
+    const volume = typeof value === "number" ? value : value?.volume;
+    if (typeof volume !== "number" || !(volume >= 0 && volume <= 1)) return;
+    try { localStorage.setItem(PLAYER_VOLUME_KEY, JSON.stringify({ volume, muted: value?.muted === true })); }
+    catch (_) {}
+  },
+  rememberStorage(host, entries) {
+    if (!host || !entries || typeof entries !== "object") return;
+    const kept = {};
+    for (const [key, value] of Object.entries(entries).slice(0, 6)) {
+      if (key.length <= 100 && typeof value === "string" && value.length <= 2048) kept[key] = value;
+    }
+    const all = this._read(FRAME_STORAGE_KEY) || {};
+    delete all[host];
+    if (Object.keys(kept).length) all[host] = kept;
+    const hosts = Object.keys(all);
+    hosts.slice(0, Math.max(0, hosts.length - 12)).forEach(old => delete all[old]);
+    try { localStorage.setItem(FRAME_STORAGE_KEY, JSON.stringify(all)); } catch (_) {}
+  },
+  fragment(host) {
+    const stored = this._read(FRAME_STORAGE_KEY)?.[host];
+    const handoff = { ...this.load(), storage: stored && typeof stored === "object" ? stored : {} };
+    return `#asoplay=${encodeURIComponent(JSON.stringify(handoff))}`;
+  },
+};
+
 class Player {
   constructor({ malId, titles, anime }) {
     this.malId = malId;
@@ -1757,10 +1802,15 @@ class Player {
     this.destroyed = false;
     this.currentDubs = [];
     this.currentDubIdx = 0;
+    // Dub carried to the next episode: the viewer's pick, else the first automatic choice.
+    this._sessionDubKey = null;
     this._dubsCache = new Map();
     this._reqId = 0;
     this._activeSource = null;
     this._iframeEl = null;
+    this._frameHost = "";
+    this._frameIsKodik = false;
+    this._kodikVolumeSent = false;
     this._playerContextMenuEl = null;
     this._onPlayerContextMenu = null;
     this._onPlayerMenuOutside = null;
@@ -1805,6 +1855,26 @@ class Player {
     s = s.replace(/[^\w\sа-яё]+/gi, " ");
     s = s.replace(/\s+/g, " ").trim();
     return s;
+  }
+
+  _isSubDub(dub) {
+    return /субтитры/i.test(dub?.label || "");
+  }
+
+  // A team's voice-over and subtitles share a name, so the key keeps them apart.
+  // Keys saved before the split carry no prefix and mean the voice-over.
+  _dubKey(dub) {
+    const name = this._normDubName(dub?.label);
+    return (this._isSubDub(dub) ? `sub:${name}` : name).slice(0, 128);
+  }
+
+  // Wanted dub first, otherwise the first voice-over: subtitles only when nothing is voiced.
+  _pickDubIndex(dubs) {
+    const wanted = this._sessionDubKey || prefs.getDub(this.malId);
+    let idx = wanted ? dubs.findIndex(d => this._dubKey(d) === wanted) : -1;
+    if (idx < 0) idx = Math.max(0, dubs.findIndex(d => !this._isSubDub(d)));
+    if (!this._sessionDubKey) this._sessionDubKey = wanted || this._dubKey(dubs[idx]);
+    return idx;
   }
 
   async addTitles(newTitles) {
@@ -2352,6 +2422,29 @@ class Player {
     return false;
   }
 
+  _handlePlayerVolumeMessage(data) {
+    if (data?.type === "asoplay:storage") {
+      playerVolume.rememberStorage(this._frameHost, data.entries);
+      return true;
+    }
+    if (data?.key === "kodik_player_volume_change") {
+      playerVolume.save(data.value);
+      return true;
+    }
+    // Kodik keeps no volume in its storage; its API takes ours once it plays.
+    if (this._frameIsKodik && !this._kodikVolumeSent
+        && (data?.key === "kodik_player_play" || data?.key === "kodik_player_video_started")) {
+      this._kodikVolumeSent = true;
+      const saved = playerVolume.load();
+      const target = this._iframeEl?.contentWindow;
+      if (saved && target) {
+        target.postMessage({ key: "kodik_player_api", value: { method: "volume", volume: saved.volume } }, "*");
+        if (saved.muted) target.postMessage({ key: "kodik_player_api", value: { method: "mute" } }, "*");
+      }
+    }
+    return false;
+  }
+
   _playerAnimeUrl() {
     try {
       return new URL(location.pathname || `/anime/${this.malId}/`, location.origin).href;
@@ -2493,6 +2586,7 @@ class Player {
       const d = e.data;
       if (d && typeof d === "object" && this._handlePlayerContextMenuMessage(d)) return;
       if (d && typeof d === "object" && this._handlePlayerScreenshotMessage(d)) return;
+      if (d && typeof d === "object" && this._handlePlayerVolumeMessage(d)) return;
       this._dubSawEvent = true;
       const since = Date.now() - (this._playStartedAt || 0);
       if (since < 5000) return;
@@ -3028,16 +3122,7 @@ class Player {
       await this._prefetchDubUrls(dubs, reqId);
       if (reqId !== this._reqId) return;
 
-      const preferred = prefs.getDub(this.malId);
-      let idx = 0;
-      if (preferred) {
-        const found = dubs.findIndex(d => this._normDubName(d.label) === preferred);
-        if (found >= 0) idx = found;
-      }
-      if (!preferred && !this._isKodikUrl(dubs[idx]?.iframeUrl)) {
-        const kodikIdx = dubs.findIndex(d => this._isKodikUrl(d.iframeUrl));
-        if (kodikIdx >= 0) idx = kodikIdx;
-      }
+      const idx = this._pickDubIndex(dubs);
       this.currentDubIdx = idx;
       this.renderDubs();
       await this.playDub(idx);
@@ -3050,10 +3135,6 @@ class Player {
         retry: () => this.playEpisode(this.currentEp),
       });
     }
-  }
-
-  _isKodikUrl(url) {
-    return typeof url === "string" && /kodik/i.test(url);
   }
 
   async _prefetchDubUrls(dubs, reqId) {
@@ -3092,9 +3173,8 @@ class Player {
       label.textContent = short;
     }
 
-    const isSub = d => /субтитры/i.test(d.label);
-    const voices = this.currentDubs.map((d, i) => ({ d, i })).filter(({ d }) => !isSub(d));
-    const subs = this.currentDubs.map((d, i) => ({ d, i })).filter(({ d }) => isSub(d));
+    const voices = this.currentDubs.map((d, i) => ({ d, i })).filter(({ d }) => !this._isSubDub(d));
+    const subs = this.currentDubs.map((d, i) => ({ d, i })).filter(({ d }) => this._isSubDub(d));
     const sections = [
       { title: "Озвучки", items: voices },
       { title: "Субтитры", items: subs },
@@ -3119,7 +3199,8 @@ class Player {
         b.title = d.label;
         b.addEventListener("click", () => {
           this.currentDubIdx = i;
-          prefs.setDub(this.malId, this._normDubName(d.label));
+          this._sessionDubKey = this._dubKey(d);
+          prefs.setDub(this.malId, this._sessionDubKey);
           this.playDub(i);
           this.closeDubPop();
         });
@@ -3155,11 +3236,11 @@ class Player {
       try { vids = await api.backendVideos(d._sourceKey, d._src) || []; }
       catch (err) {
         if (retryStale && this._isStaleBackendKeyError(err)) {
-          const oldNorm = this._normDubName(d.label);
+          const oldKey = this._dubKey(d);
           const freshDubs = await this._reloadCurrentEpisodeDubs(reqId);
           if (reqId !== this._reqId) return;
           if (freshDubs?.length) {
-            const freshIdx = Math.max(0, freshDubs.findIndex(x => this._normDubName(x.label) === oldNorm));
+            const freshIdx = Math.max(0, freshDubs.findIndex(x => this._dubKey(x) === oldKey));
             this.currentDubIdx = freshIdx;
             this.renderDubs();
             return this.playDub(freshIdx, { retryStale: false });
@@ -3217,8 +3298,10 @@ class Player {
     })();
     let playerUrl = `${playerProxyBase}/player/frame?url=${encodeURIComponent(url)}`;
     let allowSameOrigin = proxiedOrigin;
+    let frameHost = "";
     try {
       const u = new URL(url);
+      frameHost = u.hostname.toLowerCase();
       if (/(\.|^)kodikplayer\.com$/i.test(u.hostname)
           && /^\/(uv|video|seria|episode|season|serial)\//i.test(u.pathname)) {
         playerUrl = new URL(u.pathname + u.search, playerProxyBase || location.origin).href;
@@ -3226,6 +3309,9 @@ class Player {
         catch (_) { allowSameOrigin = false; }
       }
     } catch (_) {}
+    this._frameHost = frameHost;
+    this._frameIsKodik = /(\.|^)kodikplayer\.com$/.test(frameHost);
+    playerUrl += playerVolume.fragment(frameHost);
     let iframe = c.querySelector("iframe");
     const hardenFrame = (node, sameOrigin = false) => {
       node.allow = "autoplay; fullscreen; picture-in-picture; encrypted-media";
@@ -3235,10 +3321,15 @@ class Player {
     };
     if (iframe) {
       hardenFrame(iframe, allowSameOrigin);
-      if (iframe.src !== playerUrl) iframe.src = playerUrl;
+      // The fragment only carries the saved volume, so it alone is no reason to reload.
+      if (iframe.src.split("#")[0] !== playerUrl.split("#")[0]) {
+        iframe.src = playerUrl;
+        this._kodikVolumeSent = false;
+      }
       this._iframeEl = iframe;
       return;
     }
+    this._kodikVolumeSent = false;
     iframe = document.createElement("iframe");
     // Harden third-party players: keep playback features, block popups and
     // top-level navigation attempts from ad scripts inside the iframe.

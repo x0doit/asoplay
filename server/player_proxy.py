@@ -26,14 +26,14 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response, Streamin
 from server import adblock
 from server.player_sources import is_disabled_player_url, vk_video_ref
 
-log = logging.getLogger("animeviev.player_proxy")
+log = logging.getLogger("asoplay.player_proxy")
 
 router = APIRouter(prefix="/player")
 kodik_router = APIRouter()
 
 _client: httpx.AsyncClient | None = None
 _MAX_TEXT_REWRITE = int(os.environ.get("AV_PLAYER_PROXY_MAX_TEXT_REWRITE", str(3 * 1024 * 1024)))
-_PROXY_VERSION = "20261027-player35"
+_PROXY_VERSION = "20261028-player38"
 _KODIK_SKIN_CSS = Path(__file__).resolve().parent.parent / "assets" / "player" / "kodik-skin.css"
 _SHIELD_LOGGER_JS = (
     '(function(){if(typeof window.__asoplayShieldLog==="function")return;'
@@ -50,6 +50,7 @@ _CHROME_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 )
+_YUMMY_SITE = "https://ru.yummyani.me/"
 
 _TEXT_TYPES = (
     "text/",
@@ -75,9 +76,11 @@ _BLOCKED_HEADERS = {
 _PASSTHROUGH_REQUEST_HEADERS = {
     "accept",
     "accept-language",
+    "borth",  # Alloha signs its playlist request with it and answers 404 without it.
     "content-type",
     "range",
     "user-agent",
+    "x-requested-with",
 }
 _VIDEO_HOST_SUFFIXES = (
     "okcdn.ru",
@@ -241,18 +244,26 @@ class _ResourceTagParser(HTMLParser):
         self.attrs = dict(attrs)
 
 
+_INTEGRITY_ATTR_RE = re.compile(r"""\s+integrity\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)""", re.I)
+
+
 def _rewrite_resource_tag(tag: str, base: str) -> str:
     parsed = _ResourceTagParser()
     parsed.feed(tag)
     attrs = getattr(parsed, "attrs", {})
+    tag_name = getattr(parsed, "tag", "")
     is_module = (
-        getattr(parsed, "tag", "") == "script" and (attrs.get("type") or "").lower() == "module"
-        or getattr(parsed, "tag", "") == "link" and "modulepreload" in (attrs.get("rel") or "").lower().split()
+        tag_name == "script" and (attrs.get("type") or "").lower() == "module"
+        or tag_name == "link" and "modulepreload" in (attrs.get("rel") or "").lower().split()
     )
-    return _rewrite_attrs(tag, base, module=is_module, document=getattr(parsed, "tag", "") == "iframe")
+    if tag_name in {"script", "link"}:
+        # The proxy rewrites these files, so an SRI hash would make the browser block them.
+        tag = _INTEGRITY_ATTR_RE.sub("", tag)
+    return _rewrite_attrs(tag, base, module=is_module, document=tag_name == "iframe")
 
 
-def _headers_for_upstream(request: Request, url: str, base: str | None) -> dict[str, str]:
+def _headers_for_upstream(request: Request, url: str, base: str | None,
+                          referer: str | None = None) -> dict[str, str]:
     headers: dict[str, str] = {}
     for key, value in request.headers.items():
         lk = key.lower()
@@ -264,9 +275,10 @@ def _headers_for_upstream(request: Request, url: str, base: str | None) -> dict[
             headers.pop(key, None)
         headers["Accept"] = "video/webm,video/ogg,video/*;q=0.9,*/*;q=0.5"
         headers["User-Agent"] = _CHROME_UA
-    else:
-        headers.setdefault("User-Agent", _CHROME_UA)
-    referer = base if base and _valid_http_url(base) else _origin(url)
+    elif not any(key.lower() == "user-agent" for key in headers):
+        # setdefault missed the browser's lowercase key, so CDNs got two agents and some answered 403.
+        headers["User-Agent"] = _CHROME_UA
+    referer = referer or (base if base and _valid_http_url(base) else _origin(url))
     referer = _ascii_url(referer)
     headers["Referer"] = referer
     headers["Origin"] = _origin(referer).rstrip("/")
@@ -274,7 +286,17 @@ def _headers_for_upstream(request: Request, url: str, base: str | None) -> dict[
     return headers
 
 
-def _response_headers(upstream: httpx.Response, *, html_frame: bool = False) -> dict[str, str]:
+_HOST_HEADER_RE = re.compile(r"[A-Za-z0-9.-]+(?::[0-9]{1,5})?")
+
+
+def _site_origin(request: Request) -> str:
+    """The site's own origin as the browser sees it; nginx sends Host and X-Forwarded-Proto."""
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "").split(",")[0].strip().lower()
+    host = (request.headers.get("host") or "").strip()
+    return f"{proto}://{host}" if proto in {"http", "https"} and _HOST_HEADER_RE.fullmatch(host) else ""
+
+
+def _response_headers(upstream: httpx.Response, *, html_frame: bool = False, origin: str = "") -> dict[str, str]:
     headers: dict[str, str] = {
         "Access-Control-Allow-Origin": "*",
         "Cross-Origin-Resource-Policy": "cross-origin",
@@ -287,18 +309,21 @@ def _response_headers(upstream: httpx.Response, *, html_frame: bool = False) -> 
         if lk in {"content-type", "accept-ranges", "content-range", "last-modified", "etag"}:
             headers[key] = value
     if html_frame:
+        # The sandboxed frame's origin is opaque, and Safari then refuses fetch/XHR to our own
+        # server under 'self' (Kodik's /ftor failed on iPhones), so the origin is named too.
+        own = f"'self' {origin}" if origin else "'self'"
         headers["Content-Security-Policy"] = (
-            "default-src 'self' data: blob:; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; "
-            "style-src 'self' 'unsafe-inline' data:; "
-            "img-src 'self' data: blob:; "
-            "font-src 'self' data:; "
-            "media-src 'self' data: blob: https://*.okcdn.ru https://*.mycdn.me https://*.ok.ru; "
-            "connect-src 'self' data: blob: "
+            f"default-src {own} data: blob:; "
+            f"script-src {own} 'unsafe-inline' 'unsafe-eval' blob:; "
+            f"style-src {own} 'unsafe-inline' data:; "
+            f"img-src {own} data: blob:; "
+            f"font-src {own} data:; "
+            f"media-src {own} data: blob: https://*.okcdn.ru https://*.mycdn.me https://*.ok.ru; "
+            f"connect-src {own} data: blob: "
             "https://plapi.cdnvideohub.com https://api.ok.ru https://api.mycdn.me "
             "https://api.okcdn.ru https://videotestapi.ok.ru https://apitest.ok.ru; "
-            "frame-src 'self' data: blob:; "
-            "worker-src 'self' blob:; "
+            f"frame-src {own} data: blob:; "
+            f"worker-src {own} blob:; "
             "object-src 'none'; base-uri 'none'; form-action 'none'"
         )
     return headers
@@ -365,9 +390,14 @@ def _rewrite_css_urls(text: str, base: str) -> str:
     return re.sub(r"@import\s+(['\"])(.*?)\1", repl_import, text, flags=re.I | re.S)
 
 
-def _rewrite_m3u8(text: str, base: str) -> str:
+def _rewrite_m3u8(text: str, base: str, referer: str | None = None) -> str:
+    # Entries resolve against the playlist but keep the page's referer, as a browser would send:
+    # Alloha's CDN answers 403 when nested playlists arrive with the master playlist as referer.
+    def proxied(value: str) -> str:
+        return _proxy_url(urljoin(base, value), referer or base)
+
     def repl_uri(match: re.Match[str]) -> str:
-        return f'{match.group(1)}"{_proxy_url(match.group(2), base)}"'
+        return f'{match.group(1)}"{proxied(match.group(2))}"'
 
     out: list[str] = []
     skip_next_uri = False
@@ -383,8 +413,7 @@ def _rewrite_m3u8(text: str, base: str) -> str:
         if skip_next_uri:
             skip_next_uri = False
             continue
-        proxied = _proxy_url(stripped, base) if stripped else stripped
-        out.append(proxied)
+        out.append(proxied(stripped) if stripped else stripped)
     return "\n".join(out) + ("\n" if text.endswith("\n") else "")
 
 
@@ -411,6 +440,9 @@ def _rewrite_javascript(text: str, base: str) -> str:
                 '(window.__asoplayCheckCdn?window.__asoplayCheckCdn(cdnCheckLink,'
                 'function(available){playerSettings.cdnIsWorking=available}):' + probe + ')'
             ), 1)
+    # Plyr inlines a sprite from another host; a same-origin one stays <use> links the sandbox blocks.
+    if _is_alloha_base(base) and text.count("'/images/allplay.svg'") == 1:
+        text = text.replace("'/images/allplay.svg'", "'https://alloha.yani.tv/images/allplay.svg'")
     return text
 
 
@@ -562,6 +594,9 @@ body.playing.controls-hidden{{cursor:none}}
 #av-toggle,#av-fullscreen,#av-mute,#av-quality-btn{{height:40px;border:0;border-radius:8px;color:#fff;font:700 15px Arial,sans-serif;box-shadow:0 8px 20px rgba(0,0,0,.28);display:grid;place-items:center;cursor:pointer}}
 #av-toggle,#av-fullscreen,#av-mute{{width:48px}}
 #av-toggle{{background:rgba(255,91,103,.94)}}
+.av-toggle-icon{{width:20px;height:20px;display:block}}
+.av-icon-pause,body.playing .av-icon-play{{display:none}}
+body.playing .av-icon-pause{{display:block}}
 #av-fullscreen{{background:rgba(255,255,255,.14)}}
 #av-fullscreen:hover,#av-mute:hover,#av-quality-btn:hover{{background:rgba(255,255,255,.22)}}
 .av-fullscreen-icon{{width:18px;height:18px;display:block;background:linear-gradient(#fff,#fff) left top/8px 2px no-repeat,linear-gradient(#fff,#fff) left top/2px 8px no-repeat,linear-gradient(#fff,#fff) right top/8px 2px no-repeat,linear-gradient(#fff,#fff) right top/2px 8px no-repeat,linear-gradient(#fff,#fff) left bottom/8px 2px no-repeat,linear-gradient(#fff,#fff) left bottom/2px 8px no-repeat,linear-gradient(#fff,#fff) right bottom/8px 2px no-repeat,linear-gradient(#fff,#fff) right bottom/2px 8px no-repeat}}
@@ -591,7 +626,10 @@ body.muted .av-volume-off{{display:block}}
   <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 4h6l1.6 2H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3.4L9 4Zm3 5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/></svg>
 </button>
 <div id="av-controls">
-  <button id="av-toggle" type="button" aria-label="Play or pause">&#9654;</button>
+  <button id="av-toggle" type="button" aria-label="Play or pause">
+    <svg class="av-toggle-icon av-icon-play" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8 5.6v12.8a1 1 0 0 0 1.53.85l10.2-6.4a1 1 0 0 0 0-1.7L9.53 4.75A1 1 0 0 0 8 5.6Z"/></svg>
+    <svg class="av-toggle-icon av-icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7V5Zm6.5 0H17v14h-3.5V5Z"/></svg>
+  </button>
   <input id="av-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek">
   <div id="av-time">0:00 / 0:00</div>
   <div id="av-volume">
@@ -770,7 +808,7 @@ body.muted .av-volume-off{{display:block}}
   const showStart = () => {{ if (video.paused && !video.ended) start.classList.remove("hidden"); }};
   const hideStart = () => start.classList.add("hidden");
   const syncToggle = () => {{
-    toggle.innerHTML = video.paused ? "&#9654;" : "&#10074;&#10074;";
+    // Text glyphs like U+25B6 render as colour emoji on phones; the icons are SVG.
     document.body.classList.toggle("playing", !video.paused && !video.ended);
     if (video.paused || video.ended) {{
       document.body.classList.remove("controls-hidden");
@@ -807,10 +845,17 @@ body.muted .av-volume-off{{display:block}}
     document.body.classList.toggle("muted", video.muted || video.volume <= 0);
     mute.setAttribute("aria-label", video.muted || video.volume <= 0 ? "Включить звук" : "Выключить звук");
   }};
-  try {{
-    const savedVolume = Number(localStorage.getItem("asoplay:clean-player-volume"));
-    if (Number.isFinite(savedVolume)) video.volume = Math.min(1, Math.max(0, savedVolume));
-  }} catch (_) {{}}
+  // The frame is sandboxed without storage: the page passes the saved volume
+  // in the fragment and keeps every change reported below.
+  const handoff = (() => {{
+    const match = /(?:^#|&)asoplay=([^&]*)/.exec(location.hash);
+    if (!match) return null;
+    try {{ return JSON.parse(decodeURIComponent(match[1])); }} catch (_) {{ return null; }}
+  }})();
+  if (handoff && typeof handoff.volume === "number" && handoff.volume >= 0 && handoff.volume <= 1) {{
+    video.volume = handoff.volume;
+    video.muted = handoff.muted === true;
+  }}
   syncVolume();
   mute.addEventListener("click", () => {{
     video.muted = !video.muted;
@@ -822,7 +867,6 @@ body.muted .av-volume-off{{display:block}}
     const value = Math.min(100, Math.max(0, Number(volumeRange.value) || 0)) / 100;
     video.volume = value;
     video.muted = value <= 0;
-    try {{ localStorage.setItem("asoplay:clean-player-volume", String(value)); }} catch (_) {{}}
     syncVolume();
     showControls();
   }});
@@ -923,7 +967,10 @@ body.muted .av-volume-off{{display:block}}
   video.addEventListener("durationchange", sendTime);
   video.addEventListener("canplay", () => {{ sendTime(); if (video.paused) showStart(); }});
   video.addEventListener("timeupdate", sendTime);
-  video.addEventListener("volumechange", syncVolume);
+  video.addEventListener("volumechange", () => {{
+    syncVolume();
+    send("kodik_player_volume_change", {{ volume: video.volume, muted: video.muted }});
+  }});
   video.addEventListener("playing", () => {{ hideStart(); syncToggle(); scheduleControlsHide(); }});
   video.addEventListener("play", () => {{ syncToggle(); scheduleControlsHide(); send("kodik_player_play"); }});
   video.addEventListener("pause", () => {{ syncToggle(); send("kodik_player_pause"); showStart(); }});
@@ -1349,11 +1396,37 @@ def _bridge_script(base: str) -> str:
     }} catch (_) {{}}
   }};
   ["log", "warn", "error", "info", "debug"].forEach(patchConsoleMethod);
-  const makeStorage = () => {{
+  // A sandboxed frame keeps nothing between episodes. The page passes the
+  // volume keys this player saved last time in the URL fragment and stores
+  // the ones it writes now: keys named after the volume or Plyr-style JSON.
+  const handoff = (() => {{
+    const match = /(?:^#|&)asoplay=([^&]*)/.exec(location.hash);
+    if (!match) return null;
+    try {{ history.replaceState(history.state, "", location.href.split("#")[0]); }} catch (_) {{}}
+    try {{ return JSON.parse(decodeURIComponent(match[1])); }} catch (_) {{ return null; }}
+  }})();
+  const keepsVolume = (key, value) => key.length <= 100 && value.length <= 2048
+    && (/volume|mute/i.test(key) || /"(?:volume|muted)"\\s*:/.test(value));
+  const volumeRelay = (initial) => {{
+    let last = JSON.stringify(initial || {{}});
+    return (data) => {{
+      const entries = {{}};
+      for (const [key, value] of data) if (keepsVolume(key, value)) entries[key] = value;
+      const next = JSON.stringify(entries);
+      if (next === last) return;
+      last = next;
+      try {{ window.parent.postMessage({{ type: "asoplay:storage", entries }}, "*"); }} catch (_) {{}}
+    }};
+  }};
+  const makeStorage = (initial, onChange) => {{
     const data = new Map();
+    if (initial && typeof initial === "object") {{
+      for (const [key, value] of Object.entries(initial)) if (typeof value === "string") data.set(key, value);
+    }}
+    const changed = () => {{ if (onChange) onChange(data); }};
     return {{
       get length() {{ return data.size; }},
-      clear() {{ data.clear(); }},
+      clear() {{ data.clear(); changed(); }},
       getItem(key) {{
         key = String(key);
         return data.has(key) ? data.get(key) : null;
@@ -1361,11 +1434,11 @@ def _bridge_script(base: str) -> str:
       key(index) {{
         return Array.from(data.keys())[Number(index)] ?? null;
       }},
-      removeItem(key) {{ data.delete(String(key)); }},
-      setItem(key, value) {{ data.set(String(key), String(value)); }}
+      removeItem(key) {{ data.delete(String(key)); changed(); }},
+      setItem(key, value) {{ data.set(String(key), String(value)); changed(); }}
     }};
   }};
-  const ensureStorage = (name) => {{
+  const ensureStorage = (name, initial, onChange) => {{
     try {{
       const storage = window[name];
       const probe = "__av_probe__";
@@ -1376,12 +1449,12 @@ def _bridge_script(base: str) -> str:
         Object.defineProperty(window, name, {{
           configurable: true,
           enumerable: true,
-          value: makeStorage()
+          value: makeStorage(initial, onChange)
         }});
       }} catch (_) {{}}
     }}
   }};
-  ensureStorage("localStorage");
+  ensureStorage("localStorage", handoff && handoff.storage, handoff ? volumeRelay(handoff.storage) : null);
   ensureStorage("sessionStorage");
   const setupAllohaBootstrap = () => {{
     if (!IS_ALLOHA) return;
@@ -2005,7 +2078,9 @@ def _bridge_script(base: str) -> str:
         if (rewritten !== current) el.setAttribute(attr, rewritten);
       }}
       prepareScreenshotVideo(el);
-      const marker = [el.id, el.className, el.title, el.alt, el.textContent].join(" ");
+      // Script text is code: Alloha's player config mentions "preroll", its referrer check "casino".
+      const text = el.tagName === "SCRIPT" ? "" : el.textContent;
+      const marker = [el.id, el.className, el.title, el.alt, text].join(" ");
       if (AD_RE.test(marker) && !/video|player/i.test(marker)) el.remove();
     }});
   }};
@@ -2044,7 +2119,17 @@ def _rewrite_html(text: str, base: str) -> str:
     return bridge + text
 
 
-def _rewrite_body(content: bytes, content_type: str, base: str, *, frame: bool = False) -> bytes:
+_HLS_TYPE = "application/vnd.apple.mpegurl"
+
+
+def _is_playlist(content_type: str, url: str, content: bytes = b"") -> bool:
+    return ("mpegurl" in content_type.lower()
+            or urlsplit(url).path.lower().endswith((".m3u8", ".m3u"))
+            or content.lstrip(b"\xef\xbb\xbf \t\r\n").startswith(b"#EXTM3U"))
+
+
+def _rewrite_body(content: bytes, content_type: str, base: str, *, frame: bool = False,
+                  referer: str | None = None) -> bytes:
     if len(content) > _MAX_TEXT_REWRITE:
         return content
     charset = _charset_from_content_type(content_type)
@@ -2052,8 +2137,8 @@ def _rewrite_body(content: bytes, content_type: str, base: str, *, frame: bool =
     ct = content_type.lower()
     if frame or "text/html" in ct or "application/xhtml+xml" in ct:
         text = _rewrite_html(text, base)
-    elif "mpegurl" in ct or base.lower().endswith((".m3u8", ".m3u")):
-        text = _rewrite_m3u8(text, base)
+    elif _is_playlist(ct, base, content):
+        text = _rewrite_m3u8(text, base, referer)
     elif _is_javascript(ct, base):
         text = _rewrite_javascript(text, base)
     elif "css" in ct:
@@ -2063,7 +2148,8 @@ def _rewrite_body(content: bytes, content_type: str, base: str, *, frame: bool =
     return text.encode(charset, errors="ignore")
 
 
-async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = False) -> Response:
+async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = False,
+                 referer: str | None = None) -> Response:
     if not _valid_http_url(url):
         raise HTTPException(400, "invalid player url")
     if is_disabled_player_url(url):
@@ -2082,13 +2168,13 @@ async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = 
                 request.method,
                 _ascii_url(url),
                 content=body,
-                headers=_headers_for_upstream(request, url, base),
+                headers=_headers_for_upstream(request, url, base, referer),
             )
         else:
             stream_cm = client.stream(
                 request.method,
                 _ascii_url(url),
-                headers=_headers_for_upstream(request, url, base),
+                headers=_headers_for_upstream(request, url, base, referer),
             )
             upstream = await stream_cm.__aenter__()
     except httpx.HTTPError as exc:
@@ -2113,7 +2199,7 @@ async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = 
             await stream_cm.__aexit__(None, None, None)
         return RedirectResponse(_path_proxy_url(final_url, final_url, document=True), status_code=307,
                                 headers={"Cache-Control": "no-store", "Access-Control-Allow-Origin": "*"})
-    headers = _response_headers(upstream, html_frame=frame)
+    headers = _response_headers(upstream, html_frame=frame, origin=_site_origin(request) if frame else "")
     rewrite_base = _guess_base(final_url, base) if frame else final_url
 
     if request.method == "HEAD":
@@ -2132,15 +2218,24 @@ async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = 
         content = await upstream.aread() if stream_cm is not None else upstream.content
         if stream_cm is not None:
             await stream_cm.__aexit__(None, None, None)
+        playlist = not frame and _is_playlist(content_type, final_url, content)
         content = _strip_cvh_ads(content, content_type, final_url)
-        content = _rewrite_body(content, content_type, rewrite_base, frame=frame)
+        content = _rewrite_body(content, content_type, rewrite_base, frame=frame,
+                                referer=base if base and _valid_http_url(base) else None)
         headers.pop("Content-Length", None)
         if urlparse(final_url).netloc.lower().endswith("player.cdnvideohub.com"):
             headers["Cache-Control"] = "no-store"
+        media_type = content_type.split(";", 1)[0] or None
+        if playlist:
+            # Kodik's CDN serves playlists as text/plain. Elsewhere Safari goes by the .m3u8 in the
+            # URL; /player/proxy has none, so the native player refused it ("Сервер с видео не отвечает").
+            for key in [k for k in headers if k.lower() == "content-type"]:
+                headers.pop(key)
+            media_type = _HLS_TYPE
         return Response(
             content=content,
             status_code=upstream.status_code,
-            media_type=content_type.split(";", 1)[0] or None,
+            media_type=media_type,
             headers=headers,
         )
 
@@ -2231,7 +2326,10 @@ async def _path_resource(request: Request, scheme: str, host: str, *, document: 
     query = request.scope.get("query_string", b"").decode("ascii")
     if query:
         url += "?" + query
-    response = await _fetch(request, url, url, frame=True) if document else await _fetch(request, url, url)
+    # Alloha writes the Referer into its page as the embedding domain and checks Yummy's token against it.
+    referer = _YUMMY_SITE if document and _is_alloha_base(url) else None
+    response = (await _fetch(request, url, url, frame=True, referer=referer) if document
+                else await _fetch(request, url, url))
     response.headers["Cache-Control"] = "no-store"
     return response
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-AnimeViev — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
+AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
 All rights reserved. See /COPYRIGHT for full terms.
 
 Canonical public pages for individual anime titles + sitemap + robots.
@@ -36,13 +36,13 @@ from pydantic import BaseModel, Field, conint
 from server.animesocial import connect
 from server import jikan_catalog
 
-log = logging.getLogger("animeviev.title_pages")
+log = logging.getLogger("asoplay.title_pages")
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _INDEX_HTML = _PROJECT_ROOT / "index.html"
 
 SITE_URL = os.environ.get("AV_SITE_URL", "http://127.0.0.1:8787").rstrip("/")
-SITE_NAME = os.environ.get("AV_SITE_NAME", "AnimeViev")
+SITE_NAME = os.environ.get("AV_SITE_NAME", "AsoPlay")
 AUTHOR_NAME = "Чепела Даниэль Максимович"
 AUTHOR_URL = "https://crazydev.pro/"
 TTL_FRESH = timedelta(days=7)

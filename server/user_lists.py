@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-AnimeViev — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
+AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
 All rights reserved. See /COPYRIGHT for full terms.
 
 Domain: пользовательские списки тайтлов.
@@ -33,7 +33,7 @@ from server.animesocial import connect, current_user_required
 from server.activity_log import record_event
 from server import jikan_catalog
 
-log = logging.getLogger("animeviev.user_lists")
+log = logging.getLogger("asoplay.user_lists")
 
 router = APIRouter(prefix="/account/lists")
 

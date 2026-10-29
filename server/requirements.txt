@@ -1,4 +1,5 @@
-anicli-api>=0.7.6
+# 0.12 no longer ships yummy_anime_org; keep the version the sources are tested with.
+anicli-api==0.8.6
 fastapi>=0.110
 uvicorn[standard]>=0.27
 httpx>=0.27

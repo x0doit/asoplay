@@ -20,13 +20,15 @@ TIMEOUT = 12.0
 
 
 class OldYummy:
-    def __init__(self) -> None:
-        # Клиент читает HTTP(S)_PROXY из env — так же как основной backend,
-        # значит VPN (xray) подхватывается автоматически.
+    def __init__(self, proxy: str | None = None) -> None:
+        # Прямой клиент по умолчанию; экземпляр с proxy нужен только для повтора
+        # через VPN, когда хост недоступен напрямую.
         self._client = httpx.AsyncClient(
             headers={"User-Agent": UA, "Accept": "application/json"},
             timeout=TIMEOUT,
             follow_redirects=True,
+            trust_env=False,
+            proxy=proxy,
         )
 
     async def close(self) -> None:
@@ -44,6 +46,8 @@ class OldYummy:
             if r.status_code != 200:
                 return []
             data = r.json()
+        except httpx.TransportError:
+            raise  # an unreachable host is not an empty result: the caller may retry via VPN
         except Exception as exc:
             log.warning("oldyummy search failed: %s", exc)
             return []
@@ -61,6 +65,8 @@ class OldYummy:
             if r.status_code != 200:
                 return []
             data = r.json()
+        except httpx.TransportError:
+            raise
         except Exception as exc:
             log.warning("oldyummy videos failed (id=%s): %s", anime_id, exc)
             return []

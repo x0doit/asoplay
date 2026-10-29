@@ -1,12 +1,13 @@
 // -*- coding: utf-8 -*-
 /*
- * AnimeViev — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
+ * AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
  * All rights reserved. See /COPYRIGHT for full terms.
  *
  * Account layer: login/logout/register redirect, personal sections (favorites,
  * history), guest auth-gates and the "store" abstraction that turns every
  * personal-data write into either a server call (authenticated) or a gate
- * prompt (guest). There is no localStorage fallback for new guest progress.
+ * prompt (guest). There is no localStorage fallback for new guest progress;
+ * only a guest's per-title dub choice is kept in this browser.
  */
 
 import { calendarMonth, dayDate, groupActivity } from "./profile-activity.js?v=20261027-profile6";
@@ -49,6 +50,30 @@ function _historyQualifiedProgress(seconds, duration) {
   return sec >= 300 || (dur > 0 && sec >= dur * 0.92);
 }
 
+// Ordered [malId, dubKey] pairs: object keys that look like numbers lose insertion
+// order, and the oldest choices must be the ones dropped at the cap.
+const GUEST_DUBS_KEY = "av_guest_dubs";
+const GUEST_DUBS_LIMIT = 300;
+
+function _guestDubPairs() {
+  try {
+    const pairs = JSON.parse(localStorage.getItem(GUEST_DUBS_KEY) || "[]");
+    return Array.isArray(pairs) ? pairs.filter(p => Array.isArray(p) && p.length === 2) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function _loadGuestDubs() {
+  return Object.fromEntries(_guestDubPairs());
+}
+
+function _rememberGuestDub(malId, key) {
+  const pairs = _guestDubPairs().filter(([id]) => id !== malId);
+  pairs.push([malId, key]);
+  try { localStorage.setItem(GUEST_DUBS_KEY, JSON.stringify(pairs.slice(-GUEST_DUBS_LIMIT))); } catch (_) {}
+}
+
 export async function refresh() {
   try {
     const r = await _fetchJson("/auth/me", { credentials: "include" });
@@ -65,7 +90,7 @@ export async function refresh() {
     ctx.state.favorites = {};
     ctx.state.watch = {};
     ctx.state.ratings = {};
-    ctx.state.dubPrefs = {};
+    ctx.state.dubPrefs = _loadGuestDubs();
     ctx.state.autoNext = true;
   }
   renderHeader();
@@ -262,7 +287,7 @@ export async function logout() {
   ctx.state.favorites = {};
   ctx.state.watch = {};
   ctx.state.ratings = {};
-  ctx.state.dubPrefs = {};
+  ctx.state.dubPrefs = _loadGuestDubs();
   renderHeader();
 }
 
@@ -572,8 +597,9 @@ export const store = {
 
   getDubPref(malId) { return ctx.state.dubPrefs[String(malId)] || null; },
   async setDubPref(malId, norm) {
-    if (!ctx.state.user) return; // guests just silently skip — no gate for this
-    ctx.state.dubPrefs[String(malId)] = norm;
+    const id = String(malId);
+    ctx.state.dubPrefs[id] = norm;
+    if (!ctx.state.user) { _rememberGuestDub(id, norm); return; }
     try {
       await _fetchJson(`/account/dub-prefs/${malId}`, { method: "PUT", body: { dub_norm: norm } });
     } catch (_) {}
@@ -844,7 +870,7 @@ export async function viewLogin(params) {
   ctx.outlet.innerHTML = `
     <div class="auth-shell">
       <div class="auth-card">
-        <h1 class="auth-title">Вход в AnimeViev</h1>
+        <h1 class="auth-title">Вход в AsoPlay</h1>
         <p class="auth-sub">Регистрация отдельная — ведётся на сайте социальной сети. Здесь только вход.</p>
         <form class="auth-form" id="avLoginForm" autocomplete="on" novalidate>
           <label class="auth-field">

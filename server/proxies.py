@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-AnimeViev — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
+AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
 All rights reserved. See /COPYRIGHT for full terms.
 
 Upstream proxy layer — AniList, Shikimori, Google Translate, images.
@@ -21,7 +21,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import time
 from hashlib import sha1
 from pathlib import Path
@@ -34,7 +33,7 @@ from fastapi.responses import Response
 
 from server import vpn_bridge
 
-log = logging.getLogger("animeviev.proxies")
+log = logging.getLogger("asoplay.proxies")
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _CACHE_DIR = _PROJECT_ROOT / ".cache"
@@ -42,7 +41,7 @@ _CACHE_DIR.mkdir(exist_ok=True)
 
 SHIKI_ORIGIN = "https://shikimori.io"
 SHIKI_HOST = urlparse(SHIKI_ORIGIN).hostname
-SHIKI_HEADERS = {"User-Agent": "AnimeViev/1.1 (+https://animeviev.example.com)"}
+SHIKI_HEADERS = {"User-Agent": "AsoPlay/1.1 (+https://asoplay.example.com)"}
 
 _IMG_HOSTS = (
     "cdn.myanimelist.net",
@@ -65,8 +64,12 @@ _httpx_limits = httpx.Limits(
     max_connections=50, max_keepalive_connections=20, keepalive_expiry=60
 )
 _http_client: httpx.AsyncClient | None = None
-_http_client_proxy_env: tuple[str, str, str, str] | None = None
-_direct_client: httpx.AsyncClient | None = None
+_vpn_client: httpx.AsyncClient | None = None
+_vpn_client_proxy: str | None = None
+# Hosts that failed directly but answered through the VPN bridge use it first for
+# a while, so later requests do not wait for the direct timeout again.
+VPN_STICKY_SECONDS = 600.0
+_vpn_preferred_until: dict[str, float] = {}
 _pending_fetches: dict[str, asyncio.Task] = {}
 _upstream_retry_after: dict[str, float] = {}
 _upstream_connect_failures: dict[str, int] = {}
@@ -80,48 +83,89 @@ except Exception:
     pass
 
 
-def _proxy_env_fingerprint() -> tuple[str, str, str, str]:
-    return (
-        os.environ.get("HTTP_PROXY", ""),
-        os.environ.get("HTTPS_PROXY", ""),
-        os.environ.get("ALL_PROXY", ""),
-        os.environ.get("NO_PROXY", ""),
-    )
-
-
 async def get_client() -> httpx.AsyncClient:
-    global _http_client, _http_client_proxy_env
-    vpn_bridge.ensure_active(blocking=False)
-    proxy_env = _proxy_env_fingerprint()
-    if (
-        _http_client is not None
-        and not _http_client.is_closed
-        and _http_client_proxy_env != proxy_env
-    ):
-        await _http_client.aclose()
-        _http_client = None
+    """The direct client: every upstream is tried without the VPN first."""
+    global _http_client
     if _http_client is None or _http_client.is_closed:
-        trust_env = any(proxy_env[:3])
         _http_client = httpx.AsyncClient(
-            timeout=15.0,
-            follow_redirects=True,
-            limits=_httpx_limits,
-            trust_env=trust_env,
-        )
-        _http_client_proxy_env = proxy_env
-    return _http_client
-
-
-async def get_direct_client() -> httpx.AsyncClient:
-    global _direct_client
-    if _direct_client is None or _direct_client.is_closed:
-        _direct_client = httpx.AsyncClient(
             timeout=15.0,
             follow_redirects=True,
             limits=_httpx_limits,
             trust_env=False,
         )
-    return _direct_client
+    return _http_client
+
+
+async def get_vpn_client() -> httpx.AsyncClient | None:
+    """A client through the VPN bridge, or None while the bridge is off or down."""
+    global _vpn_client, _vpn_client_proxy
+    proxy = vpn_bridge.proxy_url()
+    if proxy is None:
+        return None
+    if _vpn_client is None or _vpn_client.is_closed or _vpn_client_proxy != proxy:
+        if _vpn_client is not None and not _vpn_client.is_closed:
+            await _vpn_client.aclose()
+        _vpn_client = httpx.AsyncClient(
+            timeout=15.0,
+            follow_redirects=True,
+            limits=_httpx_limits,
+            trust_env=False,
+            proxy=proxy,
+        )
+        _vpn_client_proxy = proxy
+    return _vpn_client
+
+
+def route_order(host: str) -> list[str]:
+    """Routes to try for a host: direct first, unless it recently needed the VPN."""
+    if vpn_bridge.proxy_url() is None:
+        return ["direct"]
+    if _vpn_preferred_until.get(host, 0) > time.monotonic():
+        return ["vpn", "direct"]
+    return ["direct", "vpn"]
+
+
+def remember_route(host: str, route: str) -> None:
+    if route == "vpn":
+        _vpn_preferred_until[host] = time.monotonic() + VPN_STICKY_SECONDS
+    else:
+        _vpn_preferred_until.pop(host, None)
+
+
+def _first_route_timeout(timeout):
+    # A dead first route must fail fast enough to leave the second one some budget.
+    if isinstance(timeout, httpx.Timeout):
+        return httpx.Timeout(connect=min(timeout.connect or 2.5, 2.5), read=timeout.read,
+                             write=timeout.write, pool=timeout.pool)
+    if isinstance(timeout, (int, float)):
+        return httpx.Timeout(timeout, connect=min(timeout, 2.5))
+    return timeout
+
+
+async def request(method: str, url: str, **kwargs) -> httpx.Response:
+    """Send one request directly, or through the VPN bridge when the host is
+    unreachable directly. The route that answered is remembered for the host."""
+    host = urlparse(url).hostname or ""
+    routes = route_order(host)
+    last_exc: BaseException | None = None
+    for n, route in enumerate(routes):
+        client = await (get_vpn_client() if route == "vpn" else get_client())
+        if client is None:
+            continue
+        options = kwargs
+        if n == 0 and len(routes) > 1:
+            options = dict(kwargs, timeout=_first_route_timeout(kwargs.get("timeout", 15.0)))
+        try:
+            response = await client.request(method, url, **options)
+        except _NETWORK_ERRORS as exc:
+            last_exc = exc
+            log.info("%s route to %s failed: %s", route, host, str(exc) or type(exc).__name__)
+            continue
+        remember_route(host, route)
+        return response
+    if last_exc is not None:
+        raise last_exc
+    raise httpx.ConnectError(f"no route to {host}")
 
 
 # ---------- disk cache ----------
@@ -265,16 +309,15 @@ async def _fetch_uncached(method, url, *, params, json_body, timeout, headers, k
         remaining = min(remaining, 2.5)
     host = urlparse(url).hostname or ""
     last_exc: Exception | None = None
-    force_direct = False
     for attempt in range(attempts):
         if catalog_api and _upstream_retry_after.get(host, 0) > time.monotonic():
             raise HTTPException(503, "catalog upstream connection unavailable")
-        client = await get_direct_client() if force_direct else await get_client()
         budget = min(timeout, remaining)
         started = time.monotonic()
         try:
+            # request() falls back to the VPN bridge within this budget.
             resp = await asyncio.wait_for(
-                client.request(
+                request(
                     method, url, params=params, json=json_body, headers=headers,
                     timeout=httpx.Timeout(budget, connect=min(budget, 4.0)),
                 ),
@@ -283,10 +326,7 @@ async def _fetch_uncached(method, url, *, params, json_body, timeout, headers, k
         except _NETWORK_ERRORS as exc:
             remaining -= time.monotonic() - started
             last_exc = exc
-            if not force_direct and vpn_bridge.is_active():
-                log.warning("proxy path failed for %s, retrying direct outbound: %s", url, exc)
-                force_direct = True
-            elif catalog_api and isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout)):
+            if catalog_api and isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout)):
                 failures = _upstream_connect_failures.get(host, 0) + 1
                 _upstream_connect_failures[host] = failures
                 if failures >= 2:
@@ -499,7 +539,7 @@ async def startup() -> None:
 
 
 async def shutdown() -> None:
-    global _http_client, _http_client_proxy_env, _direct_client
+    global _http_client, _vpn_client, _vpn_client_proxy
     from server import jikan_catalog
     await jikan_catalog.shutdown()
     pending = list(_pending_fetches.values())
@@ -512,7 +552,8 @@ async def shutdown() -> None:
     if _http_client and not _http_client.is_closed:
         await _http_client.aclose()
     _http_client = None
-    _http_client_proxy_env = None
-    if _direct_client and not _direct_client.is_closed:
-        await _direct_client.aclose()
-    _direct_client = None
+    if _vpn_client and not _vpn_client.is_closed:
+        await _vpn_client.aclose()
+    _vpn_client = None
+    _vpn_client_proxy = None
+    _vpn_preferred_until.clear()

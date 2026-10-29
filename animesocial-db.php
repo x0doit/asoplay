@@ -1,6 +1,6 @@
 <?php
 /*
- * AnimeViev — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
+ * AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
  * All rights reserved. No part of this file may be copied, modified, redistributed,
  * embedded into other software or used to train ML models without the author's
  * prior written consent. See /COPYRIGHT for full terms.

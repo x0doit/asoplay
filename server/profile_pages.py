@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-AnimeViev — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
+AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
 All rights reserved. See /COPYRIGHT for full terms.
 
 Публичный профиль /@handle — и JSON-хендлы, и серверный рендер HTML для
@@ -31,7 +31,7 @@ from server.account_api import read_privacy
 from server.activity_log import graph_for_user_public, fetch_recent_paged
 from server.title_pages import _read_shell, _override_head, SITE_URL, SITE_NAME, AUTHOR_NAME
 
-log = logging.getLogger("animeviev.profile_pages")
+log = logging.getLogger("asoplay.profile_pages")
 
 router = APIRouter()
 

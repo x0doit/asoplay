@@ -1,5 +1,5 @@
 {
-  "_about": "AnimeViev — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/). All rights reserved. See /COPYRIGHT. Single source of truth for AnimeSocial links. Everything referencing the partner social network pulls values from here. Override site_url via .env (AV_ANIMESOCIAL_SITE_URL) when you need a different environment without editing JSON.",
+  "_about": "AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/). All rights reserved. See /COPYRIGHT. Single source of truth for AnimeSocial links. Everything referencing the partner social network pulls values from here. Override site_url via .env (AV_ANIMESOCIAL_SITE_URL) when you need a different environment without editing JSON.",
 
   "site_name": "AnimeSocial",
   "site_url": "https://animesocial.online",

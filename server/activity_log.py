@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-AnimeViev — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
+AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
 All rights reserved. See /COPYRIGHT for full terms.
 
 Activity log — события пользователя (watch_start / watch_continue / list_add /
@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends
 
 from server.animesocial import connect, current_user_required
 
-log = logging.getLogger("animeviev.activity")
+log = logging.getLogger("asoplay.activity")
 
 router = APIRouter(prefix="/account/activity")
 
