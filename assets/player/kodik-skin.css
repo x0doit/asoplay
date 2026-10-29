@@ -1,6 +1,9 @@
+/* Kodik runs in its own document without the site tokens, so the EDDAS dark-theme values are written out:
+   --brand #9db3cc for fills and active icons, --surface-2 #2a3a4c for hovered buttons. */
 :root {
-  --asoplay-kodik-accent: #ff6666;
-  --asoplay-kodik-accent-soft: rgba(255, 102, 102, 0.42);
+  --asoplay-kodik-accent: #9db3cc;
+  --asoplay-kodik-accent-soft: rgba(157, 179, 204, 0.42);
+  --asoplay-kodik-hover: #2a3a4c;
 }
 
 .fp-progress,
@@ -24,7 +27,7 @@
 }
 
 .fp-quality.hd span::before {
-  color: #fff !important;
+  color: #111820 !important;
 }
 
 .fp-quality svg .fp-fill,
@@ -47,12 +50,12 @@
 
 .share_button.asoplay-screenshot-button.asoplay-screenshot-busy::after,
 .fp-share_button.asoplay-screenshot-button.asoplay-screenshot-busy::after {
-  content: "Снимаю кадр..." !important;
+  content: "Сохраняем кадр…" !important;
 }
 
 .share_button.asoplay-screenshot-button:hover,
 .fp-share_button.asoplay-screenshot-button:hover {
-  background-color: #242424 !important;
+  background-color: var(--asoplay-kodik-hover) !important;
 }
 
 .share_button.asoplay-screenshot-button:hover .fill,

@@ -9,9 +9,9 @@
  * any attempt to do so surfaces a guest-gate.
  */
 
-import * as account from "./js/account.js?v=20261028-brand1";
-import { setupNavigation } from "./js/navigation.js?v=20261026-1";
-import { getTrailerId, bindTrailer, trailerPlayIcon } from "./js/trailer.js?v=20261026-1";
+import * as account from "./js/account.js?v=20261029-eddas2";
+import { setupNavigation, setActiveSection, SheetDrag } from "./js/navigation.js?v=20261029-eddas2";
+import { getTrailerId, bindTrailer } from "./js/trailer.js?v=20261029-eddas2";
 
 // Mark iframe embeds early enough for compact app-like layout rules.
 (() => {
@@ -53,43 +53,31 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s = "") => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const uniq = a => [...new Set(a)];
 
+// Empty, error and "not found" states share the EDDAS EmptyState: icon, title, one hint, actions.
+const EMPTY_ICONS = {
+  empty: "fa-regular fa-folder-open",
+  confused: "fas fa-magnifying-glass",
+  sad: "fas fa-triangle-exclamation",
+};
 function errorPage(opts = {}) {
-  const { code, title, message, action, secondary, variant = "sad" } = opts;
-  const faces = {
-    sad: `<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="60" cy="60" r="48"/>
-      <path d="M42 52 L52 62 M52 52 L42 62"/>
-      <path d="M68 52 L78 62 M78 52 L68 62"/>
-      <path d="M45 80 q7 -8 15 0 q8 8 15 0"/>
-      <path d="M90 30 q3 -9 6 0 q-3 5 -6 0 z" fill="currentColor" stroke="none"/>
-    </svg>`,
-    empty: `<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="60" cy="60" r="48"/>
-      <path d="M44 54 h10 M66 54 h10"/>
-      <path d="M45 82 h30"/>
-    </svg>`,
-    confused: `<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="60" cy="60" r="48"/>
-      <circle cx="47" cy="55" r="3" fill="currentColor"/>
-      <circle cx="73" cy="55" r="3" fill="currentColor"/>
-      <path d="M45 82 q6 4 15 0 q9 -4 15 0"/>
-      <path d="M92 38 q6 -7 10 0 q-2 6 -5 6 v4"/>
-      <circle cx="97" cy="55" r="1.5" fill="currentColor" stroke="none"/>
-    </svg>`,
-  };
-  const art = faces[variant] || faces.sad;
+  const { code, title, message, action, secondary, variant = "sad", icon } = opts;
+  const glyph = icon || (code === "404" ? "fas fa-compass" : EMPTY_ICONS[variant] || EMPTY_ICONS.sad);
   return `
-    <div class="err-page">
-      ${code ? `<div class="err-code">${esc(String(code))}</div>` : ""}
-      <div class="err-art">${art}</div>
-      <h1 class="err-title">${esc(title || "")}</h1>
-      ${message ? `<p class="err-msg">${typeof message === "string" && message.includes("<") ? message : esc(message)}</p>` : ""}
+    <div class="ed-empty err-page">
+      <div class="ed-empty__icon"><i class="${glyph}" aria-hidden="true"></i></div>
+      <h2 class="ed-empty__title">${esc(title || "")}</h2>
+      ${message ? `<p class="ed-empty__text">${typeof message === "string" && message.includes("<") ? message : esc(message)}</p>` : ""}
+      ${code ? `<p class="err-code">Код ошибки ${esc(String(code))}</p>` : ""}
       ${(action || secondary) ? `
-        <div class="err-actions">
-          ${action ? `<a class="err-btn err-btn-primary" href="${esc(action.href)}">${esc(action.label)}</a>` : ""}
-          ${secondary ? `<a class="err-btn err-btn-ghost" href="${esc(secondary.href)}">${esc(secondary.label)}</a>` : ""}
+        <div class="ed-empty__action">
+          ${action ? `<a class="ed-btn ed-btn--primary" href="${esc(action.href)}">${esc(action.label)}</a>` : ""}
+          ${secondary ? `<a class="ed-btn ed-btn--secondary" href="${esc(secondary.href)}">${esc(secondary.label)}</a>` : ""}
         </div>` : ""}
     </div>`;
+}
+
+function loadingBlock(text = "Загружаем…") {
+  return `<div class="ed-loading"><span class="ed-spinner" aria-hidden="true"></span>${esc(text)}</div>`;
 }
 
 // ---------- translation tables (Jikan EN → RU) ----------
@@ -124,15 +112,22 @@ const GENRE_RU = {
   "Boys Love": "Сёнэн-ай", "Girls Love": "Юри",
   "Isekai": "Исэкай", "Mythology": "Мифология", "Time Travel": "Путешествия во времени",
   "Reincarnation": "Реинкарнация", "Gag Humor": "Гэг-юмор",
-  "Survival": "Выживание", "Detective": "Детектив",
+  "Survival": "Выживание", "Detective": "Детективы",
   "Workplace": "Работа", "Video Game": "Видеоигры", "Adult Cast": "Взрослый каст",
   "Idols (Female)": "Айдолы",
   "Idols (Male)": "Айдолы (муж.)", "Love Polygon": "Любовный многоугольник",
   "Medical": "Медицина", "Otaku Culture": "Отаку-культура",
   "Performing Arts": "Искусства", "Pets": "Питомцы",
   "Racing": "Гонки", "Reverse Harem": "Обратный гарем",
-  "Romantic Subtext": "Романтика", "Team Sports": "Командный спорт",
+  "Romantic Subtext": "Романтический подтекст", "Team Sports": "Командный спорт",
   "Visual Arts": "Изобразительные искусства",
+  "Anthropomorphic": "Антропоморфизм", "CGDCT": "Милые девушки", "Childcare": "Забота о детях",
+  "Combat Sports": "Единоборства", "Crossdressing": "Переодевание", "Delinquents": "Хулиганы",
+  "Educational": "Образовательное", "Gore": "Жестокость", "High Stakes Game": "Игра на выживание",
+  "Iyashikei": "Иясикэй", "Love Status Quo": "Любовь без перемен", "Magical Sex Shift": "Смена пола",
+  "Mahou Shoujo": "Махо-сёдзё", "Organized Crime": "Организованная преступность", "Showbiz": "Шоу-бизнес",
+  "Strategy Game": "Стратегические игры", "Urban Fantasy": "Городское фэнтези", "Villainess": "Злодейка",
+  "Erotica": "Эротика", "Hentai": "Хентай",
 };
 const tr = (m, v) => m[v] || v;
 const trGenre = v => GENRE_RU[v] || v;
@@ -282,7 +277,7 @@ const lightbox = {
     const wrap = document.createElement("div");
     wrap.className = "lb-overlay";
     wrap.innerHTML = `
-      <div class="lb-close"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+      <button type="button" class="ed-iconbtn lb-close" aria-label="Закрыть" title="Закрыть"><i class="fas fa-xmark" aria-hidden="true"></i></button>
       <img class="lb-img" src="${imgUrl(src)}" alt="" />
     `;
     document.body.appendChild(wrap);
@@ -443,38 +438,37 @@ const api = {
 };
 
 // ---------- cards + grid ----------
-function makeCard(a) {
-  const link = document.createElement("a");
-  link.className = "av-card";
-  link.href = `/anime/${a.mal_id}/`;
-  link.dataset.mal = a.mal_id;
+// Poster tile: EDDAS Tile (ed-tile) with the av-card hooks the enrichment and list code look for.
+function posterTile({ href, mal, poster, title, meta = "", score = null, flag = "" }) {
+  return `
+    <a class="ed-tile av-card" href="${esc(href)}" data-mal="${esc(String(mal))}">
+      <span class="ed-tile__media av-card-img">
+        <i class="fas fa-film" aria-hidden="true"></i>
+        <img src="${esc(poster)}" loading="lazy" alt="${esc(title)}"
+             onerror="this.dataset.broken='1';this.removeAttribute('src');" />
+        ${score ? `<span class="tile-score"><i class="fas fa-star" aria-hidden="true"></i>${esc(String(score))}</span>` : ""}
+        ${flag ? `<span class="tile-flag">${esc(flag)}</span>` : ""}
+      </span>
+      <span class="ed-tile__title av-card-title" title="${esc(title)}">${esc(title)}</span>
+      ${meta ? `<span class="ed-tile__meta av-card-meta">${esc(meta)}</span>` : ""}
+    </a>`;
+}
 
+function makeCard(a) {
   const poster = a.images?.jpg?.large_image_url || a.images?.jpg?.image_url || a.cover || "";
-  const title = a._ru || a.title_english || a.title || "—";
+  const title = a._ru || a.title_english || a.title || "Без названия";
   const statusRu = tr(STATUS_RU, a.status || "");
-  const statusCls = statusRu === "Онгоинг" ? "ongoing" : statusRu === "Вышло" ? "released" : statusRu === "Анонс" ? "announce" : "";
   const meta = [];
+  if (a.type) meta.push(tr(TYPE_RU, a.type));
   if (a.episodes) meta.push(`${a.episodes} эп.`);
   if (a.year || a.aired?.prop?.from?.year) meta.push(a.year || a.aired.prop.from.year);
-  const typeRu = a.type ? tr(TYPE_RU, a.type) : "";
-  const imgSrc = poster ? imgUrl(poster) : "";
-  link.innerHTML = `
-    <div class="av-card-img">
-      <img src="${imgSrc}" loading="lazy" alt="${esc(title)}"
-           onerror="this.dataset.broken='1';this.removeAttribute('src');" />
-      ${a.score ? `<span class="av-badge-score show">★ ${esc(String(a.score))}</span>` : ""}
-      ${typeRu ? `<span class="av-badge-type show">${esc(typeRu)}</span>` : ""}
-      ${statusRu ? `<span class="av-badge-status ${statusCls} show">${esc(statusRu)}</span>` : ""}
-      <div class="av-card-overlay">
-        <div class="av-card-play">
-          <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
-        </div>
-      </div>
-    </div>
-    <div class="av-card-body">
-      <div class="av-card-title" title="${esc(title)}">${esc(title)}</div>
-      <div class="av-card-meta">${meta.join(" · ")}</div>
-    </div>`;
+  const holder = document.createElement("div");
+  holder.innerHTML = posterTile({
+    href: `/anime/${a.mal_id}/`, mal: a.mal_id, poster: poster ? imgUrl(poster) : "", title,
+    meta: meta.join(", "), score: a.score,
+    flag: statusRu === "Онгоинг" || statusRu === "Анонс" ? statusRu : "",
+  });
+  const link = holder.firstElementChild;
   let prefetched = false;
   const warm = () => {
     if (prefetched) return;
@@ -552,6 +546,7 @@ function _isRealAnime(a, ctx = "") {
 
 function renderGrid(el, list, limit, ctx = "") {
   el.innerHTML = "";
+  el.removeAttribute("aria-busy");
   const renderEmpty = () => {
     el.innerHTML = errorPage(ctx === "search" ? {
       title: "По вашему запросу ничего не найдено",
@@ -583,31 +578,27 @@ function renderGrid(el, list, limit, ctx = "") {
   enrichWithShiki(el, sliced, limit);
 }
 function renderSkeletons(el, n = 12) {
-  el.innerHTML = "";
-  for (let i = 0; i < n; i++) { const d = document.createElement("div"); d.className = "av-skeleton"; el.appendChild(d); }
+  el.innerHTML = Array.from({ length: n }, () =>
+    `<div class="ed-tile tile-skeleton" aria-hidden="true"><span class="ed-tile__media"></span><span class="skeleton-line"></span><span class="skeleton-line is-short"></span></div>`
+  ).join("");
+  el.setAttribute("aria-busy", "true");
 }
 
 // ---------- hero carousel ----------
 let heroTimer = null;
 async function renderHeroCarousel(container) {
   container.innerHTML = `
-    <div class="hero-carousel" id="avHero" role="region" aria-roledescription="карусель" aria-label="Аниме в тренде">
-      <div id="avHeroSlides"></div>
+    <section class="ed-panel hero-carousel" id="avHero" role="region" aria-roledescription="карусель" aria-label="Аниме в тренде">
+      <div class="hero-slides" id="avHeroSlides"></div>
       <div class="hero-footer" hidden>
-        <a class="btn btn-primary hero-watch">
-          ${trailerPlayIcon} Смотреть
-        </a>
+        <a class="ed-btn ed-btn--primary hero-watch"><i class="fas fa-play" aria-hidden="true"></i>Смотреть</a>
         <div class="hero-ctrl">
-          <span class="hero-counter" role="status" aria-live="off"><b>01</b><span> / <span class="hero-total"></span></span></span>
-          <button type="button" class="hero-nav prev" aria-label="Предыдущее аниме" title="Предыдущее аниме">
-            <svg width="20" height="20" aria-hidden="true"><use href="/assets/icons/navigation.svg?v=20261026-hero1#chevron-left"/></svg>
-          </button>
-          <button type="button" class="hero-nav next" aria-label="Следующее аниме" title="Следующее аниме">
-            <svg width="20" height="20" aria-hidden="true"><use href="/assets/icons/navigation.svg?v=20261026-hero1#chevron-right"/></svg>
-          </button>
+          <span class="hero-counter" role="status" aria-live="off"><b>1</b> из <span class="hero-total"></span></span>
+          <button type="button" class="ed-iconbtn ed-iconbtn--tonal hero-nav prev" aria-label="Предыдущее аниме" title="Предыдущее аниме"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
+          <button type="button" class="ed-iconbtn ed-iconbtn--tonal hero-nav next" aria-label="Следующее аниме" title="Следующее аниме"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
         </div>
       </div>
-    </div>`;
+    </section>`;
 
   const slides = await api.trendingRich(8).catch(() => []);
   if (!container.isConnected) return;
@@ -625,10 +616,10 @@ async function renderHeroCarousel(container) {
     el.innerHTML = `
       <div class="hero-bg"><img src="${esc(imgUrl(s.banner))}" alt="" loading="${i === 0 ? "eager" : "lazy"}" fetchpriority="${i === 0 ? "high" : "low"}" decoding="async" /></div>
       <div class="hero-content">
-        <span class="hero-badge">#${i + 1} В тренде</span>
-        <h1 class="hero-title" title="${esc(s.title)}">${esc(s.title)}</h1>
-        <div class="hero-stats">
-          ${s.score ? `<span>★ <b>${s.score}</b></span>` : ""}
+        <span class="ed-status ed-status--brand hero-badge">${i + 1}-е место в тренде</span>
+        <h2 class="hero-title" title="${esc(s.title)}">${esc(s.title)}</h2>
+        <div class="title-stats hero-stats">
+          ${s.score ? `<span class="title-score"><i class="fas fa-star" aria-hidden="true"></i>${s.score}</span>` : ""}
           ${s.episodes ? `<span>${s.episodes} эп.</span>` : ""}
           ${s.type ? `<span>${tr(TYPE_RU, s.type)}</span>` : ""}
           ${s.year ? `<span>${s.year}</span>` : ""}
@@ -649,8 +640,8 @@ async function renderHeroCarousel(container) {
       el.setAttribute("aria-hidden", String(i !== idx));
       el.setAttribute("aria-label", `${i + 1} из ${slides.length}`);
     });
-    $("b", counter).textContent = String(idx + 1).padStart(2, "0");
-    $(".hero-total", counter).textContent = String(slides.length).padStart(2, "0");
+    $("b", counter).textContent = String(idx + 1);
+    $(".hero-total", counter).textContent = String(slides.length);
     counter.setAttribute("aria-label", `Аниме ${idx + 1} из ${slides.length}`);
     watch.href = `/anime/${slides[idx].mal_id}/`;
     watch.setAttribute("aria-label", `Смотреть: ${slides[idx].title}`);
@@ -721,7 +712,7 @@ async function renderHeroCarousel(container) {
     }
     slides.forEach((s, i) => {
       const { el } = rendered.get(s.mal_id);
-      $(".hero-badge", el).textContent = `#${i + 1} В тренде`;
+      $(".hero-badge", el).textContent = `${i + 1}-е место в тренде`;
     });
     const activeIndex = slides.indexOf(activeSlide);
     go(activeIndex >= 0 ? activeIndex : Math.min(idx, slides.length - 1));
@@ -751,34 +742,32 @@ async function renderHeroCarousel(container) {
 
 // ---------- views: catalog family ----------
 function setActiveNav(view) {
-  $("#topMenu").dataset.activeView = view || "";
-  $$("#topMenu [data-view]").forEach(el => {
-    const li = el.closest("li");
-    if (!li) return;
-    const active = el.dataset.view === view || (!view &&
-      el.getAttribute("href").replace(/\/$/, "") === location.pathname.replace(/\/$/, ""));
-    li.classList.toggle("active", active);
-    if (active) el.setAttribute("aria-current", "page");
-    else el.removeAttribute("aria-current");
-  });
+  setActiveSection(view);
+}
+
+function homeSection(id, title, href, linkLabel) {
+  return `
+    <section class="ed-panel home-section" aria-labelledby="${id}Title">
+      <div class="ed-panel__head">
+        <h2 class="section-head__title" id="${id}Title">${esc(title)}</h2>
+        <a class="section-head__link" href="${href}">${esc(linkLabel)}</a>
+      </div>
+      <div class="ed-panel__body">
+        <div class="ed-grid av-grid home-grid" id="${id}"></div>
+      </div>
+    </section>`;
 }
 
 async function viewHome() {
   setActiveNav("home");
   clearInterval(heroTimer);
   $("#outlet").innerHTML = `
-    <div id="avCarousel"></div>
-    <div class="tabs-block">
-      <div class="block-header">Топ по популярности <a href="/top" class="block-header-link">Все →</a></div>
-      <div class="av-grid" id="topGrid"></div>
-    </div>
-    <div class="tabs-block">
-      <div class="block-header">Текущий сезон <a href="/season" class="block-header-link">Весь сезон →</a></div>
-      <div class="av-grid" id="seasonGrid"></div>
-    </div>
-    <div class="tabs-block">
-      <div class="block-header">Сейчас смотрят <a href="/trending" class="block-header-link">Все →</a></div>
-      <div class="av-grid" id="trendGrid"></div>
+    <div class="page-stack home">
+      <h1 class="visually-hidden">AsoPlay — аниме онлайн</h1>
+      <div id="avCarousel"></div>
+      ${homeSection("topGrid", "Топ по популярности", "/top", "Весь топ")}
+      ${homeSection("seasonGrid", "Текущий сезон", "/season", "Весь сезон")}
+      ${homeSection("trendGrid", "Сейчас смотрят", "/trending", "Все онгоинги")}
     </div>`;
   renderHeroCarousel($("#avCarousel"));
   ["topGrid", "seasonGrid", "trendGrid"].forEach(id => renderSkeletons($(`#${id}`), 12));
@@ -792,7 +781,14 @@ async function viewHome() {
       const data = await load();
       if (container.isConnected) renderGrid(container, data, 12);
     } catch {
-      if (container.isConnected) container.innerHTML = '<div class="av-empty">Подборка временно недоступна</div>';
+      if (container.isConnected) {
+        container.removeAttribute("aria-busy");
+        container.innerHTML = errorPage({
+          title: "Подборка временно недоступна",
+          message: "Источник каталога не ответил. Обновите страницу чуть позже.",
+          variant: "sad",
+        });
+      }
     }
   }));
 }
@@ -807,9 +803,9 @@ async function getGenres() {
 const CATALOG_TITLES = {
   top: "Топ по популярности",
   season: null,
-  trending: "Сейчас в тренде",
-  movies: "Полнометражные аниме",
-  search: "Поиск",
+  trending: "Сейчас смотрят",
+  movies: "Фильмы",
+  search: "Каталог",
 };
 
 // ====== Shikimori → Jikan-shape ======
@@ -875,106 +871,105 @@ async function viewCatalog(kind, queryStr) {
   const sort = p.get("sort") || "";
 
   const isSearch = kind === "search";
-  const title = kind === "season" ? `Сезон ${tr(SEASON_RU, season())} ${year()}` : CATALOG_TITLES[kind];
+  const title = kind === "season" ? `Сезон: ${tr(SEASON_RU, season()).toLowerCase()} ${year()}`
+    : isSearch && q ? `Поиск: «${q}»` : CATALOG_TITLES[kind];
   const typeFixed = kind === "movies";
+  const option = (value, label, current) => `<option value="${value}" ${current === value ? "selected" : ""}>${label}</option>`;
 
   $("#outlet").innerHTML = `
-    <div class="block-header catalog-head">
-      <span class="catalog-title">${esc(title)}</span>
-      <div class="block-header-tools">
-        <button type="button" class="filter-btn" id="filterToggle">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
-          Фильтр<span class="filter-count" id="filterCount"></span>
-        </button>
+    <div class="page-stack catalog">
+      <div class="page-head">
+        <h1 class="page-head__title" title="${esc(title)}">${esc(title)}</h1>
+        <div class="page-head__actions">
+          <button type="button" class="ed-btn ed-btn--secondary" id="filterToggle" aria-expanded="false" aria-controls="catalogFilter">
+            <i class="fas fa-sliders" aria-hidden="true"></i>Фильтры<span class="ed-badge" id="filterCount" hidden></span>
+          </button>
+        </div>
       </div>
-    </div>
-    ${isSearch ? `
-      <form class="search-form" id="searchForm" onsubmit="return false" style="margin-bottom: 14px;">
-        <div class="search-form-row main">
-          <input type="text" class="search-form-input" id="sfQ" placeholder="Название аниме…" value="${esc(q)}" autocomplete="off" />
-          <button type="submit" class="btn btn-primary">Найти</button>
-        </div>
-      </form>` : ""}
-    <div class="catalog-filter" id="catalogFilter" hidden>
-      <div class="cf-row">
-        ${!typeFixed ? `
-        <div class="cf-field">
-          <label>Тип</label>
-          <select id="cfType">
-            <option value="">Любой</option>
-            <option value="tv" ${type === "tv" ? "selected" : ""}>Сериал</option>
-            <option value="movie" ${type === "movie" ? "selected" : ""}>Фильм</option>
-            <option value="ova" ${type === "ova" ? "selected" : ""}>OVA</option>
-            <option value="ona" ${type === "ona" ? "selected" : ""}>ONA</option>
-            <option value="special" ${type === "special" ? "selected" : ""}>Спешл</option>
-            <option value="music" ${type === "music" ? "selected" : ""}>Клип</option>
-          </select>
-        </div>` : ""}
-        <div class="cf-field">
-          <label>Статус</label>
-          <select id="cfStatus">
-            <option value="">Любой</option>
-            <option value="airing" ${status === "airing" ? "selected" : ""}>Онгоинг</option>
-            <option value="complete" ${status === "complete" ? "selected" : ""}>Вышло</option>
-            <option value="upcoming" ${status === "upcoming" ? "selected" : ""}>Анонс</option>
-          </select>
-        </div>
-        <div class="cf-field">
-          <label>Год (от / до)</label>
-          <div class="cf-year">
-            <input type="number" id="cfFrom" placeholder="от" min="1960" max="${year() + 1}" value="${esc(fromYear)}" />
-            <input type="number" id="cfTo" placeholder="до" min="1960" max="${year() + 1}" value="${esc(toYear)}" />
+      ${isSearch ? `
+        <form class="catalog-search" id="searchForm" role="search">
+          <div class="ed-search">
+            <i class="ed-search__icon fas fa-search" aria-hidden="true"></i>
+            <input class="ed-search__input" id="sfQ" type="search" placeholder="Название аниме" value="${esc(q)}" autocomplete="off" aria-label="Название аниме" enterkeyhint="search" />
+          </div>
+          <button type="submit" class="ed-btn ed-btn--secondary">Найти</button>
+        </form>` : ""}
+      <section class="ed-panel catalog-filter" id="catalogFilter" aria-label="Фильтры" hidden>
+        <div class="ed-panel__body ed-form">
+          <div class="cf-grid">
+            ${!typeFixed ? `
+            <div class="ed-field">
+              <label class="ed-field__label" for="cfType">Тип</label>
+              <select class="ed-select" id="cfType">
+                ${option("", "Любой", type)}${option("tv", "Сериал", type)}${option("movie", "Фильм", type)}
+                ${option("ova", "OVA", type)}${option("ona", "ONA", type)}${option("special", "Спешл", type)}${option("music", "Клип", type)}
+              </select>
+            </div>` : ""}
+            <div class="ed-field">
+              <label class="ed-field__label" for="cfStatus">Статус</label>
+              <select class="ed-select" id="cfStatus">
+                ${option("", "Любой", status)}${option("airing", "Онгоинг", status)}${option("complete", "Вышло", status)}${option("upcoming", "Анонс", status)}
+              </select>
+            </div>
+            <div class="ed-field">
+              <span class="ed-field__label" id="cfYearLabel">Годы выхода</span>
+              <div class="cf-year" role="group" aria-labelledby="cfYearLabel">
+                <input class="ed-input" type="number" inputmode="numeric" id="cfFrom" placeholder="С" aria-label="С года" min="1960" max="${year() + 1}" value="${esc(fromYear)}" />
+                <input class="ed-input" type="number" inputmode="numeric" id="cfTo" placeholder="По" aria-label="По год" min="1960" max="${year() + 1}" value="${esc(toYear)}" />
+              </div>
+            </div>
+            <div class="ed-field">
+              <label class="ed-field__label" for="cfOrder">Сортировка</label>
+              <select class="ed-select" id="cfOrder">
+                ${option("", "По умолчанию", order)}${option("popularity", "По популярности", order)}${option("score", "По рейтингу", order)}
+                ${option("start_date", "По дате выхода", order)}${option("title", "По названию", order)}${option("episodes", "По количеству серий", order)}
+              </select>
+            </div>
+          </div>
+          <label class="ed-check"><input type="checkbox" id="cfSortAsc" ${sort === "asc" ? "checked" : ""} /><span class="ed-check__text">По возрастанию</span></label>
+          <div class="ed-field">
+            <span class="ed-field__label" id="cfGenresLabel">Жанры</span>
+            <div class="cf-genres" id="cfGenres" role="group" aria-labelledby="cfGenresLabel">${loadingBlock("Загружаем жанры…")}</div>
+          </div>
+          <label class="ed-check"><input type="checkbox" id="cfGenresAll" ${genresAll ? "checked" : ""} /><span class="ed-check__text">Только аниме со всеми выбранными жанрами</span></label>
+          <div class="ed-form__actions ed-form__actions--start">
+            <button type="button" class="ed-btn ed-btn--primary" id="cfApply">Применить</button>
+            <button type="button" class="ed-btn ed-btn--ghost" id="cfReset">Сбросить</button>
           </div>
         </div>
-        <div class="cf-field">
-          <label>Сортировка</label>
-          <select id="cfOrder">
-            <option value="">По умолчанию</option>
-            <option value="popularity" ${order === "popularity" ? "selected" : ""}>По популярности</option>
-            <option value="score" ${order === "score" ? "selected" : ""}>По рейтингу</option>
-            <option value="start_date" ${order === "start_date" ? "selected" : ""}>По дате выхода</option>
-            <option value="title" ${order === "title" ? "selected" : ""}>По названию</option>
-            <option value="episodes" ${order === "episodes" ? "selected" : ""}>По количеству серий</option>
-          </select>
-          <label class="cf-sort-toggle">
-            <input type="checkbox" id="cfSortAsc" ${sort === "asc" ? "checked" : ""} />
-            <span>по возрастанию</span>
-          </label>
+      </section>
+      <section class="ed-panel catalog-results" aria-label="Результаты">
+        <div class="ed-panel__body">
+          <div class="ed-grid av-grid catalog-grid" id="g"></div>
+          <nav class="pager" id="pager" aria-label="Страницы каталога"></nav>
         </div>
-      </div>
-      <div class="cf-row">
-        <div class="cf-field wide">
-          <label>Жанры (можно несколько)</label>
-          <div class="cf-genres" id="cfGenres"><span class="muted">Загрузка…</span></div>
-          <label class="cf-sort-toggle" style="margin-top: 10px;">
-            <input type="checkbox" id="cfGenresAll" ${genresAll ? "checked" : ""} />
-            <span>Аниме должно содержать каждый из выбранных жанров</span>
-          </label>
-        </div>
-      </div>
-      <div class="cf-actions">
-        <button type="button" class="btn btn-primary" id="cfApply">Применить</button>
-        <button type="button" class="btn btn-ghost" id="cfReset">Сбросить</button>
-      </div>
-    </div>
-    <div class="av-grid" id="g"></div>
-    <div class="pager" id="pager"></div>`;
+      </section>
+    </div>`;
 
-  const activeCount = [q, type, status, fromYear, toYear, order, sort, genres.length ? "y" : ""].filter(Boolean).length;
-  if (activeCount) $("#filterCount").textContent = ` · ${activeCount}`;
+  // The query lives in the search field, so the badge counts only what the panel holds.
+  const activeCount = [type, status, fromYear, toYear, order, sort, genres.length ? "y" : ""].filter(Boolean).length;
+  if (activeCount) {
+    $("#filterCount").textContent = String(activeCount);
+    $("#filterCount").hidden = false;
+  }
 
   const genreBox = $("#cfGenres");
   getGenres().then(list => {
     const box = genreBox;
     if (!box.isConnected) return;
-    box.innerHTML = "";
+    box.innerHTML = list.length ? "" : `<span class="cf-note">Список жанров не загрузился. Остальные фильтры работают.</span>`;
     list.forEach(g => {
       const chip = document.createElement("button");
+      const active = genres.includes(String(g.mal_id));
       chip.type = "button";
-      chip.className = "cf-chip" + (genres.includes(String(g.mal_id)) ? " active" : "");
+      chip.className = "ed-chip cf-chip" + (active ? " is-active" : "");
+      chip.setAttribute("aria-pressed", String(active));
       chip.dataset.id = g.mal_id;
       chip.textContent = trGenre(g.name);
-      chip.addEventListener("click", () => chip.classList.toggle("active"));
+      chip.addEventListener("click", () => {
+        const on = chip.classList.toggle("is-active");
+        chip.setAttribute("aria-pressed", String(on));
+      });
       box.appendChild(chip);
     });
   });
@@ -993,18 +988,19 @@ async function viewCatalog(kind, queryStr) {
     const ty = $("#cfTo")?.value.trim(); if (ty) params.set("to_year", ty);
     const od = $("#cfOrder")?.value; if (od) params.set("order_by", od);
     if ($("#cfSortAsc")?.checked) params.set("sort", "asc");
-    const active = [...$$("#cfGenres .cf-chip.active")].map(b => b.dataset.id).join(",");
+    const active = [...$$("#cfGenres .cf-chip.is-active")].map(b => b.dataset.id).join(",");
     if (active) params.set("genres", active);
     if ($("#cfGenresAll")?.checked && active.includes(",")) params.set("genres_all", "1");
     const qs = params.toString();
     nav(qs ? `/${catalogPathFor(kind)}?${qs}` : `/${catalogPathFor(kind)}`);
   };
 
-  $("#filterToggle").addEventListener("click", () => {
-    const f = $("#catalogFilter");
-    f.hidden = !f.hidden;
-  });
-  if (activeCount) $("#catalogFilter").hidden = false;
+  const setFilterOpen = (open) => {
+    $("#catalogFilter").hidden = !open;
+    $("#filterToggle").setAttribute("aria-expanded", String(open));
+  };
+  $("#filterToggle").addEventListener("click", () => setFilterOpen($("#catalogFilter").hidden));
+  if (activeCount) setFilterOpen(true);
   $("#cfApply").addEventListener("click", applyFilters);
   $("#cfReset").addEventListener("click", () => nav(`/${catalogPathFor(kind)}`));
   $("#searchForm")?.addEventListener("submit", e => { e.preventDefault(); applyFilters(); });
@@ -1084,9 +1080,16 @@ function renderPager(el, kind, queryStr, page, pag) {
   const frag = document.createDocumentFragment();
   const mkBtn = (label, targetPage, opts = {}) => {
     const b = document.createElement(opts.disabled ? "span" : "a");
-    b.className = "pager-btn" + (opts.current ? " current" : "") + (opts.disabled ? " disabled" : "");
-    b.textContent = label;
-    if (!opts.disabled) {
+    b.className = "ed-btn ed-btn--sm pager-btn " + (opts.current ? "ed-btn--secondary" : "ed-btn--ghost")
+      + (opts.disabled ? " is-disabled" : "");
+    if (opts.icon) {
+      b.innerHTML = `<i class="fas ${opts.icon}" aria-hidden="true"></i>`;
+      b.setAttribute("aria-label", label);
+      b.title = label;
+    } else b.textContent = label;
+    if (opts.current) b.setAttribute("aria-current", "page");
+    if (opts.disabled) b.setAttribute("aria-disabled", "true");
+    else {
       const p = new URLSearchParams(queryStr || "");
       if (targetPage <= 1) p.delete("page");
       else p.set("page", targetPage);
@@ -1094,7 +1097,7 @@ function renderPager(el, kind, queryStr, page, pag) {
     }
     return b;
   };
-  frag.appendChild(mkBtn("←", page - 1, { disabled: page <= 1 }));
+  frag.appendChild(mkBtn("Предыдущая страница", page - 1, { disabled: page <= 1, icon: "fa-chevron-left" }));
   const pages = new Set([1, last, page, page - 1, page + 1, page - 2, page + 2]);
   const sorted = [...pages].filter(n => n >= 1 && n <= last).sort((a, b) => a - b);
   let prev = 0;
@@ -1108,7 +1111,7 @@ function renderPager(el, kind, queryStr, page, pag) {
     frag.appendChild(mkBtn(String(n), n, { current: n === page }));
     prev = n;
   }
-  frag.appendChild(mkBtn("→", page + 1, { disabled: page >= last }));
+  frag.appendChild(mkBtn("Следующая страница", page + 1, { disabled: page >= last, icon: "fa-chevron-right" }));
   el.appendChild(frag);
 }
 
@@ -1117,11 +1120,11 @@ async function viewRandom() {
   setActiveNav("random");
   const outlet = $("#outlet");
   outlet.innerHTML = `
-    <div class="random-loader">
-      <div class="random-spinner"></div>
-      <div class="random-title">Ищу что-нибудь интересное…</div>
-      <div class="random-status" id="avRandStatus">Выбираю случайное аниме из каталога…</div>
-      <div class="random-progress" id="avRandProgress"></div>
+    <div class="ed-empty random-loader" role="status">
+      <div class="ed-empty__icon"><span class="ed-spinner" aria-hidden="true"></span></div>
+      <h1 class="ed-empty__title">Подбираем случайное аниме</h1>
+      <p class="ed-empty__text" id="avRandStatus">Выбираем тайтл из каталога…</p>
+      <p class="random-progress" id="avRandProgress"></p>
     </div>`;
   const setStatus = (txt) => { const el = $("#avRandStatus"); if (el) el.textContent = txt; };
   const setProgress = (i, max) => { const el = $("#avRandProgress"); if (el) el.textContent = max ? `Попытка ${i} из ${max}` : ""; };
@@ -1129,12 +1132,12 @@ async function viewRandom() {
   for (let i = 0; i < 2; i++) {
     if (route !== routeVersion) return;
     setProgress(i + 1, 2);
-    if (i) setStatus("Подбираю аниме из каталога MAL…");
+    if (i) setStatus("Ищем в каталоге MyAnimeList…");
     try {
       const r = i ? await api.random() : await fetchJson(`${BACKEND}/random/watchable?_=${Date.now()}`, { timeout: 9000 });
       if (route !== routeVersion) return;
       if (r?.mal_id) {
-        setStatus(`Открываю: ${r.title || 'MAL #' + r.mal_id}`);
+        setStatus(`Открываем «${r.title || "MAL #" + r.mal_id}»`);
         nav(`/anime/${r.mal_id}/`);
         return;
       }
@@ -1151,7 +1154,11 @@ async function viewRandom() {
 
 async function viewGenre(id, name) {
   setActiveNav(null);
-  $("#outlet").innerHTML = `<div class="block-header">Жанр: ${esc(name)}</div><div class="av-grid" id="g"></div>`;
+  $("#outlet").innerHTML = `
+    <div class="page-stack">
+      <div class="page-head"><h1 class="page-head__title">Жанр: ${esc(trGenre(name))}</h1></div>
+      <section class="ed-panel catalog-results"><div class="ed-panel__body"><div class="ed-grid av-grid catalog-grid" id="g"></div></div></section>
+    </div>`;
   const g = $("#g"); renderSkeletons(g, 18);
   try {
     const data = await api.byGenre(id, 24);
@@ -1163,13 +1170,16 @@ async function viewGenre(id, name) {
 function cleanBBCode(s) {
   return (s || "")
     .replace(/\[\/?(b|i|u|s|url[^\]]*|character[^\]]*|anime[^\]]*|manga[^\]]*|ranobe[^\]]*|person[^\]]*|studio[^\]]*|spoiler[^\]]*)\]/gi, "")
+    // Shikimori wiki links: [[Синигами]] or [[Синигами|синигами]] read as plain words.
+    .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, "$2")
+    .replace(/\[\[([^\]]+)\]\]/g, "$1")
     .replace(/\[br\]/gi, "\n").trim();
 }
 
 async function viewAnime(malId) {
   const route = routeVersion;
   setActiveNav(null);
-  $("#outlet").innerHTML = `<div class="av-empty" style="padding:80px 0">Загружаю…</div>`;
+  $("#outlet").innerHTML = loadingBlock("Загружаем аниме…");
 
   const preload = _consumeSSRPreload(malId);
   const jikanP = api.details(malId);
@@ -1302,176 +1312,177 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
   const shortDesc = synopsis.slice(0, 260) + (synopsis.length > 260 ? "…" : "");
   const genres = (a.genres || []).concat(a.themes || []).map(g => esc(trGenre(g.name))).join(", ");
   const trailerId = getTrailerId(a.trailer);
-  const trailerButton = trailerId ? `<button class="btn btn-ghost cinema-trailer-action" type="button" data-open-trailer aria-haspopup="dialog">${trailerPlayIcon}Трейлер</button>` : "";
+  const trailerButton = trailerId ? `<button class="ed-btn ed-btn--secondary cinema-trailer-action" type="button" data-open-trailer aria-haspopup="dialog"><i class="fab fa-youtube" aria-hidden="true"></i>Трейлер</button>` : "";
+  const duration = a.duration ? a.duration.replace("per ep", "/эп.").replace("min", "мин").replace(/\s*\/\s*/, " / ").replace(/\.$/, "") : "";
+  const externalLink = (href, label) => `<a href="${esc(href)}" target="_blank" rel="noopener" class="ed-btn ed-btn--ghost ed-btn--sm">${label}<i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></a>`;
   const seasons = (a.relations || []).filter(r =>
     /Sequel|Prequel|Side story|Parent story|Alternative version|Summary/i.test(r.relation)
   ).flatMap(r => r.entry.filter(e => e.type === "anime").map(e => ({ ...e, relation: r.relation })));
 
   const statusRu = tr(STATUS_RU, a.status || "");
   const typeRu = tr(TYPE_RU, a.type || "");
-  const badgeCls = statusRu === "Онгоинг" ? "badge attention" : "badge";
+  const statusTone = statusRu === "Онгоинг" ? "ed-status--brand" : statusRu === "Вышло" ? "ed-status--success" : statusRu === "Анонс" ? "ed-status--warning" : "";
+  const statusChip = statusRu ? `<span class="ed-status ${statusTone}">${esc(statusRu)}</span>` : "";
+  const social = state.social || {};
 
   $("#outlet").innerHTML = `
-    <div class="cinema-hero${trailerId ? " has-trailer" : ""}" id="avHero" style="background-image:url('${imgUrl(banner)}')">
-      <div class="cinema-overlay"></div>
-      <div class="cinema-content">
-        <div class="cinema-poster"><img src="${imgUrl(poster)}" alt=""></div>
-        <div class="cinema-info">
-          <div class="cinema-badges">
-            ${a.type ? `<span class="badge neutral">${esc(typeRu)}</span>` : ""}
-            ${a.year ? `<span class="badge neutral">${a.year}</span>` : ""}
-            ${statusRu ? `<span class="${badgeCls}">${esc(statusRu)}</span>` : ""}
+    <div class="title-page">
+    <section class="ed-panel title-hero${trailerId ? " has-trailer" : ""}" id="avHero" aria-labelledby="avHeroTitle">
+      <div class="title-cover" id="avHeroCover" hidden><img alt="" id="avHeroCoverImg" decoding="async" /></div>
+      <div class="title-hero__body">
+        <button type="button" class="title-poster cinema-poster" aria-label="Открыть постер">
+          <i class="fas fa-film" aria-hidden="true"></i>
+          <img src="${imgUrl(poster)}" alt="" onerror="this.remove()" />
+        </button>
+        <div class="title-head">
+          <div class="title-tags">
+            ${a.type ? `<span>${esc(typeRu)}</span>` : ""}
+            ${a.year ? `<span>${a.year}</span>` : ""}
+            ${statusChip}
           </div>
-          <h1 class="cinema-title" id="avHeroTitle">${esc(titleMain)}</h1>
-          <div class="cinema-sub" id="avHeroSub">${titleOrig ? esc(titleOrig) + (a.title_japanese ? " · " + esc(a.title_japanese) : "") : (a.title_japanese ? esc(a.title_japanese) : "")}</div>
-          <div class="cinema-stats">
-            ${a.score ? `<span class="cinema-score">★ ${a.score}</span>` : ""}
-            ${a.episodes ? `<span>${a.episodes} эп.</span>` : ""}
-            ${a.duration ? `<span>${esc(a.duration.replace("per ep", "/эп.").replace("min", "мин"))}</span>` : ""}
-            ${genres ? `<span>${genres.slice(0, 80)}${genres.length > 80 ? "…" : ""}</span>` : ""}
-          </div>
-          <p class="cinema-desc" id="avHeroDesc">${esc(shortDesc)}</p>
+          <h1 class="title-name" id="avHeroTitle">${esc(titleMain)}</h1>
+          <p class="title-original" id="avHeroSub">${esc([titleOrig, a.title_japanese].filter(Boolean).join(", "))}</p>
         </div>
-        ${trailerId ? `
-        <div class="cinema-trailer">
-          <span class="cinema-trailer-label">Трейлер</span>
-          <button class="cinema-trailer-preview" type="button" data-open-trailer aria-label="Смотреть трейлер" aria-haspopup="dialog">
-            <img src="https://i.ytimg.com/vi/${trailerId}/hqdefault.jpg" alt="" width="480" height="360" decoding="async" />
-            <span class="cinema-trailer-play">${trailerPlayIcon}</span>
-          </button>
-        </div>` : ""}
-          <div class="cinema-actions">
-            <button class="btn btn-primary" id="avCtaPlay">
-              <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
-              Смотреть
-            </button>
+        <div class="title-meta">
+          <div class="title-stats">
+            ${a.score ? `<span class="title-score"><i class="fas fa-star" aria-hidden="true"></i>${a.score}</span>` : ""}
+            ${a.episodes ? `<span>${a.episodes} эп.</span>` : ""}
+            ${duration ? `<span>${esc(duration)}</span>` : ""}
+            ${genres ? `<span class="title-stats__genres">${genres}</span>` : ""}
+          </div>
+          <p class="title-desc" id="avHeroDesc">${esc(shortDesc)}</p>
+        </div>
+          <div class="title-actions">
+            <button class="ed-btn ed-btn--primary" id="avCtaPlay" type="button"><i class="fas fa-play" aria-hidden="true"></i>Смотреть</button>
             ${trailerButton}
             <div class="list-picker" id="avListPicker">
-              <button class="btn btn-ghost list-picker-trigger" id="avListPickerBtn" type="button" aria-haspopup="menu" aria-expanded="false">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4 6h16v2H4zM4 11h16v2H4zM4 16h10v2H4z"/></svg>
-                <span class="list-picker-label">В список</span>
-                <svg class="list-picker-chev" viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+              <button class="ed-btn ed-btn--secondary list-picker-trigger" id="avListPickerBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="avListPickerPop">
+                <i class="fas fa-list" aria-hidden="true"></i><span class="list-picker-label">В список</span><span class="ed-badge ed-badge--muted list-picker-auto" title="Статус выставлен автоматически" hidden>авто</span><i class="fas fa-chevron-down list-picker-chev" aria-hidden="true"></i>
               </button>
-              <div class="list-picker-pop" id="avListPickerPop" role="menu" hidden>
-                <button type="button" class="lp-option" data-status="watching"  role="menuitemradio">Смотрю</button>
-                <button type="button" class="lp-option" data-status="planned"   role="menuitemradio">В Планах</button>
-                <button type="button" class="lp-option" data-status="completed" role="menuitemradio">Просмотрено</button>
-                <button type="button" class="lp-option" data-status="postponed" role="menuitemradio">Отложено</button>
-                <button type="button" class="lp-option" data-status="dropped"   role="menuitemradio">Брошено</button>
-                <div class="lp-sep"></div>
-                <button type="button" class="lp-option lp-clear" data-status="">Убрать из списков</button>
+              <div class="ed-menu list-picker-pop" id="avListPickerPop" role="menu" hidden>
+                <button type="button" class="ed-menu__item lp-option" data-status="watching" role="menuitemradio" aria-checked="false"><i class="fas fa-eye" aria-hidden="true"></i>Смотрю</button>
+                <button type="button" class="ed-menu__item lp-option" data-status="planned" role="menuitemradio" aria-checked="false"><i class="fas fa-bookmark" aria-hidden="true"></i>В планах</button>
+                <button type="button" class="ed-menu__item lp-option" data-status="completed" role="menuitemradio" aria-checked="false"><i class="fas fa-circle-check" aria-hidden="true"></i>Просмотрено</button>
+                <button type="button" class="ed-menu__item lp-option" data-status="postponed" role="menuitemradio" aria-checked="false"><i class="fas fa-pause" aria-hidden="true"></i>Отложено</button>
+                <button type="button" class="ed-menu__item lp-option" data-status="dropped" role="menuitemradio" aria-checked="false"><i class="fas fa-ban" aria-hidden="true"></i>Брошено</button>
+                <div class="ed-menu__divider lp-clear-sep" role="separator"></div>
+                <button type="button" class="ed-menu__item is-danger lp-option lp-clear" data-status="" role="menuitem"><i class="fas fa-xmark" aria-hidden="true"></i>Убрать из списков</button>
               </div>
             </div>
-            <button class="btn btn-ghost" id="avFavBtn" aria-pressed="false" title="Добавить в избранное">
-              <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
-              <span class="fav-label">В избранное</span>
+            <button class="ed-btn ed-btn--secondary" id="avFavBtn" type="button" aria-pressed="false">
+              <i class="far fa-star fav-icon" aria-hidden="true"></i><span class="fav-label">В избранное</span>
             </button>
-            <a href="${a.url || '#'}" target="_blank" rel="noopener" class="btn btn-ghost">MyAnimeList ↗</a>
-            <a href="${SHIKI_ORIGIN}/animes?search=${encodeURIComponent(titleMain)}" target="_blank" rel="noopener" class="btn btn-ghost">Shikimori ↗</a>
-            <a href="https://anilist.co/search/anime?search=${encodeURIComponent(titleMain)}" target="_blank" rel="noopener" class="btn btn-ghost">AniList ↗</a>
           </div>
+          <div class="title-links">
+            ${a.url ? externalLink(a.url, "MyAnimeList") : ""}
+            ${externalLink(`${SHIKI_ORIGIN}/animes?search=${encodeURIComponent(titleMain)}`, "Shikimori")}
+            ${externalLink(`https://anilist.co/search/anime?search=${encodeURIComponent(titleMain)}`, "AniList")}
+          </div>
+        ${trailerId ? `
+        <div class="cinema-trailer">
+          <button class="ed-vcard__thumb cinema-trailer-preview" type="button" data-open-trailer aria-label="Смотреть трейлер" aria-haspopup="dialog">
+            <img src="https://i.ytimg.com/vi/${trailerId}/hqdefault.jpg" alt="" width="480" height="360" decoding="async" />
+            <span class="ed-vcard__play"></span>
+          </button>
+          <div class="ed-vcard__meta">Трейлер на YouTube</div>
+        </div>` : ""}
       </div>
+    </section>
+
+    <div class="ed-note av-support" role="note">
+      <i class="fas fa-handshake" aria-hidden="true"></i>
+      <div>AsoPlay работает при поддержке <a href="${esc(social.site_url || "https://animesocial.online")}" target="_blank" rel="noopener">${esc(social.site_name || "AnimeSocial")}</a> — первой социальной сети для анимешников.</div>
     </div>
 
-    <aside class="av-support" role="note">
-      <span class="av-support-bar" aria-hidden="true"></span>
-      <span class="av-support-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 21s-7.5-4.6-9.6-9.1C.9 8.6 2.7 5 6.2 5c2 0 3.4 1 4.3 2.3h1c.9-1.3 2.3-2.3 4.3-2.3 3.5 0 5.3 3.6 3.8 6.9C19.5 16.4 12 21 12 21z"/></svg>
-      </span>
-      <div class="av-support-text">
-        <span class="av-support-kicker">При поддержке партнёра</span>
-        <span class="av-support-msg">Портал работает при поддержке первой социальной сети для анимешников <a class="av-support-link" href="${esc((state.social && state.social.site_url) || "#")}" target="_blank" rel="noopener">${esc((state.social && state.social.site_name) || "AnimeSocial")}<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M14 3h7v7h-2V6.4l-9.3 9.3-1.4-1.4L17.6 5H14V3zM5 5h5v2H7v10h10v-3h2v5H5V5z"/></svg></a></span>
-      </div>
-    </aside>
-
-    <div class="detail-grid">
+    <div class="title-layout detail-grid">
       <div class="watch-main">
         ${trailerId ? `<div class="trailer-compact-action">${trailerButton}</div>` : ""}
-        <div class="seasons-bar" id="avSeasonsBar" hidden></div>
+        <nav class="seasons-bar" id="avSeasonsBar" aria-label="Сезоны и связанные тайтлы" hidden></nav>
 
-        <div class="sp-player" id="avPlayerCard">
+        <section class="ed-panel sp-player" id="avPlayerCard" aria-label="Плеер">
           <div class="sp-head">
             <div class="sp-ep" id="avEpInfo"></div>
-            <button class="sp-dub-trigger" id="avDubTrigger" type="button">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm-1 5h2v5l4 2-1 2-5-2.5V8z" opacity=".9"/></svg>
-              <span class="sp-dub-label">—</span>
-              <svg class="sp-dub-chev" viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+            <button class="ed-btn ed-btn--secondary ed-btn--sm sp-dub-trigger" id="avDubTrigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="avDubPop">
+              <i class="fas fa-microphone" aria-hidden="true"></i><span class="sp-dub-label">Озвучка</span><i class="fas fa-chevron-down sp-dub-chev" aria-hidden="true"></i>
             </button>
           </div>
 
           <div class="sp-video">
-            <div id="artplayer" style="width:100%;height:100%"></div>
+            <div id="artplayer"></div>
             <div class="player-overlay" id="avPlayerOverlay">
-              <div class="spinner"></div>
-              <div id="avPlayerStatus">Ищу источники…</div>
+              <span class="ed-spinner spinner" aria-hidden="true"></span>
+              <div id="avPlayerStatus">Ищем источники…</div>
             </div>
           </div>
 
           <div class="sp-foot">
             <div class="sp-prev-next">
-              <button class="sp-nav" id="avPrevEp" type="button" aria-label="Предыдущая">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 6h2v12H6zm12 0v12l-8-6z"/></svg>
-                <span>Пред.</span>
-              </button>
-              <button class="sp-nav" id="avNextEp" type="button" aria-label="Следующая">
-                <span>След.</span>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 6v12l8-6zm10 0h2v12h-2z"/></svg>
-              </button>
+              <button class="ed-btn ed-btn--ghost ed-btn--sm sp-nav" id="avPrevEp" type="button"><i class="fas fa-backward-step" aria-hidden="true"></i><span>Предыдущая</span></button>
+              <button class="ed-btn ed-btn--ghost ed-btn--sm sp-nav" id="avNextEp" type="button"><span>Следующая</span><i class="fas fa-forward-step" aria-hidden="true"></i></button>
             </div>
-            <label class="sp-auto">
-              <input type="checkbox" id="avAutoNext" />
-              <span class="sp-auto-box"></span>
-              <span class="sp-auto-txt">Автопереключение серий</span>
-            </label>
+            <label class="ed-switch sp-auto"><span>Автопереключение серий</span><input type="checkbox" role="switch" id="avAutoNext" /></label>
           </div>
 
           <div class="sp-dub-pop" id="avDubPop" hidden>
-            <div class="sp-dub-pop-inner" id="avDubTabs"></div>
+            <div class="sp-dub-scrim" data-dub-close></div>
+            <div class="ed-menu sp-dub-panel" role="dialog" aria-label="Озвучка и субтитры">
+              <div class="app-sheet__grip sp-dub-grip"></div>
+              <div class="sp-dub-pop-inner" id="avDubTabs"></div>
+            </div>
           </div>
-        </div>
+        </section>
       </div>
 
       <aside class="ep-sidebar">
-        <div class="ep-side-head">
-          <h3>Эпизоды</h3><span id="avEpCount" class="muted" style="font-size:12px"></span>
-        </div>
-        <input type="text" class="ep-search" id="avEpSearch" placeholder="Поиск эпизода…" hidden />
-        <div class="episodes-list" id="avEpisodesList"><div class="av-empty" style="padding:30px 0">Ищу источник…</div></div>
+        <section class="ed-panel ep-panel" aria-labelledby="avEpTitle">
+          <div class="ed-panel__head"><span id="avEpTitle">Эпизоды</span><span class="ep-count" id="avEpCount"></span></div>
+          <div class="ed-panel__body">
+            <div class="ed-search ep-search-wrap" hidden>
+              <i class="ed-search__icon fas fa-search" aria-hidden="true"></i>
+              <input type="search" class="ed-search__input ep-search" id="avEpSearch" placeholder="Номер или название" aria-label="Найти серию" />
+            </div>
+            <div class="episodes-list" id="avEpisodesList">${loadingBlock("Ищем источник…")}</div>
+          </div>
+        </section>
       </aside>
 
       <div class="detail-main">
-        <div class="tabs-block">
-          <div class="block-header">Описание</div>
-          <div class="info-body">
-            <div class="synopsis" id="avSynopsis">${synopsis ? esc(synopsis) : "<span class='muted'>Описание не найдено</span>"}</div>
-
-            <ul class="content-main-info">
-              ${a.status ? `<li><span>Статус:</span> <span class="${badgeCls}">${esc(statusRu)}</span></li>` : ""}
-              ${a.type ? `<li><span>Тип:</span> <span>${esc(typeRu)}</span></li>` : ""}
-              ${a.year ? `<li><span>Год:</span> <span>${a.year}</span></li>` : ""}
-              ${a.episodes ? `<li><span>Кол-во серий:</span> <span>${a.episodes}</span></li>` : ""}
-              ${a.duration ? `<li><span>Длительность:</span> <span>${esc(a.duration.replace("per ep", "/эп.").replace("min", "мин"))}</span></li>` : ""}
-              ${a.rating ? `<li><span>Возрастной рейтинг:</span> <span>${esc(a.rating)}</span></li>` : ""}
-              ${a.studios?.length ? `<li><span>Студии:</span> <span>${a.studios.map(s => esc(s.name)).join(", ")}</span></li>` : ""}
-              ${genres ? `<li class="categories-list"><span>Жанры:</span> <span>${genres}</span></li>` : ""}
-              ${a.score ? `<li><span>Оценка:</span> <span><span class="main-rating">${a.score}</span><span class="main-rating-info">Голосов: ${a.scored_by || "—"}</span></span></li>` : ""}
-              <li><span>Ваша оценка:</span> <span class="rate-block" id="avRate"></span></li>
-            </ul>
+        <section class="ed-panel" aria-labelledby="avAboutTitle">
+          <div class="ed-panel__head"><span id="avAboutTitle">Описание</span></div>
+          <div class="ed-panel__body info-body">
+            <div class="prose synopsis" id="avSynopsis">${synopsis ? esc(synopsis) : `<span class="muted">Описания пока нет.</span>`}</div>
+            <dl class="ed-kv content-main-info">
+              ${a.status ? `<dt>Статус</dt><dd>${statusChip}</dd>` : ""}
+              ${a.type ? `<dt>Тип</dt><dd>${esc(typeRu)}</dd>` : ""}
+              ${a.year ? `<dt>Год</dt><dd>${a.year}</dd>` : ""}
+              ${a.episodes ? `<dt>Серий</dt><dd>${a.episodes}</dd>` : ""}
+              ${duration ? `<dt>Длительность</dt><dd>${esc(duration)}</dd>` : ""}
+              ${a.rating ? `<dt>Возрастной рейтинг</dt><dd>${esc(a.rating)}</dd>` : ""}
+              ${a.studios?.length ? `<dt>Студии</dt><dd>${a.studios.map(s => esc(s.name)).join(", ")}</dd>` : ""}
+              ${genres ? `<dt>Жанры</dt><dd>${genres}</dd>` : ""}
+              ${a.score ? `<dt>Оценка MyAnimeList</dt><dd><span class="title-score"><i class="fas fa-star" aria-hidden="true"></i>${a.score}</span> <span class="muted">${a.scored_by ? `${Number(a.scored_by).toLocaleString("ru-RU")} голосов` : ""}</span></dd>` : ""}
+              <dt>Ваша оценка</dt><dd><span class="rate-block" id="avRate"></span></dd>
+            </dl>
           </div>
-        </div>
+        </section>
 
-        <div class="tabs-block">
-          <div class="block-header">Персонажи</div>
-          <div class="chars-grid" id="avChars">
-            ${Array.from({ length: 6 }).map(() => `<div class="char"><div class="char-img av-skeleton" style="aspect-ratio:auto"></div><div class="char-info"><div class="av-skeleton-line" style="width:80%;height:12px;margin-bottom:6px"></div><div class="av-skeleton-line" style="width:50%;height:10px"></div></div></div>`).join("")}
+        <section class="ed-panel" aria-labelledby="avCharsTitle">
+          <div class="ed-panel__head"><span id="avCharsTitle">Персонажи</span></div>
+          <div class="ed-panel__body">
+            <div class="chars-grid" id="avChars">
+              ${Array.from({ length: 6 }).map(() => `<div class="char char-skeleton" aria-hidden="true"><span class="char-img"></span><span class="char-info"><span class="skeleton-line"></span><span class="skeleton-line is-short"></span></span></div>`).join("")}
+            </div>
           </div>
-        </div>
+        </section>
 
-        <div class="tabs-block">
-          <div class="block-header">Похожее</div>
-          <div class="recs-wrap"><div class="av-grid" id="avRecs"><div class="av-empty">Загружаю…</div></div></div>
-        </div>
+        <section class="ed-panel recs-panel" aria-labelledby="avRecsTitle">
+          <div class="ed-panel__head"><span id="avRecsTitle">Похожее</span></div>
+          <div class="ed-panel__body">
+            <div class="ed-grid av-grid recs-grid" id="avRecs">${loadingBlock()}</div>
+          </div>
+        </section>
       </div>
+    </div>
     </div>`;
 
   fitHeroTitle($("#avHeroTitle"));
@@ -1483,7 +1494,7 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
   if (pstr) pstr.addEventListener("click", () => lightbox.open(poster));
 
   const malId = a.mal_id;
-  const pickerLabel = { watching: "Смотрю", planned: "В Планах", completed: "Просмотрено", postponed: "Отложено", dropped: "Брошено" };
+  const pickerLabel = { watching: "Смотрю", planned: "В планах", completed: "Просмотрено", postponed: "Отложено", dropped: "Брошено" };
 
   const favBtn = $("#avFavBtn");
   const picker = $("#avListPicker");
@@ -1496,6 +1507,8 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
     favBtn.classList.toggle("is-fav", isFav);
     favBtn.setAttribute("aria-pressed", isFav ? "true" : "false");
     favBtn.querySelector(".fav-label").textContent = isFav ? "В избранном" : "В избранное";
+    const icon = favBtn.querySelector(".fav-icon");
+    if (icon) icon.className = `${isFav ? "fas" : "far"} fa-star fav-icon`;
   };
   const paintPicker = () => {
     if (!picker) return;
@@ -1506,9 +1519,16 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
     if (label) label.textContent = status ? pickerLabel[status] : "В список";
     picker.classList.toggle("has-status", !!status);
     picker.classList.toggle("auto", !!auto);
+    const autoBadge = $(".list-picker-auto", picker);
+    if (autoBadge) autoBadge.hidden = !(status && auto);
     [...pickerPop.querySelectorAll(".lp-option")].forEach(el => {
-      el.classList.toggle("active", el.dataset.status === (status || ""));
+      const on = el.dataset.status === (status || "");
+      el.classList.toggle("is-active", on);
+      if (el.getAttribute("role") === "menuitemradio") el.setAttribute("aria-checked", String(on));
     });
+    // "Убрать из списков" and its divider only make sense for a title that is in a list.
+    pickerPop.querySelector(".lp-clear").hidden = !status;
+    pickerPop.querySelector(".lp-clear-sep").hidden = !status;
   };
   paintFav();
   paintPicker();
@@ -1538,12 +1558,17 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
   // имеет overflow:hidden для клиппинга баннера, и absolute-меню в нём
   // обрезается следующим блоком. Поэтому считаем координаты от триггера.
   if (picker && pickerBtn && pickerPop) {
+    // Under the button, or above it when the bottom of the screen has no room; never past the right edge.
     const position = () => {
       const r = pickerBtn.getBoundingClientRect();
+      const gap = 6, edge = 8;
       pickerPop.style.position = "fixed";
-      pickerPop.style.top = `${r.bottom + 6}px`;
-      pickerPop.style.left = `${r.left}px`;
       pickerPop.style.minWidth = `${Math.max(r.width, 220)}px`;
+      const w = pickerPop.offsetWidth, h = pickerPop.offsetHeight;
+      const fitsBelow = r.bottom + gap + h <= window.innerHeight - edge;
+      const fitsAbove = r.top - gap - h >= edge;
+      pickerPop.style.top = `${fitsBelow || !fitsAbove ? r.bottom + gap : r.top - gap - h}px`;
+      pickerPop.style.left = `${Math.max(edge, Math.min(r.left, window.innerWidth - w - edge))}px`;
     };
     const setOpen = (on) => {
       pickerPop.hidden = !on;
@@ -1596,11 +1621,16 @@ function renderRatingStars(malId) {
   if (!box) return;
   const current = rating.get(malId);
   box.innerHTML = "";
+  box.setAttribute("role", "group");
+  box.setAttribute("aria-label", "Ваша оценка");
   for (let i = 1; i <= 10; i++) {
-    const s = document.createElement("span");
+    const s = document.createElement("button");
+    s.type = "button";
     s.className = "rate-star" + (i <= current ? " filled" : "");
-    s.innerHTML = "★";
+    s.innerHTML = `<i class="fas fa-star" aria-hidden="true"></i>`;
     s.title = `Оценить на ${i}`;
+    s.setAttribute("aria-label", `Оценить на ${i} из 10`);
+    s.setAttribute("aria-pressed", String(i === current));
     s.addEventListener("mouseenter", () => {
       $$(".rate-star", box).forEach((el, idx) => el.classList.toggle("filled", idx < i));
     });
@@ -1617,7 +1647,7 @@ function renderRatingStars(malId) {
   }
   const lbl = document.createElement("span");
   lbl.className = "rate-label";
-  lbl.textContent = current ? `Ваша оценка: ${current}/10` : (state.user ? "Оцените" : "Оцените (войдите)");
+  lbl.textContent = current ? `${current} из 10` : (state.user ? "Не оценено" : "Войдите, чтобы оценить");
   box.appendChild(lbl);
 }
 
@@ -1625,15 +1655,17 @@ function renderSeasonsBar(currentAnime, relations) {
   const bar = $("#avSeasonsBar");
   if (!bar) return;
   if (!relations?.length) { bar.hidden = true; return; }
+  // MAL writes relation types in either case ("Side story" and "Side Story"), so keys are lower case.
   const LABELS = {
-    "Side story": "Побочная", "Summary": "Саммари",
-    "Alternative version": "Альт. версия", "Parent story": "Оригинал",
-    "Alternative setting": "Альт. сеттинг", "Full story": "Полная версия",
-    "Spin-off": "Спин-офф",
+    "side story": "Побочная история", "summary": "Пересказ",
+    "alternative version": "Альтернативная версия", "parent story": "Основная история",
+    "alternative setting": "Другой сеттинг", "full story": "Полная версия",
+    "spin-off": "Спин-офф", "character": "Те же персонажи", "other": "Другое",
   };
-  const preqs = relations.filter(r => r.relation === "Prequel");
-  const seqs = relations.filter(r => r.relation === "Sequel");
-  const others = relations.filter(r => !["Prequel", "Sequel"].includes(r.relation));
+  const relationLabel = (relation) => LABELS[String(relation || "").toLowerCase()] || relation;
+  const preqs = relations.filter(r => /^prequel$/i.test(r.relation));
+  const seqs = relations.filter(r => /^sequel$/i.test(r.relation));
+  const others = relations.filter(r => !/^(prequel|sequel)$/i.test(r.relation));
   const chain = [
     ...preqs.map(r => ({ mal_id: r.mal_id, name: r.name })),
     { mal_id: currentAnime.mal_id, name: currentAnime.title_english || currentAnime.title, current: true },
@@ -1642,17 +1674,18 @@ function renderSeasonsBar(currentAnime, relations) {
   bar.hidden = false;
   bar.innerHTML = "";
   chain.forEach((it, i) => {
-    const el = document.createElement(it.current ? "div" : "a");
-    el.className = "season-tab" + (it.current ? " active" : "");
-    if (!it.current) el.href = `/anime/${it.mal_id}/`;
-    el.innerHTML = `<span class="season-lbl">${i + 1} сезон</span><span class="season-name">${esc(it.name)}</span>`;
+    const el = document.createElement(it.current ? "span" : "a");
+    el.className = "season-tab" + (it.current ? " is-active" : "");
+    if (it.current) el.setAttribute("aria-current", "page");
+    else el.href = `/anime/${it.mal_id}/`;
+    el.innerHTML = `<span class="season-lbl">${i + 1}-й сезон</span><span class="season-name">${esc(it.name)}</span>`;
     bar.appendChild(el);
   });
   others.forEach(r => {
     const el = document.createElement("a");
     el.className = "season-tab";
     el.href = `/anime/${r.mal_id}/`;
-    el.innerHTML = `<span class="season-lbl">${esc(LABELS[r.relation] || r.relation)}</span><span class="season-name">${esc(r.name)}</span>`;
+    el.innerHTML = `<span class="season-lbl">${esc(relationLabel(r.relation))}</span><span class="season-name">${esc(r.name)}</span>`;
     bar.appendChild(el);
   });
 }
@@ -1663,7 +1696,7 @@ function applyShiki(malId, a, shiki) {
     const tEl = $("#avHeroTitle"); if (tEl) { tEl.textContent = shiki.russian; fitHeroTitle(tEl); }
     const sEl = $("#avHeroSub");
     const orig = a.title_english || a.title;
-    if (sEl) sEl.textContent = [orig, a.title_japanese].filter(Boolean).join(" · ");
+    if (sEl) sEl.textContent = [orig, a.title_japanese].filter(Boolean).join(", ");
   }
   const desc = cleanBBCode(shiki.description);
   if (desc) {
@@ -1677,7 +1710,13 @@ function applyShiki(malId, a, shiki) {
 function applyAnilist(al) {
   if (!al) return;
   if (al.bannerImage) {
-    const h = $("#avHero"); if (h) h.style.backgroundImage = `url('${imgUrl(al.bannerImage)}')`;
+    const cover = $("#avHeroCover");
+    const img = $("#avHeroCoverImg");
+    if (cover && img) {
+      img.onload = () => { cover.hidden = false; };
+      img.onerror = () => { cover.hidden = true; };
+      img.src = imgUrl(al.bannerImage);
+    }
   }
   if (al.description) {
     const syn = $("#avSynopsis");
@@ -1708,7 +1747,11 @@ async function ensureRussianDescription() {
 
 function renderCharacters(chars) {
   const box = $("#avChars"); if (!box) return;
-  if (!chars?.length) { box.innerHTML = `<div class="av-empty">Нет данных</div>`; return; }
+  if (!chars?.length) {
+    box.innerHTML = errorPage({ title: "Персонажей пока нет", message: "MyAnimeList ещё не добавил персонажей этого тайтла.", icon: "fas fa-user-group" });
+    return;
+  }
+  const ROLE_RU = { Main: "Главная роль", Supporting: "Второстепенная роль" };
   box.innerHTML = "";
   chars.slice(0, 12).forEach(c => {
     const el = document.createElement("div");
@@ -1716,11 +1759,13 @@ function renderCharacters(chars) {
     const va = (c.voice_actors || []).find(v => v.language === "Japanese") || c.voice_actors?.[0];
     const img = c.character?.images?.jpg?.image_url || "";
     el.innerHTML = `
-      <div class="char-img"><img src="${imgUrl(img)}" loading="lazy" alt=""></div>
+      <button type="button" class="char-img" aria-label="Открыть изображение" ${img ? "" : "disabled"}>
+        <i class="fas fa-user" aria-hidden="true"></i>${img ? `<img src="${imgUrl(img)}" loading="lazy" alt="" onerror="this.remove()">` : ""}
+      </button>
       <div class="char-info">
-        <div class="char-name">${esc(c.character?.name || '')}</div>
-        <div class="char-role">${esc(c.role || '')}</div>
-        ${va ? `<div class="char-va">${esc(va.person?.name || '')}</div>` : ""}
+        <div class="char-name">${esc(c.character?.name || "")}</div>
+        <div class="char-role">${esc(ROLE_RU[c.role] || c.role || "")}</div>
+        ${va ? `<div class="char-va">${esc(va.person?.name || "")}</div>` : ""}
       </div>`;
     if (img) $(".char-img", el).addEventListener("click", () => lightbox.open(img));
     box.appendChild(el);
@@ -1728,7 +1773,10 @@ function renderCharacters(chars) {
 }
 function renderRecommendations(recs) {
   const box = $("#avRecs"); if (!box) return;
-  if (!recs?.length) { box.innerHTML = `<div class="av-empty">Нет рекомендаций</div>`; return; }
+  if (!recs?.length) {
+    box.innerHTML = errorPage({ title: "Похожих тайтлов пока нет", message: "Рекомендации появятся, когда их добавят пользователи MyAnimeList.", icon: "fas fa-shapes" });
+    return;
+  }
   box.innerHTML = "";
   const frag = document.createDocumentFragment();
   recs.slice(0, 12).forEach(r => {
@@ -1912,7 +1960,7 @@ class Player {
     } finally { this._red = false; }
   }
   async init() {
-    this.status("Ищу аниме…");
+    this.status("Ищем аниме…");
     if (!state.backendAvailable) { this.renderUnavailable("Бэкенд не запущен"); return; }
     if (this._isNonAnime()) {
       // Late titles must not start a search behind this banner.
@@ -1954,7 +2002,7 @@ class Player {
     this._rendered = true;
     // A source found after "not found" (late titles) needs the status area back.
     const overlay = $("#avPlayerOverlay");
-    if (overlay?.querySelector(".unavail")) overlay.innerHTML = `<div class="spinner"></div><div id="avPlayerStatus"></div>`;
+    if (overlay?.querySelector(".unavail")) overlay.innerHTML = `<span class="ed-spinner spinner" aria-hidden="true"></span><div id="avPlayerStatus"></div>`;
     this.episodes = this._buildEpisodeList(srcData.episodes);
 
     $("#avEpCount").textContent = `${this.episodes.length} эп.`;
@@ -2356,23 +2404,11 @@ class Player {
     if (!note) {
       note = document.createElement("div");
       note.className = "player-shot-notice";
+      note.setAttribute("role", "status");
       c.appendChild(note);
     }
     note.textContent = text;
-    note.style.cssText = [
-      "position:absolute",
-      "left:50%",
-      "bottom:74px",
-      "transform:translateX(-50%)",
-      "z-index:30",
-      "padding:9px 13px",
-      "border-radius:6px",
-      "background:" + (danger ? "rgba(120,24,32,.94)" : "rgba(18,18,18,.92)"),
-      "color:#fff",
-      "font:700 12px/1.2 var(--font,Arial,sans-serif)",
-      "box-shadow:0 10px 26px rgba(0,0,0,.36)",
-      "pointer-events:none",
-    ].join(";");
+    note.classList.toggle("is-danger", !!danger);
     clearTimeout(this._shotNoticeTimer);
     this._shotNoticeTimer = setTimeout(() => note.remove(), 1800);
   }
@@ -2404,7 +2440,7 @@ class Player {
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
-      this._flashPlayerNotice("Скриншот сохранен");
+      this._flashPlayerNotice("Скриншот сохранён");
     } catch (_) {
       this._flashPlayerNotice("Не удалось сохранить скриншот", true);
     }
@@ -2511,13 +2547,14 @@ class Player {
   _showPlayerContextMenu(clientX, clientY) {
     this._hidePlayerContextMenu();
     const menu = document.createElement("div");
-    menu.className = "asoplayer-menu";
+    menu.className = "ed-menu asoplayer-menu";
     menu.setAttribute("role", "menu");
     menu.innerHTML = `
-      <button type="button" role="menuitem" data-action="screenshot">Сделать скриншот</button>
-      <button type="button" role="menuitem" data-action="copy-link">Копировать ссылку на аниме</button>
-      <button type="button" role="menuitem" data-action="animesocial">Аниме соц сеть</button>
-      <div class="asoplayer-menu-brand">AsoPlayer v0.0.1</div>
+      <button type="button" class="ed-menu__item" role="menuitem" data-action="screenshot"><i class="fas fa-camera" aria-hidden="true"></i>Сделать скриншот</button>
+      <button type="button" class="ed-menu__item" role="menuitem" data-action="copy-link"><i class="fas fa-link" aria-hidden="true"></i>Копировать ссылку на аниме</button>
+      <button type="button" class="ed-menu__item" role="menuitem" data-action="animesocial"><i class="fas fa-users" aria-hidden="true"></i>Открыть AnimeSocial</button>
+      <div class="ed-menu__divider" role="separator"></div>
+      <div class="asoplayer-menu-brand">AsoPlayer 0.0.1</div>
     `;
     menu.addEventListener("click", (event) => {
       const button = event.target.closest("button[data-action]");
@@ -2674,7 +2711,11 @@ class Player {
         this.toggleDubPop();
       });
       document.addEventListener("click", e => {
-        if (!pop?.hidden && !pop.contains(e.target) && !trigger.contains(e.target)) this.closeDubPop();
+        if (pop?.hidden) return;
+        if (e.target.closest?.("[data-dub-close]") || (!pop.contains(e.target) && !trigger.contains(e.target))) this.closeDubPop();
+      });
+      document.addEventListener("keydown", e => {
+        if (e.key === "Escape" && pop && !pop.hidden) this.closeDubPop();
       });
     }
     const prev = $("#avPrevEp");
@@ -2718,7 +2759,7 @@ class Player {
     const hasDate = releaseAt instanceof Date;
     ov.innerHTML = hasDate ? `
       <div class="coming-soon">
-        <div class="coming-title">До выхода аниме осталось:</div>
+        <div class="coming-title">До выхода осталось</div>
         <div class="coming-timer" id="avCountdown">
           <div class="ct-cell"><span class="ct-num" data-k="d">—</span><span class="ct-lbl">дней</span></div>
           <div class="ct-sep">:</div>
@@ -2732,12 +2773,10 @@ class Player {
       </div>` : `
       <div class="coming-soon">
         <div class="coming-title">Аниме анонсировано</div>
-        <div class="coming-date" style="max-width:480px;line-height:1.5">
-          Дата премьеры пока не объявлена. Эпизоды появятся, как только аниме начнёт выходить — возвращайтесь позже.
-        </div>
+        <div class="coming-date">Дата премьеры пока не объявлена. Серии появятся здесь, когда аниме начнёт выходить.</div>
       </div>`;
     ov.classList.remove("hide");
-    $("#avEpisodesList").innerHTML = `<div class="av-empty">Эпизодов пока нет — аниме ещё не вышло</div>`;
+    $("#avEpisodesList").innerHTML = errorPage({ title: "Серий пока нет", message: "Аниме ещё не вышло.", icon: "fas fa-hourglass-half" });
     if (!hasDate) return;
     const tick = () => {
       if (this.destroyed) { clearInterval(this._countdownInt); return; }
@@ -2774,25 +2813,17 @@ class Player {
     if (!ov) return;
     ov.innerHTML = `
       <div class="unavail">
-        <div class="unavail-icon">
-          <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9"/>
-            <path d="M8.5 16c.8-1.5 2.1-2.5 3.5-2.5s2.7 1 3.5 2.5"/>
-            <line x1="9" y1="10" x2="9.01" y2="10"/>
-            <line x1="15" y1="10" x2="15.01" y2="10"/>
-          </svg>
-        </div>
+        <div class="unavail-icon"><i class="fas fa-video-slash" aria-hidden="true"></i></div>
         <div class="unavail-title">${msg ? esc(msg) : "Видео пока не найдено"}</div>
-        <div class="unavail-sub">${sub ? esc(sub) : "К сожалению, ни один из API-источников не содержит данный контент. Если вы хотите посмотреть конкретно это аниме, воспользуйтесь поиском."}</div>
+        <div class="unavail-sub">${sub ? esc(sub) : "Ни один источник не отдаёт это аниме. Попробуйте найти его через поиск."}</div>
         <div class="unavail-links">
-          <a href="${esc(ddg)}" target="_blank" rel="noopener" class="unavail-ddg">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M10 2a8 8 0 1 0 4.9 14.3l5.4 5.4 1.4-1.4-5.4-5.4A8 8 0 0 0 10 2m0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12"/></svg>
-            Искать в DuckDuckGo
+          <a href="${esc(ddg)}" target="_blank" rel="noopener" class="ed-btn ed-btn--secondary unavail-ddg">
+            <i class="fas fa-magnifying-glass" aria-hidden="true"></i>Искать в DuckDuckGo
           </a>
         </div>
       </div>`;
     ov.classList.remove("hide");
-    $("#avEpisodesList").innerHTML = `<div class="av-empty">Источник не найден</div>`;
+    $("#avEpisodesList").innerHTML = errorPage({ title: "Источник не найден", message: "Серии появятся, когда аниме добавят в источники.", icon: "fas fa-video-slash" });
   }
 
   _expandQueries(titles) {
@@ -2947,7 +2978,7 @@ class Player {
   renderEpisodes() {
     const list = $("#avEpisodesList");
     const search = $("#avEpSearch");
-    search.hidden = this.episodes.length < 12;
+    (search.closest(".ep-search-wrap") || search).hidden = this.episodes.length < 12;
     search.oninput = e => {
       const q = e.target.value.toLowerCase();
       $$(".ep-row", list).forEach(r => {
@@ -2977,18 +3008,16 @@ class Player {
       b.innerHTML = `
         <span class="ep-num">${e.num}</span>
         <span class="ep-name">${esc(e.name)}</span>
+        <i class="fas fa-check ep-watched-icon" aria-hidden="true"></i>
         ${canUnwatch ? `
-          <button type="button" class="ep-unwatch" aria-label="Отметить серию ${e.num} как непросмотренную">
-            <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true">
-              <path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-            </svg>
-            <span class="ep-unwatch-tip">отметить как непросмотренное</span>
+          <button type="button" class="ed-iconbtn ep-unwatch" aria-label="Отметить серию ${e.num} как непросмотренную" title="Отметить как непросмотренную">
+            <i class="fas fa-rotate-left" aria-hidden="true"></i>
           </button>
-          <div class="ep-unwatch-confirm" hidden>
-            <div class="ep-unwatch-confirm-text">Вы уверены, что хотите отметить, что не смотрели эту серию? Это действие необратимо, так же будет удалена любая активность связанная с просмотром этой серии.</div>
+          <div class="ep-unwatch-confirm" role="alertdialog" aria-label="Отметить серию как непросмотренную" hidden>
+            <div class="ep-unwatch-confirm-text">Отметить серию ${e.num} как непросмотренную? Прогресс и активность этой серии удалятся, вернуть их нельзя.</div>
             <div class="ep-unwatch-confirm-actions">
-              <button type="button" class="ep-unwatch-yes">Да</button>
-              <button type="button" class="ep-unwatch-no">Отмена</button>
+              <button type="button" class="ed-btn ed-btn--danger ed-btn--sm ep-unwatch-yes">Отметить</button>
+              <button type="button" class="ed-btn ed-btn--ghost ed-btn--sm ep-unwatch-no">Отмена</button>
             </div>
           </div>` : ""}
         ${pct > 0 && pct < 95 ? `<div class="ep-progress"><span style="width:${pct}%"></span></div>` : ""}`;
@@ -3089,7 +3118,7 @@ class Player {
     const p = $("#avPrevEp"), n = $("#avNextEp");
     if (p) p.disabled = i === 0;
     if (n) n.disabled = i === this.episodes.length - 1;
-    this.status(`Загружаю озвучки для эпизода ${ep.num}…`);
+    this.status(`Загружаем озвучки для ${ep.num}-й серии…`);
 
     try {
       let dubs = this._dubsCache.get(ep.num);
@@ -3186,16 +3215,19 @@ class Player {
       if (sections.length > 1) {
         const title = document.createElement("div");
         title.className = "sp-dub-sec-title";
-        title.textContent = `${g.title} · ${g.items.length}`;
+        title.innerHTML = `${esc(g.title)}<span class="ed-badge ed-badge--muted">${g.items.length}</span>`;
         section.appendChild(title);
       }
       const listWrap = document.createElement("div");
       listWrap.className = "sp-dub-list";
       g.items.forEach(({ d, i }) => {
         const b = document.createElement("button");
-        b.className = "sp-dub-item" + (i === this.currentDubIdx ? " active" : "");
+        const active = i === this.currentDubIdx;
+        b.type = "button";
+        b.className = "ed-menu__item sp-dub-item" + (active ? " is-active" : "");
+        b.setAttribute("aria-pressed", String(active));
         const short = d.label.replace(/^(Озвучка|Субтитры|Оригинал)\s*/i, "").trim() || d.label;
-        b.textContent = short;
+        b.innerHTML = `<span class="sp-dub-name">${esc(short)}</span>${active ? '<i class="fas fa-check" aria-hidden="true"></i>' : ""}`;
         b.title = d.label;
         b.addEventListener("click", () => {
           this.currentDubIdx = i;
@@ -3212,16 +3244,33 @@ class Player {
   }
 
   closeDubPop() {
-    const pop = $("#avDubPop"); if (pop) pop.hidden = true;
-    const tr = $("#avDubTrigger"); if (tr) tr.classList.remove("open");
+    const pop = $("#avDubPop");
+    const tr = $("#avDubTrigger");
+    if (pop && !pop.hidden && pop.contains(document.activeElement)) tr?.focus({ preventScroll: true });
+    if (pop) pop.hidden = true;
+    if (tr) {
+      tr.classList.remove("open");
+      tr.setAttribute("aria-expanded", "false");
+    }
+    document.body.classList.remove("is-dub-sheet");
   }
   toggleDubPop() {
     const pop = $("#avDubPop");
     const tr = $("#avDubTrigger");
     if (!pop || !tr) return;
     const isOpen = !pop.hidden;
-    pop.hidden = isOpen;
-    tr.classList.toggle("open", !isOpen);
+    if (isOpen) { this.closeDubPop(); return; }
+    pop.hidden = false;
+    tr.classList.add("open");
+    tr.setAttribute("aria-expanded", "true");
+    // On a phone the list is a bottom sheet: it follows the finger and closes when swiped down.
+    const sheet = window.matchMedia("(max-width: 767px)").matches;
+    document.body.classList.toggle("is-dub-sheet", sheet);
+    const panel = pop.querySelector(".sp-dub-panel");
+    if (sheet && panel) {
+      SheetDrag.bind(panel, { scrim: pop.querySelector(".sp-dub-scrim"), scroll: ".sp-dub-panel", close: () => this.closeDubPop() });
+    }
+    (pop.querySelector(".sp-dub-item.is-active") || pop.querySelector(".sp-dub-item"))?.focus({ preventScroll: true });
   }
   async playDub(i, { retryStale = true } = {}) {
     const d = this.currentDubs[i];
@@ -3231,7 +3280,7 @@ class Player {
     const reqId = this._reqId;
 
     if (!d.iframeUrl && d._sourceKey) {
-      this.status(`Загружаю «${d.label}»…`);
+      this.status(`Загружаем «${d.label}»…`);
       let vids = [];
       try { vids = await api.backendVideos(d._sourceKey, d._src) || []; }
       catch (err) {
@@ -3334,7 +3383,7 @@ class Player {
     // Harden third-party players: keep playback features, block popups and
     // top-level navigation attempts from ad scripts inside the iframe.
     hardenFrame(iframe, allowSameOrigin);
-    iframe.style.cssText = "width:100%;height:100%;border:0;background:#000";
+    iframe.className = "player-frame";
     iframe.src = playerUrl;
     c.appendChild(iframe);
     this._iframeEl = iframe;
@@ -3357,7 +3406,7 @@ class Player {
     if (retry) {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "btn btn-primary player-retry";
+      button.className = "ed-btn ed-btn--primary player-retry";
       button.textContent = "Повторить";
       button.onclick = retry;
       o.append(button);
@@ -3457,10 +3506,14 @@ async function refreshBackend() {
 let closeMobileMenu = () => {};
 function bind() {
   document.addEventListener("keydown", e => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); nav("/catalog"); }
+    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
+    e.preventDefault();
+    const field = $("#appSearchInput");
+    if (field && field.getClientRects().length) field.focus();
+    else nav("/catalog");
   });
 
-  closeMobileMenu = setupNavigation();
+  closeMobileMenu = setupNavigation({ nav });
 
   const toTop = $("#toTop");
   window.addEventListener("scroll", () => {
@@ -3501,6 +3554,7 @@ bind();
     outlet: $("#outlet"),
     setActive: setActiveNav,
     errorPage,
+    loadingBlock,
     makeCard,
     imgUrl,
     enrichWithShiki,

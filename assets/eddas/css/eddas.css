@@ -1,0 +1,260 @@
+/* EDDAS — компоненты дизайн-системы (классы ed-*), только токены из tokens.css.
+   Источник: дизайн-система EDDAS (components/bundle.css). Интеграция: Чепела Даниил Максимович */
+
+
+.ed-root, .ed-root * { box-sizing: border-box; }
+.ed-root { font-family: var(--font-sans); font-size: 15px; line-height: 1.5; color: var(--text); -webkit-font-smoothing: antialiased; font-feature-settings: "ss01", "cv05"; }
+.ed-row { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.ed-col { display: flex; flex-direction: column; gap: var(--space-4); }
+.ed-root :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .ed-root * { transition: none !important; animation: none !important; } }
+
+/* ── Button ── */
+.ed-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); height: var(--space-10); padding: 0 18px; border: 0; border-radius: var(--radius-sm); font: 500 14px/1 var(--font-sans); letter-spacing: 0.005em; white-space: nowrap; cursor: pointer; user-select: none; text-decoration: none; transition: background-color 120ms, color 120ms, transform 120ms; }
+.ed-btn:active { transform: scale(0.98); }
+.ed-btn:disabled, .ed-btn.is-disabled { pointer-events: none; cursor: default; }
+/* Неактивная — нейтральная заливка и приглушённый, но читаемый текст (полупрозрачная основная в тёмной теме почти не видна);
+   кнопка в состоянии загрузки (UI.Busy) сохраняет свой цвет */
+.ed-btn:disabled:not(.is-loading), .ed-btn.is-disabled:not(.is-loading) { background: var(--surface-3); background: color-mix(in srgb, var(--text-faint) 14%, transparent); color: var(--text-muted); box-shadow: none; }
+.ed-btn--ghost:disabled:not(.is-loading), .ed-btn--ghost.is-disabled:not(.is-loading) { background: transparent; }
+.ed-iconbtn:disabled { color: var(--text-faint); opacity: .6; pointer-events: none; }
+.ed-btn--primary { background: var(--brand-fill); color: var(--on-brand-fill); }
+.ed-btn--primary:active { background: var(--brand-fill-active); }
+.ed-btn--secondary { background: var(--brand-soft); color: var(--brand); }
+.ed-btn--ghost { background: transparent; color: var(--text); }
+.ed-btn--danger { background: var(--danger-fill); color: var(--on-brand-fill); }
+.ed-btn--success { background: var(--success-fill); color: var(--on-brand-fill); }
+/* Кнопка-ссылка (a.ed-btn): цвет текста при наведении — от варианта кнопки, а не общего a:hover (сильнее по весу):
+   иначе текст основной кнопки становился цвета её фона и пропадал */
+.ed-btn--primary:hover, .ed-btn--danger:hover, .ed-btn--success:hover { color: var(--on-brand-fill); }
+.ed-btn--secondary:hover { color: var(--brand); }
+.ed-btn--ghost:hover { color: var(--text); }
+.ed-btn--sm { height: 32px; padding: 0 12px; font-size: 13px; }
+.ed-btn--lg { height: 48px; padding: 0 24px; font-size: 15px; border-radius: var(--radius-md); }
+.ed-btn--block { display: flex; width: 100%; }
+.ed-btn i { font-size: 14px; }
+
+/* ── IconButton ── */
+.ed-iconbtn { width: var(--space-10); height: var(--space-10); display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--text-muted); cursor: pointer; font-size: 16px; transition: background-color 120ms, color 120ms; }
+.ed-iconbtn--filled { background: var(--brand-fill); color: var(--on-brand-fill); }
+.ed-iconbtn--tonal { background: var(--surface-2); }
+
+/* ── Input ── */
+.ed-field { display: block; }
+.ed-field__label { display: block; margin-bottom: var(--space-2); font: 500 14px/1.4 var(--font-sans); color: var(--text-strong); }
+.ed-field__wrap { position: relative; display: flex; align-items: center; }
+.ed-input { display: block; width: 100%; height: 44px; padding: 0 var(--space-4); background: var(--surface-2); border: 1px solid transparent; border-radius: var(--radius-sm); font: 400 15px/1.4 var(--font-sans); color: var(--text-strong); outline: none; transition: background-color 120ms, border-color 120ms, box-shadow 120ms; }
+.ed-input::placeholder { color: var(--placeholder); }
+.ed-input:focus { background: var(--surface); border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.ed-input.is-error { border-color: var(--danger); }
+.ed-input.is-error:focus { box-shadow: 0 0 0 3px var(--danger-soft); }
+.ed-input--action { padding-right: 88px; }
+.ed-field__action { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); height: 32px; padding: 0 10px; border: 0; border-radius: var(--radius-xs); background: transparent; font: 500 13px var(--font-sans); color: var(--brand); cursor: pointer; }
+.ed-field__note { margin-top: var(--space-2); min-height: 18px; font: 400 13px/1.4 var(--font-sans); color: var(--text-muted); }
+.ed-field__note.is-error { color: var(--danger); }
+.ed-field__note.is-success { color: var(--success); }
+
+/* ── SearchField ── */
+.ed-search { position: relative; }
+.ed-search__icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 14px; color: var(--text-muted); pointer-events: none; }
+.ed-search__input { width: 100%; height: 44px; padding: 0 var(--space-4) 0 40px; border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--surface-2); font: 400 15px var(--font-sans); color: var(--text-strong); outline: none; transition: background-color 120ms, border-color 120ms, box-shadow 120ms; }
+.ed-search__input::placeholder { color: var(--placeholder); }
+.ed-search__input:focus { background: var(--surface); border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.ed-search--chat .ed-search__input { height: 38px; border-radius: var(--radius-md); font-size: 14px; }
+
+/* ── Chip ── */
+.ed-chip { height: 36px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font: 500 14px var(--font-sans); color: var(--text); cursor: pointer; transition: background-color 120ms, border-color 120ms, color 120ms; }
+.ed-chip.is-active { background: var(--brand-fill); border-color: var(--brand-fill); color: var(--on-brand-fill); }
+.ed-chip.is-active::before { content: "✓"; margin-right: 6px; font-size: 12px; }
+
+/* ── Badge ── */
+.ed-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--radius-pill); background: var(--brand-fill); color: var(--on-brand-fill); font: 600 12px/1 var(--font-sans); font-variant-numeric: tabular-nums; }
+.ed-badge--alert { background: var(--alert-fill); box-shadow: 0 0 0 2px var(--surface); }
+.ed-badge--muted { background: var(--surface-3); color: var(--text-muted); }
+.ed-badge--owner { height: 22px; padding: 0 8px; background: var(--warning-soft); color: var(--warning); font-size: 12px; font-weight: 500; }
+.ed-badge--admin { height: 22px; padding: 0 8px; background: var(--brand-soft); color: var(--brand); font-size: 12px; font-weight: 500; }
+
+/* ── Avatar ── */
+.ed-ava { position: relative; display: inline-block; flex-shrink: 0; border-radius: var(--radius-full); background: var(--surface-3); }
+.ed-ava img, .ed-ava__initials { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; display: flex; align-items: center; justify-content: center; }
+.ed-ava__initials { background: var(--brand-soft); color: var(--brand); font-weight: 600; letter-spacing: 0.02em; }
+.ed-ava--square { border-radius: var(--radius-sm); }
+.ed-ava__dot { position: absolute; right: 0; bottom: 0; width: 12px; height: 12px; border: 2px solid var(--surface); border-radius: var(--radius-full); background: var(--online); }
+.ed-ava--lg .ed-ava__dot { width: 14px; height: 14px; right: 2px; bottom: 2px; }
+
+/* ── Panel ── */
+.ed-panel { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-raise); }
+.ed-panel__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-5) var(--space-6) 0; font: 600 16px/1.35 var(--font-sans); color: var(--text-strong); }
+.ed-panel__body { padding: var(--space-4) var(--space-6) var(--space-6); }
+.ed-panel__head + .ed-panel__body { padding-top: var(--space-3); }
+.ed-panel--flush .ed-panel__body { padding: var(--space-2); }
+
+/* ── Tabs (segmented) ── */
+.ed-tabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.ed-tabs__item { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; font: 500 14px var(--font-sans); color: var(--text-muted); cursor: pointer; transition: background-color 120ms, color 120ms, box-shadow 120ms; }
+.ed-tabs__item.is-active { background: var(--surface); color: var(--text-strong); box-shadow: var(--shadow-raise); }
+.ed-tabs__count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--radius-pill); background: var(--brand-fill); color: var(--on-brand-fill); font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; }
+.ed-tabs--line { padding: 0; gap: 0; background: transparent; border-radius: 0; border-bottom: 1px solid var(--border); }
+.ed-tabs--line .ed-tabs__item { height: 44px; border-radius: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.ed-tabs--line .ed-tabs__item.is-active { background: transparent; box-shadow: none; border-bottom-color: var(--brand); color: var(--brand); }
+
+/* ── Chat: feed, bubble, date ── */
+.ed-feed { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-4) var(--space-5); background: var(--chat-canvas); }
+.ed-msg { display: flex; align-items: flex-end; width: 100%; }
+.ed-msg--own { justify-content: flex-end; }
+.ed-msg + .ed-msg:not(.is-grouped) { margin-top: var(--space-2); }
+.ed-msg__body { display: flex; flex-direction: column; max-width: 68%; align-items: flex-start; }
+.ed-msg--own .ed-msg__body { align-items: flex-end; }
+.ed-msg__ava { width: 32px; height: 32px; margin: 0 var(--space-2) 0 0; align-self: flex-end; }
+.ed-msg__name { margin: 0 var(--space-3) var(--space-1); font: 600 13px/1.3 var(--font-sans); color: var(--brand); }
+.ed-msg__bubble { position: relative; display: inline-flex; flex-direction: column; padding: 9px var(--space-3) 8px; border-radius: var(--radius-lg); border-bottom-left-radius: var(--radius-tail); background: var(--bubble-other); color: var(--text-strong); box-shadow: var(--shadow-bubble); font-size: 15px; line-height: 1.45; text-align: left; overflow-wrap: anywhere; white-space: pre-wrap; }
+.ed-msg--own .ed-msg__bubble { background: var(--bubble-own); border-bottom-left-radius: var(--radius-lg); border-bottom-right-radius: var(--radius-tail); box-shadow: none; }
+/* Приглушённый текст внутри своего «пузыря» (исполнитель и длительность трека, подписи) — свой оттенок: фон пузыря светлее карточки, в тёмной теме обычный приглушённый на нём не читается */
+.ed-msg--own .ed-msg__bubble { --text-muted: var(--bubble-own-muted); --text-faint: var(--bubble-own-muted); }
+.ed-msg.is-grouped .ed-msg__bubble { border-radius: var(--radius-lg); }
+.ed-msg__time { display: inline-flex; align-items: center; gap: 4px; margin: 4px var(--space-3) 0; font: 500 12px/1 var(--font-sans); color: var(--chat-time); font-variant-numeric: tabular-nums; }
+.ed-msg__status { font-size: 11px; }
+.ed-msg__status.is-read { color: var(--success); }
+.ed-msg__reply { display: block; margin: 0 0 6px; padding: 6px 10px; border-left: 2px solid var(--brand); border-radius: var(--radius-xs); background: var(--surface-2); font-size: 13px; white-space: normal; }
+.ed-msg--own .ed-msg__reply { background: rgba(255, 255, 255, 0.45); }
+[data-theme="dark"] .ed-msg--own .ed-msg__reply { background: rgba(0, 0, 0, 0.2); }
+.ed-msg__reply b { display: block; font-weight: 600; color: var(--brand); line-height: 1.3; }
+.ed-msg__reply span { display: block; max-width: 260px; overflow: hidden; color: var(--text-muted); white-space: nowrap; text-overflow: ellipsis; }
+.ed-date { display: flex; justify-content: center; margin: var(--space-3) 0 var(--space-2); }
+.ed-date span { padding: 5px 12px; border-radius: var(--radius-pill); background: var(--date-pill); color: var(--on-brand-fill); font: 500 12px/1.3 var(--font-sans); }
+
+/* ── ChatListItem ── */
+.ed-chatitem { position: relative; display: flex; align-items: center; gap: var(--space-3); padding: 10px var(--space-3); border-radius: var(--radius-md); cursor: pointer; transition: background-color 120ms; }
+.ed-chatitem.is-active { background: var(--selected); }
+.ed-chatitem__info { flex: 1; min-width: 0; }
+.ed-chatitem__top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
+.ed-chatitem__name { overflow: hidden; font: 600 15px/1.35 var(--font-sans); color: var(--text-strong); white-space: nowrap; text-overflow: ellipsis; }
+.ed-chatitem__time { flex-shrink: 0; font: 500 12px var(--font-sans); color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.ed-chatitem__bottom { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-top: 2px; }
+.ed-chatitem__msg { overflow: hidden; font: 400 13px/1.4 var(--font-sans); color: var(--text-muted); white-space: nowrap; text-overflow: ellipsis; }
+.ed-chatitem.is-unread .ed-chatitem__msg { color: var(--text); font-weight: 500; }
+.ed-chatitem__verify { margin-left: 4px; font-size: 12px; color: var(--brand); }
+.ed-chatitem__elite { margin-left: 4px; font-size: 11px; color: var(--brand); }
+
+/* ── NotificationItem ── */
+.ed-notif { position: relative; display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); transition: background-color 120ms; }
+.ed-notif.is-clickable { cursor: pointer; }
+.ed-notif.is-new { background: var(--brand-soft); }
+.ed-notif__ava { position: relative; flex: 0 0 44px; width: 44px; height: 44px; }
+.ed-notif__type { position: absolute; right: -4px; bottom: -4px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border: 2px solid var(--surface); border-radius: var(--radius-full); background: var(--brand-fill); color: #fff; font-size: 10px; }
+.ed-notif.is-new .ed-notif__type { border-color: var(--brand-soft); }
+.ed-notif__type--like { background: var(--like); }
+.ed-notif__type--comment { background: var(--brand-fill); }
+.ed-notif__type--friend { background: var(--success-fill); }
+.ed-notif__type--gift { background: #7c5cc4; }
+.ed-notif__type--pay, .ed-notif__type--level { background: var(--warning); }
+.ed-notif__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding-top: 2px; }
+.ed-notif__text { font: 400 15px/1.45 var(--font-sans); color: var(--text); display: -webkit-box; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ed-notif__text b { font-weight: 600; color: var(--text-strong); }
+.ed-notif__date { font: 500 12px/1.3 var(--font-sans); color: var(--text-faint); }
+.ed-notif__actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+.ed-notif__dot { flex-shrink: 0; width: 8px; height: 8px; margin-top: 10px; border-radius: var(--radius-full); background: var(--brand); }
+
+/* ── UserRow ── */
+.ed-user { display: flex; align-items: center; gap: var(--space-3); padding: 10px var(--space-3); border-radius: var(--radius-md); transition: background-color 120ms; }
+.ed-user.is-clickable { cursor: pointer; }
+.ed-user__info { flex: 1; min-width: 0; }
+.ed-user__name { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; overflow: hidden; font: 600 15px/1.35 var(--font-sans); color: var(--text-strong); white-space: nowrap; text-overflow: ellipsis; text-decoration: none; }
+.ed-user__verify { font-size: 13px; color: var(--brand); }
+.ed-user__elite { font-size: 12px; color: var(--brand); }
+.ed-user__meta { margin-top: 1px; overflow: hidden; font: 400 13px/1.4 var(--font-sans); color: var(--text-muted); white-space: nowrap; text-overflow: ellipsis; }
+.ed-user--compact { padding: 8px var(--space-3); }
+.ed-user--compact .ed-user__name { font-weight: 500; }
+
+/* ── Byline: имя со значками в записях, репостах, комментариях и просмотрщике фото (user_badges) ──
+   Имя сокращается многоточием, галочка и «Элита» остаются видны и не переносятся на отдельную строку */
+.ed-byline { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; vertical-align: top; }
+.ed-byline > a { flex: 0 1 auto; min-width: 0; }
+.ed-byline__verify, .ed-byline__elite { flex: none; color: var(--brand); }
+.ed-byline__verify { font-size: 13px; }
+.ed-byline__elite { font-size: 12px; }
+.ed-byline--sm .ed-byline__verify { font-size: 12px; }
+.ed-byline--sm .ed-byline__elite { font-size: 11px; }
+
+/* ── EmptyState ── */
+.ed-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-10) var(--space-6); text-align: center; }
+.ed-empty__icon { margin-bottom: var(--space-3); color: var(--text-muted); font-size: 28px; line-height: 1; }
+.ed-empty__title { margin-bottom: var(--space-1); font: 600 19px/1.3 var(--font-sans); letter-spacing: -0.01em; color: var(--text-strong); text-wrap: balance; }
+.ed-empty__text { max-width: 36ch; font: 400 15px/1.5 var(--font-sans); color: var(--text-muted); text-wrap: pretty; }
+/* Ссылка внутри приглушённого текста почти не отличается от него по цвету — подчёркиваем */
+.ed-empty__text a, .ed-note a, .ed-dialog__text a { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+.ed-empty__action { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); margin-top: var(--space-5); }
+
+/* ── ContextMenu ── */
+.ed-menu { display: inline-block; min-width: 220px; padding: var(--space-1); background: var(--overlay); border-radius: var(--radius-md); box-shadow: var(--shadow-float); }
+.ed-menu__item { display: flex; align-items: center; gap: var(--space-3); height: 40px; padding: 0 var(--space-3); border-radius: var(--radius-sm); font: 500 14px var(--font-sans); color: var(--text); cursor: pointer; transition: background-color 120ms; }
+.ed-menu__item i { width: 18px; text-align: center; font-size: 14px; color: var(--text-muted); }
+.ed-menu__item.is-danger, .ed-menu__item.is-danger i { color: var(--danger); }
+.ed-menu__divider { height: 1px; margin: var(--space-1) var(--space-2); background: var(--border); }
+
+/* ── ConfirmDialog ── */
+.ed-dialog { width: 100%; max-width: 400px; padding: var(--space-6); background: var(--overlay); border-radius: var(--radius-xl); box-shadow: var(--shadow-modal); }
+.ed-dialog__title { font: 600 19px/1.3 var(--font-sans); letter-spacing: -0.01em; color: var(--text-strong); overflow-wrap: anywhere; }
+.ed-dialog__text { margin-top: var(--space-2); font: 400 15px/1.5 var(--font-sans); color: var(--text-muted); overflow-wrap: anywhere; }
+.ed-dialog__actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-6); }
+.ed-dialog__url { display: flex; gap: 2px; margin-top: var(--space-4); padding: 10px var(--space-3); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text-muted); font: 400 14px/1.4 var(--font-sans); white-space: nowrap; overflow: hidden; }
+.ed-dialog__url b { color: var(--text-strong); font-weight: 600; }
+.ed-dialog__url span:last-child { overflow: hidden; text-overflow: ellipsis; }
+
+/* ── AudioTrack ── */
+.ed-track { display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: var(--space-3); padding: 6px var(--space-2); border-radius: var(--radius-md); transition: background-color 120ms; }
+.ed-track.is-playing { background: var(--selected); }
+.ed-track__play { position: relative; width: 40px; height: 40px; border: 0; border-radius: var(--radius-sm); background: var(--brand-soft); color: var(--brand); cursor: pointer; transition: background-color 120ms; }
+.ed-track.is-playing .ed-track__play { background: var(--brand-fill); color: var(--on-brand-fill); }
+.ed-track__play::after { content: ""; position: absolute; left: 16px; top: 13px; border-style: solid; border-width: 7px 0 7px 11px; border-color: transparent transparent transparent currentColor; }
+.ed-track.is-playing .ed-track__play::after { left: 14px; top: 13px; width: 12px; height: 14px; border: 0; border-left: 4px solid currentColor; border-right: 4px solid currentColor; }
+.ed-track__info { min-width: 0; }
+.ed-track__title { overflow: hidden; font: 600 15px/1.35 var(--font-sans); color: var(--text-strong); white-space: nowrap; text-overflow: ellipsis; }
+.ed-track__performer { overflow: hidden; font: 400 13px/1.4 var(--font-sans); color: var(--text-muted); white-space: nowrap; text-overflow: ellipsis; }
+.ed-track__dur { font: 500 12px var(--font-sans); color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.ed-track__bar { grid-column: 2 / 4; position: relative; height: 3px; margin: 2px 0 4px; border-radius: var(--radius-pill); background: var(--surface-3); }
+.ed-track__bar i { position: absolute; left: 0; top: 0; height: 3px; border-radius: var(--radius-pill); background: var(--brand); }
+
+/* ── Tooltip ── */
+.ed-tip { position: relative; display: inline-flex; }
+.ed-tip__bubble { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translate(-50%, 4px); padding: 6px 10px; border-radius: var(--radius-xs); background: var(--tooltip); color: var(--on-tooltip); font: 500 13px/1.4 var(--font-sans); white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 120ms, transform 120ms; }
+.ed-tip:focus-within .ed-tip__bubble, .ed-tip.is-open .ed-tip__bubble { opacity: 1; transform: translate(-50%, 0); }
+
+/* ── VideoCard ── */
+.ed-vcard { position: relative; min-width: 0; width: 248px; }
+.ed-vcard__thumb { position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border: 0; padding: 0; border-radius: var(--radius-md); background: var(--surface-3); cursor: pointer; }
+.ed-vcard__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ed-vcard__play { position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: var(--radius-full); background: rgba(27, 37, 50, 0.7); opacity: 0; transition: opacity 120ms; }
+.ed-vcard__play::after { content: ""; position: absolute; left: 17px; top: 14px; border-style: solid; border-width: 8px 0 8px 12px; border-color: transparent transparent transparent #fff; }
+.ed-vcard__thumb:focus-visible .ed-vcard__play { opacity: 1; }
+.ed-vcard__dur { position: absolute; right: 8px; bottom: 8px; padding: 2px 6px; border-radius: var(--radius-xs); background: rgba(14, 19, 26, 0.75); color: #fff; font: 500 12px var(--font-sans); font-variant-numeric: tabular-nums; }
+.ed-vcard__title { display: -webkit-box; margin-top: 10px; overflow: hidden; font: 600 15px/1.35 var(--font-sans); color: var(--text-strong); -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ed-vcard__meta { margin-top: 2px; font: 400 13px/1.4 var(--font-sans); color: var(--text-muted); }
+
+/* ── Hover only where a pointer can hover (no sticky hover on touch) ── */
+@media (hover: hover) and (pointer: fine) {
+  .ed-btn--primary:hover { background: var(--brand-fill-hover); }
+  .ed-btn--secondary:hover { background: var(--brand-soft-hover); }
+  .ed-btn--ghost:hover { background: var(--hover); }
+  .ed-btn--danger:hover { background: var(--danger-fill-hover); }
+  .ed-btn--success:hover { filter: brightness(1.08); }
+  .ed-iconbtn:hover { background: var(--hover); color: var(--text-strong); }
+  .ed-iconbtn--filled:hover { background: var(--brand-fill-hover); color: var(--on-brand-fill); }
+  .ed-input:hover { background: var(--surface-3); }
+  .ed-field__action:hover { background: var(--brand-soft); }
+  .ed-search__input:hover { background: var(--surface-3); }
+  .ed-chip:hover { background: var(--hover); border-color: var(--border-strong); }
+  .ed-chip.is-active:hover { background: var(--brand-fill-hover); border-color: var(--brand-fill-hover); color: var(--on-brand-fill); }
+  .ed-tabs__item:hover { color: var(--text-strong); }
+  .ed-chatitem:hover { background: var(--hover); }
+  .ed-notif.is-clickable:hover { background: var(--hover); }
+  .ed-user.is-clickable:hover { background: var(--hover); }
+  .ed-user__name:hover { color: var(--brand); }
+  .ed-menu__item:hover { background: var(--hover); color: var(--text-strong); }
+  .ed-menu__item:hover i { color: var(--text-strong); }
+  .ed-menu__item.is-danger:hover { background: var(--danger-soft); }
+  .ed-track:hover { background: var(--hover); }
+  .ed-track__play:hover { background: var(--brand-fill); color: var(--on-brand-fill); }
+  .ed-tip:hover .ed-tip__bubble { opacity: 1; transform: translate(-50%, 0); }
+  .ed-vcard__thumb:hover .ed-vcard__play { opacity: 1; }
+}

@@ -33,7 +33,7 @@ kodik_router = APIRouter()
 
 _client: httpx.AsyncClient | None = None
 _MAX_TEXT_REWRITE = int(os.environ.get("AV_PLAYER_PROXY_MAX_TEXT_REWRITE", str(3 * 1024 * 1024)))
-_PROXY_VERSION = "20261028-player38"
+_PROXY_VERSION = "20261029-player39"
 _KODIK_SKIN_CSS = Path(__file__).resolve().parent.parent / "assets" / "player" / "kodik-skin.css"
 _SHIELD_LOGGER_JS = (
     '(function(){if(typeof window.__asoplayShieldLog==="function")return;'
@@ -573,77 +573,79 @@ def _clean_video_frame(
     body = f"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-html,body{{margin:0;width:100%;height:100%;background:#050507;overflow:hidden}}
-body{{display:flex;position:relative}}
-video{{width:100%;height:100%;background:#050507;object-fit:contain}}
+:root{{--media:#05080c;--panel:#1b2532;--panel-2:#2a3a4c;--hover:#34475c;--border:#3a4d62;--text:#f4f7fa;--muted:#aab9c9;--brand-fill:#5f748c;--brand-fill-hover:#6d839b;--focus:#9db3cc;--scrim:rgba(5,9,14,.6);--shadow-float:0 16px 40px -8px rgba(0,0,0,.6),0 0 0 1px #3a4d62;--font:Onest,"Segoe UI",system-ui,-apple-system,sans-serif}}
+html,body{{margin:0;width:100%;height:100%;background:var(--media);overflow:hidden}}
+body{{display:flex;position:relative;font-family:var(--font);-webkit-font-smoothing:antialiased}}
+button{{font-family:var(--font)}}
+button:focus-visible,input:focus-visible{{outline:2px solid var(--focus);outline-offset:2px}}
+video{{width:100%;height:100%;background:var(--media);object-fit:contain}}
 video::-webkit-media-controls-start-playback-button,video::-webkit-media-controls-overlay-play-button{{display:none!important;-webkit-appearance:none}}
 #av-start{{position:absolute;left:50%;top:50%;width:72px;height:72px;margin:-36px 0 0 -36px;border:0;border-radius:50%;
-background:rgba(255,91,103,.94);box-shadow:0 14px 40px rgba(0,0,0,.35);cursor:pointer;display:grid;place-items:center}}
+background:var(--brand-fill);box-shadow:var(--shadow-float);cursor:pointer;display:grid;place-items:center}}
 #av-start span{{display:block;width:0;height:0;border-top:15px solid transparent;border-bottom:15px solid transparent;
-border-left:22px solid #fff;margin-left:6px}}
+border-left:22px solid var(--text);margin-left:6px}}
 #av-start.hidden{{display:none}}
-#av-note{{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100% - 32px));box-sizing:border-box;padding:16px 18px;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:rgba(8,8,12,.86);color:#f4f4f5;font:600 15px/1.45 Arial,sans-serif;text-align:center;z-index:5}}
+#av-note{{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100% - 32px));box-sizing:border-box;padding:16px 18px;border-radius:14px;background:var(--panel);box-shadow:var(--shadow-float);color:var(--text);font:400 15px/1.5 var(--font);text-align:center;z-index:5}}
 #av-note[hidden]{{display:none}}
-#av-shot{{position:absolute;right:12px;top:12px;width:42px;height:40px;border:0;border-radius:8px;background:rgba(8,8,12,.74);border:1px solid rgba(255,255,255,.12);color:#fff;display:grid;place-items:center;cursor:pointer;box-shadow:0 8px 20px rgba(0,0,0,.28);backdrop-filter:blur(8px);transition:background .16s ease,opacity .16s ease,transform .16s ease;z-index:3}}
-#av-shot:hover{{background:rgba(255,255,255,.22)}}
-#av-shot svg{{width:19px;height:19px;display:block}}
-#av-controls{{position:absolute;left:12px;right:12px;bottom:12px;display:grid;grid-template-columns:54px minmax(90px,1fr) auto 112px 92px 48px;align-items:center;gap:10px;padding:10px;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:rgba(8,8,12,.74);box-shadow:0 14px 40px rgba(0,0,0,.35);backdrop-filter:blur(8px);opacity:.96;transition:opacity .16s ease,transform .16s ease}}
+#av-shot{{position:absolute;right:12px;top:12px;width:40px;height:40px;border:0;border-radius:50%;background:var(--scrim);color:var(--text);display:grid;place-items:center;cursor:pointer;transition:background-color .12s,opacity .2s,transform .2s;z-index:3}}
+#av-shot svg{{width:18px;height:18px;display:block}}
+#av-controls{{position:absolute;left:12px;right:12px;bottom:12px;display:grid;grid-template-columns:48px minmax(90px,1fr) auto 112px 92px 44px;align-items:center;gap:10px;padding:8px;border-radius:14px;background:var(--panel);box-shadow:var(--shadow-float);transition:opacity .2s,transform .2s}}
 body.playing.controls-hidden #av-controls{{opacity:0;transform:translateY(12px);pointer-events:none}}
 body.playing.controls-hidden #av-shot{{opacity:0;transform:translateY(-8px);pointer-events:none}}
 body.playing.controls-hidden{{cursor:none}}
-#av-toggle,#av-fullscreen,#av-mute,#av-quality-btn{{height:40px;border:0;border-radius:8px;color:#fff;font:700 15px Arial,sans-serif;box-shadow:0 8px 20px rgba(0,0,0,.28);display:grid;place-items:center;cursor:pointer}}
-#av-toggle,#av-fullscreen,#av-mute{{width:48px}}
-#av-toggle{{background:rgba(255,91,103,.94)}}
+#av-toggle,#av-fullscreen,#av-mute,#av-quality-btn{{height:40px;border:0;border-radius:10px;color:var(--text);font:500 14px var(--font);display:grid;place-items:center;cursor:pointer;transition:background-color .12s}}
+#av-toggle,#av-fullscreen,#av-mute{{width:44px}}
+#av-toggle{{width:48px;background:var(--brand-fill)}}
 .av-toggle-icon{{width:20px;height:20px;display:block}}
 .av-icon-pause,body.playing .av-icon-play{{display:none}}
 body.playing .av-icon-pause{{display:block}}
-#av-fullscreen{{background:rgba(255,255,255,.14)}}
-#av-fullscreen:hover,#av-mute:hover,#av-quality-btn:hover{{background:rgba(255,255,255,.22)}}
-.av-fullscreen-icon{{width:18px;height:18px;display:block;background:linear-gradient(#fff,#fff) left top/8px 2px no-repeat,linear-gradient(#fff,#fff) left top/2px 8px no-repeat,linear-gradient(#fff,#fff) right top/8px 2px no-repeat,linear-gradient(#fff,#fff) right top/2px 8px no-repeat,linear-gradient(#fff,#fff) left bottom/8px 2px no-repeat,linear-gradient(#fff,#fff) left bottom/2px 8px no-repeat,linear-gradient(#fff,#fff) right bottom/8px 2px no-repeat,linear-gradient(#fff,#fff) right bottom/2px 8px no-repeat}}
-#av-seek{{width:100%;accent-color:#ff5b67;cursor:pointer}}
-#av-time{{min-width:92px;color:#fff;font:600 13px Arial,sans-serif;text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}}
-#av-volume{{display:flex;align-items:center;gap:8px;min-width:0}}
-#av-mute{{background:rgba(255,255,255,.14);box-shadow:none;flex:0 0 38px;width:38px}}
+#av-fullscreen{{background:transparent}}
+.av-fullscreen-icon{{width:18px;height:18px;display:block}}
+#av-seek{{width:100%;accent-color:var(--brand-fill);cursor:pointer}}
+#av-time{{min-width:92px;color:var(--muted);font:500 13px var(--font);text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}}
+#av-volume{{display:flex;align-items:center;gap:6px;min-width:0}}
+#av-mute{{background:transparent;flex:0 0 40px;width:40px}}
 .av-volume-icon{{width:20px;height:20px;display:block}}
 .av-volume-off{{display:none}}
 body.muted .av-volume-on{{display:none}}
 body.muted .av-volume-off{{display:block}}
-#av-volume-range{{width:66px;accent-color:#ff5b67;cursor:pointer}}
+#av-volume-range{{width:66px;accent-color:var(--brand-fill);cursor:pointer}}
 #av-quality-wrap{{position:relative}}
-#av-quality-btn{{width:92px;background:rgba(255,255,255,.14);grid-template-columns:1fr auto;gap:8px;padding:0 10px;text-align:left}}
-#av-quality-btn:after{{content:"";width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid #fff;opacity:.85}}
-#av-quality-menu{{position:absolute;right:0;bottom:calc(100% + 8px);min-width:116px;max-height:190px;overflow:auto;padding:6px;border:1px solid rgba(255,255,255,.14);border-radius:9px;background:rgba(20,20,24,.96);box-shadow:0 18px 42px rgba(0,0,0,.48);display:none;z-index:4}}
-#av-quality-wrap.open #av-quality-menu{{display:grid;gap:4px}}
-#av-quality-menu button{{height:34px;border:0;border-radius:7px;background:transparent;color:#fff;font:700 13px Arial,sans-serif;text-align:left;padding:0 10px;cursor:pointer}}
-#av-quality-menu button:hover,#av-quality-menu button.active{{background:rgba(255,91,103,.9)}}
+#av-quality-btn{{width:92px;background:var(--panel-2);grid-template-columns:1fr auto;gap:8px;padding:0 10px;text-align:left}}
+#av-quality-btn:after{{content:"";width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--muted)}}
+#av-quality-menu{{position:absolute;right:0;bottom:calc(100% + 8px);min-width:120px;max-height:190px;overflow:auto;padding:4px;border-radius:14px;background:var(--panel);box-shadow:var(--shadow-float);display:none;z-index:4}}
+#av-quality-wrap.open #av-quality-menu{{display:grid;gap:2px}}
+#av-quality-menu button{{height:36px;border:0;border-radius:10px;background:transparent;color:var(--text);font:500 14px var(--font);text-align:left;padding:0 12px;cursor:pointer}}
+#av-quality-menu button.active{{background:var(--panel-2)}}
 #av-quality-wrap.disabled{{display:none}}
-@media (max-width:700px){{#av-controls{{left:8px;right:8px;bottom:8px;grid-template-columns:44px minmax(70px,1fr) 92px 44px;gap:7px;padding:8px}}#av-toggle,#av-fullscreen{{width:44px;height:38px}}#av-time,#av-volume{{display:none}}#av-quality-btn{{width:92px;height:38px}}}}
+@media (hover:hover) and (pointer:fine){{#av-shot:hover{{background:var(--panel-2)}}#av-start:hover,#av-toggle:hover{{background:var(--brand-fill-hover)}}#av-fullscreen:hover,#av-mute:hover,#av-quality-btn:hover,#av-quality-menu button:hover{{background:var(--hover)}}}}
+@media (max-width:700px){{#av-controls{{left:8px;right:8px;bottom:8px;grid-template-columns:44px minmax(70px,1fr) 92px 44px;gap:6px;padding:6px}}#av-toggle,#av-fullscreen{{width:44px;height:38px}}#av-time,#av-volume{{display:none}}#av-quality-btn{{width:92px;height:38px}}}}
 </style></head><body>
 <video id="{safe_id}" src="{proxied_src}"{poster_attr} playsinline preload="metadata" crossorigin="anonymous"></video>
 <div id="av-note" role="status" hidden></div>
-<button id="av-start" type="button" aria-label="Play"><span></span></button>
+<button id="av-start" type="button" aria-label="Смотреть"><span></span></button>
 <button id="av-shot" type="button" aria-label="Сделать скриншот" title="Сделать скриншот">
   <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 4h6l1.6 2H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3.4L9 4Zm3 5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/></svg>
 </button>
 <div id="av-controls">
-  <button id="av-toggle" type="button" aria-label="Play or pause">
+  <button id="av-toggle" type="button" aria-label="Пауза или воспроизведение">
     <svg class="av-toggle-icon av-icon-play" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8 5.6v12.8a1 1 0 0 0 1.53.85l10.2-6.4a1 1 0 0 0 0-1.7L9.53 4.75A1 1 0 0 0 8 5.6Z"/></svg>
     <svg class="av-toggle-icon av-icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7V5Zm6.5 0H17v14h-3.5V5Z"/></svg>
   </button>
-  <input id="av-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek">
+  <input id="av-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Перемотка">
   <div id="av-time">0:00 / 0:00</div>
   <div id="av-volume">
-    <button id="av-mute" type="button" aria-label="Mute">
+    <button id="av-mute" type="button" aria-label="Выключить звук">
       <svg class="av-volume-icon av-volume-on" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 9v6h4l5 4V5L8 9H4Zm12.2-1.2-1.4 1.4A4 4 0 0 1 16 12a4 4 0 0 1-1.2 2.8l1.4 1.4A6 6 0 0 0 18 12a6 6 0 0 0-1.8-4.2Zm2.8-2.8-1.4 1.4A8 8 0 0 1 20 12a8 8 0 0 1-2.4 5.6L19 19a10 10 0 0 0 3-7 10 10 0 0 0-3-7Z"/></svg>
       <svg class="av-volume-icon av-volume-off" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 9v6h4l5 4V5L8 9H4Zm14.6 3 2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7-2.7 2.7 2.7 1.4-1.4-2.7-2.7Z"/></svg>
     </button>
-    <input id="av-volume-range" type="range" min="0" max="100" value="100" step="1" aria-label="Volume">
+    <input id="av-volume-range" type="range" min="0" max="100" value="100" step="1" aria-label="Громкость">
   </div>
   <div id="av-quality-wrap">
-    <button id="av-quality-btn" type="button" aria-label="Quality">Auto</button>
+    <button id="av-quality-btn" type="button" aria-label="Качество">Авто</button>
     <div id="av-quality-menu" role="menu"></div>
   </div>
-  <button id="av-fullscreen" type="button" aria-label="Fullscreen"><span class="av-fullscreen-icon"></span></button>
+  <button id="av-fullscreen" type="button" aria-label="Во весь экран"><svg class="av-fullscreen-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 4h6v2H6v4H4V4Zm10 0h6v6h-2V6h-4V4ZM4 14h2v4h4v2H4v-6Zm14 0h2v6h-6v-2h4v-4Z"/></svg></button>
 </div>
 <script>
 (() => {{
@@ -882,12 +884,12 @@ body.muted .av-volume-off{{display:block}}
       qualityWrap.classList.add("disabled");
       return;
     }}
-    qualityBtn.textContent = list[currentQuality] && list[currentQuality].label ? list[currentQuality].label : "Auto";
+    qualityBtn.textContent = list[currentQuality] && list[currentQuality].label ? list[currentQuality].label : "Авто";
     if (list.length <= 1) return;
     list.forEach((item, index) => {{
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = item.label || "Auto";
+      button.textContent = item.label || "Авто";
       button.className = index === currentQuality ? "active" : "";
       button.addEventListener("click", () => selectQuality(index));
       qualityMenu.appendChild(button);

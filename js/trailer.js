@@ -78,13 +78,13 @@ export function bindTrailer(root, videoId, getTitle) {
     dialog.innerHTML = `
       <div class="trailer-dialog-head">
         <h2 id="avTrailerTitle"></h2>
-        <a class="trailer-external" href="https://www.youtube.com/watch?v=${id}" target="_blank" rel="noopener noreferrer">YouTube ↗</a>
+        <a class="trailer-external" href="https://www.youtube.com/watch?v=${id}" target="_blank" rel="noopener noreferrer">Открыть на YouTube <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
         <button class="trailer-close" type="button" aria-label="Закрыть трейлер" title="Закрыть трейлер" autofocus>${closeIcon}</button>
       </div>
       <div class="trailer-video"></div>`;
-    dialog.querySelector("h2").textContent = `Трейлер · ${getTitle()}`;
+    dialog.querySelector("h2").textContent = `Трейлер: ${getTitle()}`;
     const frame = document.createElement("iframe");
-    frame.title = `Трейлер · ${getTitle()}`;
+    frame.title = `Трейлер: ${getTitle()}`;
     frame.allow = "autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen";
     frame.referrerPolicy = "strict-origin-when-cross-origin";
     frame.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0`;

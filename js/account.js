@@ -11,6 +11,7 @@
  */
 
 import { calendarMonth, dayDate, groupActivity } from "./profile-activity.js?v=20261027-profile6";
+import { activeSection, applyTheme, getTheme, syncThemeLabels, themeLabel, SheetDrag } from "./navigation.js?v=20261029-eddas2";
 
 let ctx = null;
 let authConfig = {
@@ -235,19 +236,19 @@ function _collectLocalBlob() {
 function _showImportPrompt(blob, total, flagKey) {
   const bar = document.createElement("div");
   bar.className = "import-bar";
+  bar.setAttribute("role", "region");
+  bar.setAttribute("aria-label", "Перенос данных из браузера");
   bar.innerHTML = `
     <div class="import-bar-inner">
       <div class="import-bar-text">
-        Нашли <b>${total}</b> записей в этом браузере (избранное / история / оценки).
-        Перенести в ваш аккаунт?
+        В этом браузере есть записи без аккаунта: ${total}. Это избранное, история и оценки. Перенести их в аккаунт?
       </div>
       <div class="import-bar-actions">
-        <button type="button" class="btn btn-primary" id="avImportYes">Перенести</button>
-        <button type="button" class="btn btn-ghost" id="avImportNo">Нет, спасибо</button>
+        <button type="button" class="ed-btn ed-btn--ghost ed-btn--sm" id="avImportNo">Не переносить</button>
+        <button type="button" class="ed-btn ed-btn--primary ed-btn--sm" id="avImportYes">Перенести</button>
       </div>
     </div>`;
   document.body.appendChild(bar);
-  requestAnimationFrame(() => bar.classList.add("show"));
 
   document.querySelector("#avImportNo").addEventListener("click", () => {
     localStorage.setItem(flagKey, "1");
@@ -256,7 +257,7 @@ function _showImportPrompt(blob, total, flagKey) {
   document.querySelector("#avImportYes").addEventListener("click", async () => {
     const btn = document.querySelector("#avImportYes");
     btn.disabled = true;
-    btn.textContent = "Переношу…";
+    btn.textContent = "Переносим…";
     try {
       const r = await _fetchJson("/account/import-localstorage", {
         method: "POST",
@@ -274,7 +275,7 @@ function _showImportPrompt(blob, total, flagKey) {
       btn.textContent = "Попробовать ещё раз";
       const msg = document.createElement("div");
       msg.className = "import-bar-error";
-      msg.textContent = `Не удалось перенести: ${exc.message}`;
+      msg.textContent = `Не удалось перенести записи (${exc.message}). Повторите попытку.`;
       bar.querySelector(".import-bar-inner").appendChild(msg);
     }
   });
@@ -304,101 +305,152 @@ export function socialSiteName() {
 
 // ==== header slot ====
 let cleanupHeader = () => {};
+// EDDAS avatar: initials until the real picture has loaded, so a blocked or
+// missing image never shows a broken-image icon.
+function _avatarHtml(user, size = "") {
+  const name = user.name || user.login || user.handle || "А";
+  const letter = Array.from(name.trim())[0]?.toUpperCase() || "А";
+  return `<span class="ed-ava${size ? ` ${size}` : ""}" data-account-avatar><span class="ed-ava__initials">${esc(letter)}</span></span>`;
+}
+
+function _upgradeAvatars(root, url) {
+  if (!url) return;
+  const probe = new Image();
+  probe.referrerPolicy = "no-referrer";
+  probe.onload = () => {
+    root.querySelectorAll("[data-account-avatar]").forEach(box => {
+      box.innerHTML = `<img src="${esc(url)}" alt="" referrerpolicy="no-referrer" />`;
+    });
+  };
+  probe.src = url;
+}
+
+function _privacyGate(text, extraClass = "") {
+  return `<div class="ed-note privacy-gate${extraClass ? ` ${extraClass}` : ""}"><i class="fas fa-lock" aria-hidden="true"></i><div>${esc(text)}</div></div>`;
+}
+
+function _profilePath(user) {
+  return user.profile_path || ("/@" + (user.handle || ("profile" + user.id)));
+}
+
 export function renderHeader() {
   const slot = document.querySelector("#avAccountSlot");
   if (!slot) return;
   cleanupHeader();
   const user = ctx.state.user;
+  const navPersonal = document.querySelector("#avNavPersonal");
+  const sheetPersonal = document.querySelector("#avSheetPersonal");
+  const tab = document.querySelector("#avTabAccount");
+  document.querySelectorAll("[data-social-link]").forEach(a => { a.href = socialSiteUrl(); });
+
   if (!user) {
     slot.innerHTML = `
-      <a href="/login" data-view="login" class="menu-icon menu-login" title="Войти">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M10 17l1.4-1.4L8.8 13H21v-2H8.8l2.6-2.6L10 7l-5 5 5 5zM4 5h8V3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8v-2H4V5z"/></svg>
-        <span>Авторизация</span>
-      </a>`;
+      <div class="app-header__actions app-header__actions--guest">
+        <a class="ed-btn ed-btn--ghost" href="/login" data-nav="login">Войти</a>
+        <a class="ed-btn ed-btn--primary app-guest-register" href="${esc(registerUrl())}" target="_blank" rel="noopener">
+          <span class="app-guest-register__full">Создать аккаунт</span><span class="app-guest-register__short">Регистрация</span>
+        </a>
+      </div>`;
+    if (navPersonal) { navPersonal.hidden = true; navPersonal.innerHTML = ""; }
+    if (sheetPersonal) sheetPersonal.innerHTML = `
+      <div class="ed-menu__divider" role="separator"></div>
+      <a class="ed-menu__item" href="/login" data-nav="login"><i class="fas fa-right-to-bracket" aria-hidden="true"></i>Войти</a>
+      <a class="ed-menu__item" href="${esc(registerUrl())}" target="_blank" rel="noopener"><i class="fas fa-user-plus" aria-hidden="true"></i>Создать аккаунт в ${esc(socialSiteName())}</a>`;
+    if (tab) {
+      tab.href = "/login";
+      tab.dataset.nav = "login";
+      tab.setAttribute("aria-label", "Войти");
+      tab.innerHTML = `<i class="fas fa-right-to-bracket" aria-hidden="true"></i>`;
+    }
+    ctx.setActive(activeSection() || null);
     return;
   }
+
   const name = user.name || user.login || user.email || "Аккаунт";
-  const letter = (name || "A").trim().slice(0, 1).toUpperCase();
-  const avatar = user.avatar || "";
+  const profile = _profilePath(user);
   slot.innerHTML = `
-    <div class="menu-account-identity">
-      <span class="menu-avatar menu-avatar-fallback" data-account-avatar>${esc(letter)}</span>
-      <div class="menu-account-details">
-        <span class="menu-account-name">${esc(name)}</span>
-        ${user.handle ? `<span class="menu-account-handle">@${esc(user.handle.replace(/^@/, ""))}</span>` : ""}
+    <div class="app-header__action">
+      <button type="button" class="app-user" id="avAccountBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="avAccountDrop" aria-label="Меню профиля">
+        ${_avatarHtml(user)}
+        <span class="app-user__name">${esc(name)}</span>
+        <i class="fas fa-chevron-down" aria-hidden="true"></i>
+      </button>
+      <div class="app-popover app-popover--menu" id="avAccountDrop" role="menu" aria-label="Меню профиля">
+        <a class="app-menu__head" href="${esc(profile)}" data-nav="profile">${_avatarHtml(user)}<span><b>${esc(name)}</b><span>Мой профиль</span></span></a>
+        <div class="ed-menu__divider" role="separator"></div>
+        <a class="ed-menu__item" role="menuitem" href="/my/continue"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i>Продолжить просмотр</a>
+        <a class="ed-menu__item" role="menuitem" href="/my/lists"><i class="fas fa-list" aria-hidden="true"></i>Списки</a>
+        <a class="ed-menu__item" role="menuitem" href="/my/favorites"><i class="fas fa-star" aria-hidden="true"></i>Избранное</a>
+        <a class="ed-menu__item" role="menuitem" href="/my/settings"><i class="fas fa-gear" aria-hidden="true"></i>Настройки</a>
+        <button type="button" class="ed-menu__item" role="menuitem" data-theme-cycle><i class="fas fa-circle-half-stroke" aria-hidden="true"></i>Тема<span class="app-menu__value" data-theme-label></span></button>
+        <div class="ed-menu__divider" role="separator"></div>
+        <a class="ed-menu__item" role="menuitem" href="${esc(socialSiteUrl())}" target="_blank" rel="noopener"><i class="fas fa-users" aria-hidden="true"></i>${esc(socialSiteName())}</a>
+        <div class="ed-menu__divider" role="separator"></div>
+        <button type="button" class="ed-menu__item" role="menuitem" data-logout><i class="fas fa-right-from-bracket" aria-hidden="true"></i>Выйти</button>
       </div>
-    </div>
-    <button type="button" class="menu-account-btn" id="avAccountBtn" title="${esc(name)}" aria-controls="avAccountDrop" aria-expanded="false">
-      <span class="menu-avatar menu-avatar-fallback" data-account-avatar>${esc(letter)}</span>
-      <span class="menu-account-name">${esc(name)}</span>
-      <svg class="menu-account-chev" viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
-    </button>
-    <ul class="menu-account-drop" id="avAccountDrop" hidden>
-      <li><a href="${esc(user.profile_path || ("/@" + (user.handle || ("profile" + user.id))))}" data-view="profile">Профиль</a></li>
-      <li><a href="/my/continue" data-view="my-continue">Продолжить просмотр</a></li>
-      <li><a href="/my/lists" data-view="my-lists">Списки</a></li>
-      <li><a href="/my/favorites" data-view="my-favorites">Избранное</a></li>
-      <li><a href="/my/settings" data-view="my-settings">Настройки</a></li>
-      <li class="menu-account-sep"></li>
-      <li><button type="button" class="menu-logout" id="avLogoutBtn">Выйти</button></li>
-    </ul>`;
-  // Try to upgrade the letter-fallback with a real avatar. Preload with a
-  // throwaway Image so CORS/404 failures don't show a broken-image icon
-  // in the header — the letter stays visible until the real image is ready.
-  const avaBoxes = slot.querySelectorAll("[data-account-avatar]");
-  if (avatar) {
-    const probe = new Image();
-    probe.referrerPolicy = "no-referrer";
-    probe.onload = () => {
-      avaBoxes.forEach(box => {
-        box.outerHTML = `<img class="menu-avatar" src="${esc(avatar)}" alt="" referrerpolicy="no-referrer" />`;
-      });
-    };
-    probe.onerror = () => { /* keep letter fallback */ };
-    probe.src = avatar;
+    </div>`;
+  if (navPersonal) {
+    navPersonal.hidden = false;
+    navPersonal.innerHTML = `
+      <div class="app-nav__sep" role="separator"></div>
+      <a class="app-nav__item" data-nav="my-continue" href="/my/continue"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i><span>Продолжить</span></a>
+      <a class="app-nav__item" data-nav="my-lists" href="/my/lists"><i class="fas fa-list" aria-hidden="true"></i><span>Списки</span></a>
+      <a class="app-nav__item" data-nav="my-favorites" href="/my/favorites"><i class="fas fa-star" aria-hidden="true"></i><span>Избранное</span></a>
+      <a class="app-nav__item" data-nav="profile" href="${esc(profile)}"><i class="fas fa-user" aria-hidden="true"></i><span>Мой профиль</span></a>`;
   }
+  if (sheetPersonal) sheetPersonal.innerHTML = `
+    <div class="ed-menu__divider" role="separator"></div>
+    <a class="ed-menu__item" data-nav="my-continue" href="/my/continue"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i>Продолжить просмотр</a>
+    <a class="ed-menu__item" data-nav="my-favorites" href="/my/favorites"><i class="fas fa-star" aria-hidden="true"></i>Избранное</a>
+    <a class="ed-menu__item" data-nav="profile" href="${esc(profile)}"><i class="fas fa-user" aria-hidden="true"></i>Мой профиль</a>
+    <a class="ed-menu__item" data-nav="my-settings" href="/my/settings"><i class="fas fa-gear" aria-hidden="true"></i>Настройки</a>
+    <button type="button" class="ed-menu__item" data-logout><i class="fas fa-right-from-bracket" aria-hidden="true"></i>Выйти</button>`;
+  if (tab) {
+    tab.href = "/my/lists";
+    tab.dataset.nav = "my-lists";
+    tab.setAttribute("aria-label", "Списки");
+    tab.innerHTML = `<i class="fas fa-list" aria-hidden="true"></i>`;
+  }
+  _upgradeAvatars(slot, user.avatar || "");
+  syncThemeLabels();
+
   const btn = document.querySelector("#avAccountBtn");
   const drop = document.querySelector("#avAccountDrop");
   const setOpen = (open) => {
-    if (document.documentElement.classList.contains("is-mobile-nav")) return;
-    drop.hidden = !open;
-    btn.classList.toggle("open", open);
+    drop.classList.toggle("is-open", open);
     btn.setAttribute("aria-expanded", open ? "true" : "false");
   };
-  btn?.addEventListener("click", (e) => {
+  btn.addEventListener("click", (e) => {
     e.stopPropagation();
-    setOpen(drop.hidden);
+    setOpen(!drop.classList.contains("is-open"));
+  });
+  // A link or a menu command closes the menu; the theme item keeps it open to show the new value.
+  drop.addEventListener("click", (e) => {
+    if (e.target.closest("a[href], [data-logout]")) setOpen(false);
   });
   const closeOutside = (e) => {
-    if (!btn.contains(e.target)) setOpen(false);
+    if (!btn.contains(e.target) && !drop.contains(e.target)) setOpen(false);
   };
   const closeEscape = (e) => {
-    if (e.key === "Escape" && !drop.hidden &&
-        !document.documentElement.classList.contains("is-mobile-nav")) {
+    if (e.key === "Escape" && drop.classList.contains("is-open")) {
       setOpen(false);
       btn.focus();
     }
   };
-  const syncMode = () => {
-    drop.hidden = !document.documentElement.classList.contains("is-mobile-nav");
-    btn.classList.remove("open");
-    btn.setAttribute("aria-expanded", "false");
+  const onLogout = async (e) => {
+    if (!e.target.closest("[data-logout]")) return;
+    await logout();
+    ctx.nav("/");
   };
   document.addEventListener("click", closeOutside);
   document.addEventListener("keydown", closeEscape);
-  document.addEventListener("av:navigation-mode", syncMode);
+  document.addEventListener("click", onLogout);
   cleanupHeader = () => {
     document.removeEventListener("click", closeOutside);
     document.removeEventListener("keydown", closeEscape);
-    document.removeEventListener("av:navigation-mode", syncMode);
+    document.removeEventListener("click", onLogout);
   };
-  syncMode();
-  const activeView = document.querySelector("#topMenu").dataset.activeView;
-  ctx.setActive(activeView || null);
-  document.querySelector("#avLogoutBtn")?.addEventListener("click", async () => {
-    await logout();
-    ctx.nav("/");
-  });
+  ctx.setActive(activeSection() || null);
 }
 
 // ==== store: personal data writes ====
@@ -774,40 +826,62 @@ window.addEventListener("beforeunload", () => {
 // ==== guest gate ====
 let _gateEl = null;
 
+// EDDAS dialog: centred on wide screens, a bottom sheet on phones that the finger can swipe away.
+function _openDialog(className, inner, { onClose, label } = {}) {
+  const wrap = document.createElement("div");
+  wrap.className = `av-dialog ${className}`;
+  wrap.innerHTML = `
+    <div class="av-dialog__scrim" data-dialog-close></div>
+    <div class="ed-dialog av-dialog__panel" role="dialog" aria-modal="true" ${label ? `aria-labelledby="${label}"` : ""}>
+      <div class="app-sheet__grip av-dialog__grip" aria-hidden="true"></div>
+      ${inner}
+    </div>`;
+  const opener = document.activeElement;
+  const previousOverflow = document.body.style.overflow;
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    document.removeEventListener("keydown", onKey);
+    document.body.style.overflow = previousOverflow;
+    wrap.remove();
+    if (opener?.isConnected) opener.focus({ preventScroll: true });
+    onClose?.();
+  };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  wrap.addEventListener("click", (e) => { if (e.target.closest("[data-dialog-close]")) close(); });
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(wrap);
+  document.body.style.overflow = "hidden";
+  const panel = wrap.querySelector(".av-dialog__panel");
+  SheetDrag.bind(panel, {
+    scrim: wrap.querySelector(".av-dialog__scrim"),
+    active: () => window.matchMedia("(max-width: 767px)").matches,
+    close,
+  });
+  (panel.querySelector("[autofocus]") || panel.querySelector(".ed-btn, button"))?.focus({ preventScroll: true });
+  return { el: wrap, close };
+}
+
 export function openGate(kind) {
   const copy = _gateCopy(kind);
   closeGate();
-  const wrap = document.createElement("div");
-  wrap.className = "gate-overlay";
-  wrap.innerHTML = `
-    <div class="gate-card">
-      <button class="gate-close" aria-label="Закрыть">&times;</button>
-      <div class="gate-icon">
-        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="11" width="18" height="10" rx="2"/>
-          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-        </svg>
-      </div>
-      <h2 class="gate-title">${esc(copy.title)}</h2>
-      <p class="gate-body">${copy.body}</p>
-      <ul class="gate-points">
-        ${copy.points.map(p => `<li>${esc(p)}</li>`).join("")}
-      </ul>
-      <div class="gate-actions">
-        <a class="btn btn-primary" href="/login">Войти</a>
-        <a class="btn btn-ghost" href="${esc(registerUrl())}" target="_blank" rel="noopener">Регистрация в ${esc(socialSiteName())}</a>
-      </div>
-    </div>`;
-  document.body.appendChild(wrap);
-  requestAnimationFrame(() => wrap.classList.add("show"));
-  wrap.addEventListener("click", e => {
-    if (e.target === wrap || e.target.closest(".gate-close")) closeGate();
-  });
-  _gateEl = wrap;
+  const dialog = _openDialog("gate-overlay", `
+    <button type="button" class="ed-iconbtn av-dialog__close gate-close" aria-label="Закрыть" title="Закрыть" data-dialog-close><i class="fas fa-xmark" aria-hidden="true"></i></button>
+    <h2 class="ed-dialog__title" id="avGateTitle">${esc(copy.title)}</h2>
+    <p class="ed-dialog__text">${copy.body}</p>
+    <ul class="gate-points">
+      ${copy.points.map(p => `<li><i class="fas fa-check" aria-hidden="true"></i>${esc(p)}</li>`).join("")}
+    </ul>
+    <div class="ed-dialog__actions">
+      <a class="ed-btn ed-btn--secondary" href="${esc(registerUrl())}" target="_blank" rel="noopener">Создать аккаунт</a>
+      <a class="ed-btn ed-btn--primary" href="/login" data-dialog-close autofocus>Войти</a>
+    </div>`, { label: "avGateTitle", onClose: () => { _gateEl = null; } });
+  _gateEl = dialog;
 }
 
 export function closeGate() {
-  if (_gateEl) { _gateEl.remove(); _gateEl = null; }
+  if (_gateEl) { const gate = _gateEl; _gateEl = null; gate.close(); }
 }
 
 function _gateCopy(kind) {
@@ -867,66 +941,116 @@ function _gateCopy(kind) {
 export async function viewLogin(params) {
   ctx.setActive("login");
   const next = params.get("next") || "/";
+  const site = esc(socialSiteName());
   ctx.outlet.innerHTML = `
-    <div class="auth-shell">
-      <div class="auth-card">
-        <h1 class="auth-title">Вход в AsoPlay</h1>
-        <p class="auth-sub">Регистрация отдельная — ведётся на сайте социальной сети. Здесь только вход.</p>
-        <form class="auth-form" id="avLoginForm" autocomplete="on" novalidate>
-          <label class="auth-field">
-            <span>Логин или e-mail</span>
-            <input type="text" name="login" id="avLoginInput" autocomplete="username" required autofocus />
-          </label>
-          <label class="auth-field">
-            <span>Пароль</span>
-            <input type="password" name="password" id="avLoginPass" autocomplete="current-password" required />
-          </label>
-          <div class="auth-error" id="avLoginErr" hidden></div>
-          <button type="submit" class="btn btn-primary auth-submit">Войти</button>
-        </form>
-        <div class="auth-foot">
-          Ещё нет аккаунта?
-          <a href="${esc(registerUrl())}" target="_blank" rel="noopener">Зарегистрироваться в ${esc(socialSiteName())}&nbsp;↗</a>
+    <div class="auth">
+      <aside class="auth__hero">
+        <span class="auth__wordmark">AsoPlay</span>
+        <div class="auth__hero-body">
+          <h1 class="auth__headline">Аниме онлайн в русской озвучке</h1>
+          <p class="auth__lead">Войдите аккаунтом ${site}: списки, история просмотра и оценки будут на всех ваших устройствах.</p>
+        </div>
+        <nav class="auth__links" aria-label="Ссылки">
+          <a href="${esc(socialSiteUrl())}" target="_blank" rel="noopener">${site}</a>
+          <a href="/">Каталог без входа</a>
+        </nav>
+      </aside>
+      <div class="auth__main">
+        <div class="auth__box">
+          <div class="auth__brand">
+            <span class="auth__wordmark">AsoPlay</span>
+            <p class="auth__brand-lead">Аниме онлайн в русской озвучке</p>
+          </div>
+          <h2 class="auth__title">Вход</h2>
+          <p class="auth__sub">Логин и пароль те же, что в ${site}. Регистрация проходит на сайте соцсети.</p>
+          <form class="ed-form auth-form" id="avLoginForm" autocomplete="on" novalidate>
+            <div class="ed-field">
+              <label class="ed-field__label" for="avLoginInput">Логин или электронная почта</label>
+              <div class="ed-field__wrap"><input class="ed-input" type="text" name="login" id="avLoginInput" autocomplete="username" autocapitalize="off" spellcheck="false" required autofocus /></div>
+            </div>
+            <div class="ed-field">
+              <label class="ed-field__label" for="avLoginPass">Пароль</label>
+              <div class="ed-field__wrap">
+                <input class="ed-input ed-input--action" type="password" name="password" id="avLoginPass" autocomplete="current-password" required />
+                <button type="button" class="ed-field__action" id="avPassToggle" aria-controls="avLoginPass" aria-pressed="false">Показать</button>
+              </div>
+            </div>
+            <div class="ed-note ed-note--danger auth-error" id="avLoginErr" role="alert" hidden><i class="fas fa-circle-exclamation" aria-hidden="true"></i><div id="avLoginErrText"></div></div>
+            <button type="submit" class="ed-btn ed-btn--primary ed-btn--lg ed-btn--block auth-submit">Войти</button>
+          </form>
+          <p class="auth__switch">Нет аккаунта? <a class="auth-link" href="${esc(registerUrl())}" target="_blank" rel="noopener">Создать в ${site}</a></p>
         </div>
       </div>
     </div>`;
+  const pass = document.querySelector("#avLoginPass");
+  document.querySelector("#avPassToggle")?.addEventListener("click", (e) => {
+    const show = pass.type === "password";
+    pass.type = show ? "text" : "password";
+    e.currentTarget.textContent = show ? "Скрыть" : "Показать";
+    e.currentTarget.setAttribute("aria-pressed", String(show));
+  });
   document.querySelector("#avLoginForm")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const err = document.querySelector("#avLoginErr");
+    const submit = e.target.querySelector(".auth-submit");
     err.hidden = true;
     const fd = new FormData(e.target);
+    submit.classList.add("is-loading");
     try {
       await login(fd.get("login").toString().trim(), fd.get("password").toString());
       ctx.nav(next && next.startsWith("/") ? next : "/");
     } catch (exc) {
       err.hidden = false;
-      err.textContent = _loginErrorMessage(exc);
+      document.querySelector("#avLoginErrText").textContent = _loginErrorMessage(exc);
+    } finally {
+      submit.classList.remove("is-loading");
     }
   });
 }
 
 export const LIST_LABELS = {
   watching:  { one: "Смотрю",        many: "Смотрю" },
-  planned:   { one: "В Планах",      many: "В Планах" },
+  planned:   { one: "В планах",      many: "В планах" },
   completed: { one: "Просмотрено",   many: "Просмотрено" },
   dropped:   { one: "Брошено",       many: "Брошено" },
   postponed: { one: "Отложено",      many: "Отложено" },
   favorite:  { one: "Избранное",     many: "Избранное" },
+};
+const LIST_ICONS = {
+  watching: "fa-eye", planned: "fa-bookmark", completed: "fa-circle-check",
+  postponed: "fa-pause", dropped: "fa-ban", favorite: "fa-star",
 };
 const LIST_ORDER = ["watching", "planned", "completed", "postponed", "dropped", "favorite"];
 // «Избранное» (favorite) живёт отдельно — /my/favorites. В /my/lists
 // показываем только взаимоисключающие статусы.
 const LIST_ORDER_MYLISTS = ["watching", "planned", "completed", "postponed", "dropped"];
 
+function _plural(n, forms) {
+  const a = Math.abs(n) % 100, b = a % 10;
+  return forms[a > 10 && a < 20 ? 2 : b === 1 ? 0 : b >= 2 && b <= 4 ? 1 : 2];
+}
+const TITLE_FORMS = ["тайтл", "тайтла", "тайтлов"];
+
+function _pageHead(title, sub = "", actions = "") {
+  return `
+    <div class="page-head">
+      <div class="page-head__text">
+        <h1 class="page-head__title">${esc(title)}</h1>
+        ${sub ? `<p class="page-head__sub">${esc(sub)}</p>` : ""}
+      </div>
+      ${actions ? `<div class="page-head__actions">${actions}</div>` : ""}
+    </div>`;
+}
+
 function _listCards(items) {
   if (!items.length) return ctx.errorPage({
-    title: "Здесь пока пусто",
-    message: "Добавляйте аниме в списки со страницы тайтла — оно появится тут.",
-    action: { href: "/top", label: "Посмотреть топ" },
-    variant: "empty",
+    title: "В избранном пока пусто",
+    message: "Отмечайте тайтлы звёздочкой на их странице, и они появятся здесь.",
+    action: { href: "/top", label: "Открыть топ" },
+    icon: "far fa-star",
   });
   const g = document.createElement("div");
-  g.className = "av-grid";
+  g.className = "ed-grid av-grid";
   items.forEach(v => g.appendChild(ctx.makeCard({
     mal_id: v.mal_id, title: v.title || "", _ru: v.title || "",
     images: { jpg: { large_image_url: v.poster_url || v.cover } },
@@ -942,19 +1066,22 @@ async function _listsFetch(status) {
 }
 
 export async function viewMyFavorites() {
-  ctx.setActive(null);
+  ctx.setActive("my-favorites");
   if (!ctx.state.user) { openGate("favorites"); ctx.nav("/login?next=/my/favorites"); return; }
+  ctx.outlet.innerHTML = `<div class="page-stack">${_pageHead("Избранное")}<div>${ctx.loadingBlock()}</div></div>`;
   const list = await _listsFetch("favorite");
   ctx.outlet.innerHTML = `
-    <div class="block-header">Избранное <span class="block-header-link">${list.length} тайтлов</span></div>
-    <div id="avFavGrid">${_listCards(list)}</div>`;
+    <div class="page-stack">
+      ${_pageHead("Избранное", list.length ? `${list.length} ${_plural(list.length, TITLE_FORMS)}` : "")}
+      <section class="ed-panel"><div class="ed-panel__body" id="avFavGrid">${_listCards(list)}</div></section>
+    </div>`;
   // После рендера добавим русские названия и добьём обложки из Shikimori.
   const grid = document.querySelector("#avFavGrid .av-grid");
   if (grid && ctx.enrichWithShiki) ctx.enrichWithShiki(grid, list);
 }
 
 export async function viewMyContinue() {
-  ctx.setActive(null);
+  ctx.setActive("my-continue");
   if (!ctx.state.user) { openGate("watching"); ctx.nav("/login?next=/my/continue"); return; }
 
   // Всегда тянем свежий /account/history перед рендером. Локальный state.watch
@@ -988,23 +1115,20 @@ export async function viewMyContinue() {
     .filter(v => !(v.total > 0 && nextEp(v) > v.total))
     .sort((a, b) => (b.at || 0) - (a.at || 0));
   if (!entries.length) {
-    ctx.outlet.innerHTML = `<div class="block-header">Продолжить просмотр</div>` + ctx.errorPage({
-      title: "Пока пусто",
-      message: "Как только вы посмотрите хотя бы 5 минут аниме или досмотрите короткую серию, тайтл появится здесь — продолжить с того же места.",
-      action: { href: "/", label: "Найти что-нибудь" },
-      variant: "empty",
-    });
+    ctx.outlet.innerHTML = `<div class="page-stack">${_pageHead("Продолжить просмотр")}<section class="ed-panel">` + ctx.errorPage({
+      title: "Пока нечего продолжать",
+      message: "Посмотрите аниме хотя бы 5 минут или досмотрите короткую серию, и тайтл появится здесь с того же места.",
+      action: { href: "/", label: "Выбрать аниме" },
+      icon: "fas fa-clock-rotate-left",
+    }) + `</section></div>`;
     return;
   }
   ctx.outlet.innerHTML = `
-    <div class="block-header continue-head">
-      <span class="continue-title">Продолжить просмотр <span class="block-header-link">${entries.length}</span></span>
-      <button type="button" class="btn btn-ghost continue-clear" id="avContinueClear">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-        Очистить весь список
-      </button>
-    </div>
-    <div class="av-grid" id="g"></div>`;
+    <div class="page-stack">
+      ${_pageHead("Продолжить просмотр", `${entries.length} ${_plural(entries.length, TITLE_FORMS)}`,
+        `<button type="button" class="ed-btn ed-btn--ghost continue-clear" id="avContinueClear" aria-label="Очистить список" title="Очистить список"><i class="fas fa-trash-can" aria-hidden="true"></i><span>Очистить список</span></button>`)}
+      <section class="ed-panel"><div class="ed-panel__body"><div class="ed-grid av-grid" id="g"></div></div></section>
+    </div>`;
   const g = document.querySelector("#g");
   entries.forEach(v => {
     const displayEp = nextEp(v);
@@ -1013,24 +1137,25 @@ export async function viewMyContinue() {
     wrap.className = "av-card-wrap";
     wrap.dataset.mal = String(v.mal_id);
     const src = v.cover ? ctx.imgUrl(v.cover) : "";
-    const metaText = finished
-      ? `Следующая серия: ${displayEp}`
-      : `Остановились на ${displayEp} серии`;
+    // The poster already names the episode; the caption says what is left of it.
+    const leftMin = v.duration > 0 ? Math.max(1, Math.round((v.duration - v.time) / 60)) : 0;
+    const metaText = finished ? "Следующая серия" : leftMin ? `Осталось ${leftMin} мин` : "Продолжить просмотр";
+    const pct = !finished && v.duration > 0 ? Math.min(100, Math.round(v.time / v.duration * 100)) : 0;
     wrap.innerHTML = `
-      <a class="av-card" href="/anime/${v.mal_id}/" data-mal="${v.mal_id}">
-        <div class="av-card-img">
-          <img src="${src}" alt="${esc(v.title || "")}"
+      <a class="ed-tile av-card" href="/anime/${v.mal_id}/" data-mal="${v.mal_id}">
+        <span class="ed-tile__media av-card-img">
+          <i class="fas fa-film" aria-hidden="true"></i>
+          <img src="${esc(src)}" alt="${esc(v.title || "")}"
                onerror="this.dataset.broken='1';this.removeAttribute('src');">
-          <span class="av-badge-type show">${displayEp} серия</span>
-        </div>
-        <div class="av-card-body">
-          <div class="av-card-title" title="${esc(v.title || "")}">${esc(v.title || "")}</div>
-          <div class="av-card-meta">${esc(metaText)}</div>
-        </div>
+          <span class="tile-flag">${displayEp}-я серия</span>
+          ${pct ? `<span class="tile-progress" aria-hidden="true"><i style="width:${pct}%"></i></span>` : ""}
+        </span>
+        <span class="ed-tile__title av-card-title" title="${esc(v.title || "")}">${esc(v.title || "")}</span>
+        <span class="ed-tile__meta av-card-meta">${esc(metaText)}</span>
       </a>
-      <button type="button" class="card-remove" title="Убрать из списка"
-              data-mal="${v.mal_id}" aria-label="Убрать из списка">
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+      <button type="button" class="ed-iconbtn tile-action card-remove" title="Убрать из списка"
+              data-mal="${v.mal_id}" aria-label="Убрать «${esc(v.title || "")}» из списка">
+        <i class="fas fa-xmark" aria-hidden="true"></i>
       </button>`;
     g.appendChild(wrap);
   });
@@ -1057,9 +1182,9 @@ export async function viewMyContinue() {
   document.querySelector("#avContinueClear")?.addEventListener("click", () => {
     confirmWithCountdown({
       title: "Очистить список «Продолжить просмотр»?",
-      body: "Это действие невозможно отменить. Весь прогресс просмотра будет удалён с сервера, на всех устройствах.",
+      body: "Прогресс просмотра удалится с сервера на всех устройствах. Вернуть его нельзя.",
       countdownSec: 5,
-      yesLabel: "Да",
+      yesLabel: "Очистить список",
       noLabel: "Отмена",
       onConfirm: async () => {
         const r = await store.clearAllHistory();
@@ -1083,37 +1208,25 @@ export function confirmWithCountdown({
   noLabel = "Отмена",
   onConfirm,
 }) {
-  const wrap = document.createElement("div");
-  wrap.className = "confirm-overlay";
-  wrap.innerHTML = `
-    <div class="confirm-card">
-      <div class="confirm-icon">
-        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 3 1 21h22L12 3z"/>
-          <line x1="12" y1="9" x2="12" y2="14"/>
-          <line x1="12" y1="17" x2="12.01" y2="17"/>
-        </svg>
-      </div>
-      <h2 class="confirm-title">${esc(title)}</h2>
-      <p class="confirm-body">${esc(body)}</p>
-      <div class="confirm-actions">
-        <button type="button" class="btn btn-ghost" id="avConfirmNo">${esc(noLabel)}</button>
-        <button type="button" class="btn btn-primary confirm-yes" id="avConfirmYes" disabled>
-          <span class="confirm-yes-label">${esc(yesLabel)}</span>
-          <span class="confirm-countdown" id="avConfirmTimer">(${countdownSec})</span>
-        </button>
-      </div>
-    </div>`;
-  document.body.appendChild(wrap);
-  requestAnimationFrame(() => wrap.classList.add("show"));
+  let tick = 0;
+  const dialog = _openDialog("confirm-overlay", `
+    <h2 class="ed-dialog__title" id="avConfirmTitle">${esc(title)}</h2>
+    <p class="ed-dialog__text">${esc(body)}</p>
+    <div class="ed-dialog__actions">
+      <button type="button" class="ed-btn ed-btn--ghost" id="avConfirmNo" data-dialog-close autofocus>${esc(noLabel)}</button>
+      <button type="button" class="ed-btn ed-btn--danger confirm-yes" id="avConfirmYes" disabled>
+        <span class="confirm-yes-label">${esc(yesLabel)}</span>
+        <span class="confirm-countdown" id="avConfirmTimer">(${countdownSec})</span>
+      </button>
+    </div>`, { label: "avConfirmTitle", onClose: () => clearInterval(tick) });
+  const wrap = dialog.el;
 
   let remaining = countdownSec;
   const timerEl = wrap.querySelector("#avConfirmTimer");
   const yesBtn = wrap.querySelector("#avConfirmYes");
-  const noBtn = wrap.querySelector("#avConfirmNo");
   const labelEl = wrap.querySelector(".confirm-yes-label");
 
-  const tick = setInterval(() => {
+  tick = setInterval(() => {
     remaining -= 1;
     if (remaining <= 0) {
       clearInterval(tick);
@@ -1126,22 +1239,10 @@ export function confirmWithCountdown({
     }
   }, 1000);
 
-  const close = () => {
-    clearInterval(tick);
-    wrap.classList.remove("show");
-    document.removeEventListener("keydown", onKey);
-    setTimeout(() => wrap.remove(), 180);
-  };
-  const onKey = (e) => { if (e.key === "Escape") close(); };
-  document.addEventListener("keydown", onKey);
-
-  noBtn.addEventListener("click", close);
-  wrap.addEventListener("click", (e) => { if (e.target === wrap) close(); });
   yesBtn.addEventListener("click", async () => {
     if (yesBtn.disabled) return;
-    yesBtn.disabled = true;
-    labelEl.textContent = "Готово…";
-    try { if (onConfirm) await onConfirm(); } finally { close(); }
+    yesBtn.classList.add("is-loading");
+    try { if (onConfirm) await onConfirm(); } finally { dialog.close(); }
   });
 }
 
@@ -1151,10 +1252,11 @@ export const viewMyHistory  = viewMyContinue;
 
 // Основной раздел «Списки» — вкладки по статусам, плюс отдельный таб «Любимые».
 export async function viewMyLists(activeStatus) {
-  ctx.setActive(null);
+  ctx.setActive("my-lists");
   if (!ctx.state.user) { openGate("lists"); ctx.nav("/login?next=/my/lists"); return; }
   const allowed = new Set(LIST_ORDER_MYLISTS);
   const status = allowed.has(activeStatus) ? activeStatus : "watching";
+  ctx.outlet.innerHTML = `<div class="page-stack">${_pageHead("Списки")}${ctx.loadingBlock()}</div>`;
   let counts = { watching: 0, planned: 0, completed: 0, dropped: 0, postponed: 0, favorite: 0 };
   try { counts = await _fetchJson("/account/lists/counts"); } catch (_) {}
   const items = await _listsFetch(status);
@@ -1162,30 +1264,54 @@ export async function viewMyLists(activeStatus) {
   const tabs = LIST_ORDER_MYLISTS.map(s => {
     const label = LIST_LABELS[s].one;
     const c = counts[s] || 0;
-    const cls = s === status ? "seg-item active" : "seg-item";
-    return `<a class="${cls}" href="/my/lists/${s}" data-status="${s}">
-      <span>${esc(label)}</span><span class="seg-count">${c}</span>
+    const active = s === status;
+    return `<a class="ed-tabs__item${active ? " is-active" : ""}" href="/my/lists/${s}" data-status="${s}"${active ? ' aria-current="page"' : ""}>
+      ${esc(label)}${c ? `<span class="ed-tabs__count">${c}</span>` : ""}
     </a>`;
   }).join("");
 
   const cardsHtml = items.length
-    ? `<div class="av-grid">${items.map(v => _listCardWithActions(v, status)).join("")}</div>`
-    : ctx.errorPage({
-        title: "В этом списке пока пусто",
-        message: "Откройте страницу любого аниме и выберите подходящий статус — тайтл появится здесь.",
-        action: { href: "/top", label: "Посмотреть топ" },
-        variant: "empty",
-      });
+    ? `<div class="ed-grid av-grid">${items.map(v => _listCardWithActions(v, status)).join("")}</div>`
+    : _listEmptyState(status);
 
   ctx.outlet.innerHTML = `
-    <div class="block-header">Списки</div>
-    <div class="seg-tabs" id="avListTabs">${tabs}</div>
-    <div id="avListGrid">${cardsHtml}</div>`;
+    <div class="page-stack">
+      ${_pageHead("Списки")}
+      <section class="ed-panel list-panel">
+        <div class="ed-panel__body">
+          <nav class="ed-tabs tabs-wrap" id="avListTabs" aria-label="Статус в списке">${tabs}</nav>
+          <div id="avListGrid">${cardsHtml}</div>
+        </div>
+      </section>
+    </div>`;
   const grid = document.querySelector("#avListGrid .av-grid");
   if (grid) {
     if (ctx.enrichWithShiki) ctx.enrichWithShiki(grid, items);
     _bindListCardActions(grid, status);
   }
+}
+
+function _listEmptyState(status) {
+  return ctx.errorPage({
+    title: `В списке «${LIST_LABELS[status].one}» пока пусто`,
+    message: "Откройте страницу аниме и выберите статус в меню «В список».",
+    action: { href: "/top", label: "Открыть топ" },
+    icon: "fas fa-list",
+  });
+}
+
+function _bumpListCount(status, delta) {
+  const tab = document.querySelector(`#avListTabs [data-status="${status}"]`);
+  if (!tab) return;
+  let badge = tab.querySelector(".ed-tabs__count");
+  const next = Math.max(0, Number(badge?.textContent || 0) + delta);
+  if (!next) { badge?.remove(); return; }
+  if (!badge) {
+    badge = document.createElement("span");
+    badge.className = "ed-tabs__count";
+    tab.appendChild(badge);
+  }
+  badge.textContent = String(next);
 }
 
 // Карточка со всплывающим меню «переместить/удалить». Рендерится как строка
@@ -1195,36 +1321,59 @@ function _listCardWithActions(v, currentStatus) {
   const src = v.poster_url ? ctx.imgUrl(v.poster_url) : "";
   const title = v.title || `#${mal}`;
   const autoBadge = v.status_source === "auto"
-    ? `<span class="card-auto-badge" title="Статус выставлен автоматически">авто</span>`
+    ? `<span class="tile-flag" title="Статус выставлен автоматически">Автостатус</span>`
     : "";
   // Опции перемещения = все статусы КРОМЕ текущего. Плюс «Убрать из списков».
   const moveOptions = LIST_ORDER_MYLISTS.filter(s => s !== currentStatus).map(s =>
-    `<button type="button" class="lp-option" data-action="move" data-status="${s}">${esc(LIST_LABELS[s].one)}</button>`
+    `<button type="button" class="ed-menu__item lp-option" role="menuitem" data-action="move" data-status="${s}"><i class="fas ${LIST_ICONS[s]}" aria-hidden="true"></i>${esc(LIST_LABELS[s].one)}</button>`
   ).join("");
   return `
     <div class="av-card-wrap" data-mal="${mal}">
-      <a class="av-card" href="/anime/${mal}/" data-mal="${mal}">
-        <div class="av-card-img">
-          <img src="${src}" alt="${esc(title)}"
+      <a class="ed-tile av-card" href="/anime/${mal}/" data-mal="${mal}">
+        <span class="ed-tile__media av-card-img">
+          <i class="fas fa-film" aria-hidden="true"></i>
+          <img src="${esc(src)}" alt="${esc(title)}"
                onerror="this.dataset.broken='1';this.removeAttribute('src');">
           ${autoBadge}
-        </div>
-        <div class="av-card-body">
-          <div class="av-card-title" title="${esc(title)}">${esc(title)}</div>
-          <div class="av-card-meta">${esc(LIST_LABELS[currentStatus]?.one || "")}</div>
-        </div>
+        </span>
+        <span class="ed-tile__title av-card-title" title="${esc(title)}">${esc(title)}</span>
+        <span class="ed-tile__meta av-card-meta">${esc(LIST_LABELS[currentStatus]?.one || "")}</span>
       </a>
-      <button type="button" class="card-action card-action-menu" title="Действия"
-              data-mal="${mal}" aria-haspopup="menu">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>
+      <button type="button" class="ed-iconbtn tile-action card-action-menu" title="Действия"
+              data-mal="${mal}" aria-haspopup="menu" aria-expanded="false" aria-label="Действия с «${esc(title)}»">
+        <i class="fas fa-ellipsis" aria-hidden="true"></i>
       </button>
-      <div class="card-action-pop" role="menu" hidden>
-        <div class="lp-sec-title">Перенести в:</div>
+      <div class="ed-menu card-action-pop" role="menu" hidden>
+        <div class="card-action-title">Перенести в список</div>
         ${moveOptions}
-        <div class="lp-sep"></div>
-        <button type="button" class="lp-option lp-danger" data-action="remove">Убрать из списков</button>
+        <div class="ed-menu__divider" role="separator"></div>
+        <button type="button" class="ed-menu__item is-danger lp-option lp-danger" role="menuitem" data-action="remove"><i class="fas fa-xmark" aria-hidden="true"></i>Убрать из списков</button>
       </div>
     </div>`;
+}
+
+// A menu anchored to a narrow tile can stick out of the screen: move it back inside, like FitMenu() in AnimeSocial.
+function _fitMenu(pop) {
+  pop.style.left = pop.style.right = "";
+  const gap = 8;
+  const r = pop.getBoundingClientRect();
+  // Read the offset before touching the styles: right: auto alone sends the menu to its static position.
+  const left = pop.offsetLeft;
+  if (r.left < gap) {
+    pop.style.right = "auto";
+    pop.style.left = `${left + gap - r.left}px`;
+  } else if (r.right > window.innerWidth - gap) {
+    pop.style.right = "auto";
+    pop.style.left = `${left - (r.right - window.innerWidth + gap)}px`;
+  }
+}
+
+function _syncCardMenus(grid) {
+  grid.querySelectorAll(".av-card-wrap").forEach(wrap => {
+    const pop = wrap.querySelector(".card-action-pop");
+    wrap.classList.toggle("is-menu-open", !!pop && !pop.hidden);
+    wrap.querySelector(".card-action-menu")?.setAttribute("aria-expanded", String(!!pop && !pop.hidden));
+  });
 }
 
 function _bindListCardActions(grid, currentStatus) {
@@ -1239,6 +1388,11 @@ function _bindListCardActions(grid, currentStatus) {
       // Закроем все другие открытые меню
       grid.querySelectorAll(".card-action-pop").forEach(p => { if (p !== pop) p.hidden = true; });
       pop.hidden = !opening;
+      _syncCardMenus(grid);
+      if (opening) {
+        _fitMenu(pop);
+        pop.querySelector(".ed-menu__item")?.focus({ preventScroll: true });
+      }
       return;
     }
     const opt = e.target.closest(".card-action-pop .lp-option");
@@ -1250,24 +1404,20 @@ function _bindListCardActions(grid, currentStatus) {
     const mal = Number(wrap.dataset.mal);
     const action = opt.dataset.action;
     pop.hidden = true;
-    if (action === "move") {
-      const newStatus = opt.dataset.status;
-      const entry = ctx.state.lists?.[String(mal)] || {};
-      const res = await store.setListStatus(mal, newStatus, {
-        title: entry.title, cover: entry.cover,
-      });
-      if (res) {
-        // Тайтл больше не в текущем списке — убираем карточку с экрана.
-        wrap.classList.add("slide-out");
-        setTimeout(() => wrap.remove(), 180);
-      }
-    } else if (action === "remove") {
-      const res = await store.setListStatus(mal, null, {});
-      if (res) {
-        wrap.classList.add("slide-out");
-        setTimeout(() => wrap.remove(), 180);
-      }
-    }
+    _syncCardMenus(grid);
+    const newStatus = action === "move" ? opt.dataset.status : null;
+    const entry = ctx.state.lists?.[String(mal)] || {};
+    const res = await store.setListStatus(mal, newStatus, action === "move" ? { title: entry.title, cover: entry.cover } : {});
+    if (!res) return;
+    // Тайтл больше не в текущем списке: карточка уходит, счётчики вкладок меняются, пустой список получает пустое состояние.
+    wrap.classList.add("slide-out");
+    setTimeout(() => {
+      wrap.remove();
+      _bumpListCount(currentStatus, -1);
+      if (newStatus) _bumpListCount(newStatus, 1);
+      const box = document.querySelector("#avListGrid");
+      if (box && !box.querySelector(".av-card-wrap")) box.innerHTML = _listEmptyState(currentStatus);
+    }, 180);
   });
   // Клик мимо — закрыть открытые меню. Рендер списков может повторяться, поэтому
   // держим ровно один document-listener и снимаем предыдущий перед новым.
@@ -1283,57 +1433,104 @@ function _bindListCardActions(grid, currentStatus) {
     if (e.target.closest(".card-action-menu")) return;
     if (e.target.closest(".card-action-pop")) return;
     grid.querySelectorAll(".card-action-pop").forEach(p => p.hidden = true);
+    _syncCardMenus(grid);
   };
   document.addEventListener("click", window._avListCardCloser);
+  // Escape closes an open card menu and returns focus to its «⋯» button.
+  grid.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const open = grid.querySelector(".card-action-pop:not([hidden])");
+    if (!open) return;
+    open.hidden = true;
+    _syncCardMenus(grid);
+    open.closest(".av-card-wrap")?.querySelector(".card-action-menu")?.focus();
+  });
 }
 
 export async function viewMySettings(tab) {
-  ctx.setActive(null);
+  ctx.setActive("my-settings");
   if (!ctx.state.user) { openGate("settings"); ctx.nav("/login?next=/my/settings"); return; }
   const s = ctx.state.user;
   const privacy = ctx.state.privacy || { hide_lists: false, hide_activity: false };
   const autoLists = ctx.state.autoAddLists !== false;
-  const autoNext = !!ctx.state.autoNext;
   const activeTab = tab === "privacy" ? "privacy" : "general";
+  const tabLink = (key, href, label) => `<a class="ed-tabs__item${activeTab === key ? " is-active" : ""}" href="${href}"${activeTab === key ? ' aria-current="page"' : ""}>${label}</a>`;
+  const theme = getTheme();
+  const themeOption = (value) => `<button type="button" class="ed-tabs__item${theme === value ? " is-active" : ""}" role="radio" aria-checked="${theme === value}" data-theme-value="${value}">${esc(themeLabel(value))}</button>`;
 
   ctx.outlet.innerHTML = `
-    <div class="block-header">Настройки аккаунта</div>
-    <div class="seg-tabs">
-      <a class="seg-item ${activeTab === "general" ? "active" : ""}" href="/my/settings">Общие</a>
-      <a class="seg-item ${activeTab === "privacy" ? "active" : ""}" href="/my/settings/privacy">Конфиденциальность</a>
-    </div>
-    ${activeTab === "general" ? `
-      <div class="acct-settings">
-        <div class="acct-info">
-          <div class="acct-row"><span>Имя:</span> <b>${esc(s.name || s.login || s.email || "")}</b></div>
-          ${s.handle ? `<div class="acct-row"><span>Профиль:</span> <b><a href="${esc(s.profile_path || "/@" + s.handle)}">/@${esc(s.handle)}</a></b></div>` : ""}
-          ${s.email ? `<div class="acct-row"><span>E-mail:</span> <b>${esc(s.email)}</b></div>` : ""}
-        </div>
-        <label class="acct-toggle">
-          <input type="checkbox" id="avAutoAddToggle" ${autoLists ? "checked" : ""} />
-          <span>Автоматическое добавление в списки «Смотрю» и «Просмотрено»</span>
-        </label>
-        <p class="acct-help">Правило «30 дней простоя → Брошено» тоже отключается вместе с этой галкой. Автопереключение серий настраивается прямо на странице аниме под плеером.</p>
-        <p class="acct-help">Чтобы изменить имя или пароль, перейдите в
-          <a href="${esc(socialSiteUrl())}" target="_blank" rel="noopener">кабинет ${esc(socialSiteName())}&nbsp;↗</a>.</p>
-      </div>
-    ` : `
-      <div class="acct-settings">
-        <label class="acct-toggle">
-          <input type="checkbox" id="avHideListsToggle" ${privacy.hide_lists ? "checked" : ""} />
-          <span>Скрыть мои списки в публичном профиле</span>
-        </label>
-        <p class="acct-help">Посторонние увидят плашку: «Списки пользователя ограничены настройками приватности». Вы сами видите списки как обычно.</p>
-        <label class="acct-toggle">
-          <input type="checkbox" id="avHideActivityToggle" ${privacy.hide_activity ? "checked" : ""} />
-          <span>Скрыть блок активности в профиле</span>
-        </label>
-        <p class="acct-help">Скрытая активность не отдаётся публично ни в HTML, ни в JSON — никаких CSS-фокусов.</p>
-      </div>
-    `}`;
+    <div class="page-stack settings-page">
+      ${_pageHead("Настройки")}
+      <nav class="ed-tabs ed-tabs--line" aria-label="Разделы настроек">
+        ${tabLink("general", "/my/settings", "Общие")}${tabLink("privacy", "/my/settings/privacy", "Конфиденциальность")}
+      </nav>
+      ${activeTab === "general" ? `
+        <section class="ed-panel" aria-labelledby="avSetAccount">
+          <div class="ed-panel__head"><span id="avSetAccount">Аккаунт</span></div>
+          <div class="ed-panel__body settings-body">
+            <dl class="ed-kv">
+              <dt>Имя</dt><dd>${esc(s.name || s.login || s.email || "")}</dd>
+              ${s.handle ? `<dt>Профиль</dt><dd><a href="${esc(s.profile_path || "/@" + s.handle)}">@${esc(s.handle)}</a></dd>` : ""}
+              ${s.email ? `<dt>Электронная почта</dt><dd>${esc(s.email)}</dd>` : ""}
+            </dl>
+            <div class="ed-note"><i class="fas fa-circle-info" aria-hidden="true"></i><div>Имя и пароль меняются в <a href="${esc(socialSiteUrl())}" target="_blank" rel="noopener">кабинете ${esc(socialSiteName())}</a>.</div></div>
+          </div>
+        </section>
+        <section class="ed-panel" aria-labelledby="avSetWatch">
+          <div class="ed-panel__head"><span id="avSetWatch">Просмотр</span></div>
+          <div class="ed-panel__body settings-body">
+            <div class="settings-option">
+              <label class="ed-switch"><span>Добавлять в «Смотрю» и «Просмотрено» автоматически</span><input type="checkbox" role="switch" id="avAutoAddToggle" ${autoLists ? "checked" : ""} /></label>
+              <p class="settings-help">Вместе с этим отключается правило «30 дней без просмотра, тайтл переходит в „Брошено“». Автопереключение серий включается под плеером.</p>
+            </div>
+          </div>
+        </section>
+        <section class="ed-panel" aria-labelledby="avSetLook">
+          <div class="ed-panel__head"><span id="avSetLook">Оформление</span></div>
+          <div class="ed-panel__body settings-body">
+            <div class="ed-field">
+              <span class="ed-field__label" id="avThemeLabel">Тема</span>
+              <div class="tabs-scroll"><div class="ed-tabs theme-tabs" role="radiogroup" aria-labelledby="avThemeLabel">
+                ${themeOption("system")}${themeOption("light")}${themeOption("dark")}
+              </div></div>
+              <div class="ed-field__note">Выбор хранится в этом браузере.</div>
+            </div>
+          </div>
+        </section>
+      ` : `
+        <section class="ed-panel" aria-labelledby="avSetPrivacy">
+          <div class="ed-panel__head"><span id="avSetPrivacy">Публичный профиль</span></div>
+          <div class="ed-panel__body settings-body">
+            <div class="settings-option">
+              <label class="ed-switch"><span>Скрыть мои списки</span><input type="checkbox" role="switch" id="avHideListsToggle" ${privacy.hide_lists ? "checked" : ""} /></label>
+              <p class="settings-help">Другие пользователи увидят надпись «Списки скрыты настройками приватности». Вы сами видите списки как обычно.</p>
+            </div>
+            <div class="settings-option">
+              <label class="ed-switch"><span>Скрыть активность</span><input type="checkbox" role="switch" id="avHideActivityToggle" ${privacy.hide_activity ? "checked" : ""} /></label>
+              <p class="settings-help">Скрытая активность не передаётся посторонним ни на странице, ни через API.</p>
+            </div>
+          </div>
+        </section>
+      `}
+    </div>`;
 
   if (activeTab === "general") {
     document.querySelector("#avAutoAddToggle")?.addEventListener("change", e => store.setAutoAddLists(e.target.checked));
+    const themeTabs = document.querySelector(".theme-tabs");
+    // The header and the sheet can change the theme while this page is open.
+    const paintTheme = () => {
+      if (!themeTabs?.isConnected) { document.removeEventListener("av:theme", paintTheme); return; }
+      themeTabs.querySelectorAll("[data-theme-value]").forEach(b => {
+        const on = b.dataset.themeValue === getTheme();
+        b.classList.toggle("is-active", on);
+        b.setAttribute("aria-checked", String(on));
+      });
+    };
+    themeTabs?.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-theme-value]");
+      if (b) applyTheme(b.dataset.themeValue);
+    });
+    document.addEventListener("av:theme", paintTheme);
   } else {
     document.querySelector("#avHideListsToggle")?.addEventListener("change", e => store.setPrivacy({ hide_lists: e.target.checked }));
     document.querySelector("#avHideActivityToggle")?.addEventListener("change", e => store.setPrivacy({ hide_activity: e.target.checked }));
@@ -1358,55 +1555,55 @@ export async function viewProfile(handle) {
     return;
   }
   const { user, is_owner, privacy, counts, activity } = data;
-  const letter = (user.name || user.handle).trim().slice(0, 1).toUpperCase();
   const listsHidden = privacy.hide_lists && !is_owner;
   const activityHidden = privacy.hide_activity && !is_owner;
+  ctx.setActive(is_owner ? "profile" : null);
 
   const tabs = counts ? LIST_ORDER.map(s => {
     const label = LIST_LABELS[s].one;
     const c = counts[s] || 0;
-    return `<button type="button" class="seg-item" data-status="${s}" aria-pressed="false">
-      <span>${esc(label)}</span><span class="seg-count">${c}</span>
+    return `<button type="button" class="ed-tabs__item seg-item" data-status="${s}" aria-pressed="false">
+      ${esc(label)}${c ? `<span class="ed-tabs__count">${c}</span>` : ""}
     </button>`;
   }).join("") : "";
+  const inLists = counts ? LIST_ORDER_MYLISTS.reduce((n, s) => n + (counts[s] || 0), 0) : 0;
+  const stats = !listsHidden && counts
+    ? [`${inLists} в списках`, `${counts.completed || 0} просмотрено`, `${counts.favorite || 0} в избранном`].join(", ")
+    : "";
 
   ctx.outlet.innerHTML = `
-    <div class="profile-page">
-      <div class="profile-hero">
-        <div class="profile-ava">
-          ${user.avatar ? `<img src="${esc(user.avatar)}" alt="" referrerpolicy="no-referrer" />`
-                         : `<span class="profile-ava-fallback">${esc(letter)}</span>`}
-        </div>
+    <div class="page-stack profile-page">
+      <section class="ed-panel profile-hero" aria-labelledby="avProfileName">
+        ${_avatarHtml(user, "ed-ava--lg profile-ava")}
         <div class="profile-info">
-          <h1 class="profile-name">${esc(user.name || ("@" + user.handle))}</h1>
+          <h1 class="profile-name" id="avProfileName">${esc(user.name || ("@" + user.handle))}</h1>
           <div class="profile-handle">@${esc(user.handle)}</div>
+          ${stats ? `<p class="profile-stats">${esc(stats)}</p>` : ""}
         </div>
-        ${is_owner ? `<a class="profile-privacy" href="/my/settings/privacy">Приватность <span aria-hidden="true">↗</span></a>` : ""}
-        ${!listsHidden && counts ? `<dl class="profile-stats">
-          <div><dt>В списках</dt><dd>${LIST_ORDER_MYLISTS.reduce((n, s) => n + (counts[s] || 0), 0)}</dd></div>
-          <div><dt>Просмотрено</dt><dd>${counts.completed || 0}</dd></div>
-          <div><dt>В избранном</dt><dd>${counts.favorite || 0}</dd></div>
-        </dl>` : ""}
-      </div>
-
-      <div class="profile-nav" role="group" aria-label="Раздел профиля">
-        <button type="button" class="active" data-profile-mode="overview" aria-pressed="true">Обзор</button>
-        <button type="button" data-profile-mode="diary" aria-pressed="false">Дневник активности</button>
-      </div>
-      <div class="profile-content" data-mode="overview">
-      <section class="profile-library" aria-labelledby="avLibraryTitle">
-        <h2 id="avLibraryTitle">Списки</h2>
-        ${listsHidden
-          ? `<div class="privacy-gate">Списки пользователя ограничены настройками приватности</div>`
-          : `<div class="seg-tabs profile-seg" id="avProfileTabs">${tabs}</div>
-             <div id="avProfileList" class="profile-list-stage" aria-live="polite"></div>`}
+        ${is_owner ? `<a class="ed-btn ed-btn--secondary profile-privacy" href="/my/settings/privacy"><i class="fas fa-lock" aria-hidden="true"></i>Приватность</a>` : ""}
       </section>
 
+      <div class="ed-tabs ed-tabs--line profile-nav" role="group" aria-label="Раздел профиля">
+        <button type="button" class="ed-tabs__item is-active" data-profile-mode="overview" aria-pressed="true">Обзор</button>
+        <button type="button" class="ed-tabs__item" data-profile-mode="diary" aria-pressed="false">Дневник активности</button>
+      </div>
+      <div class="profile-content" data-mode="overview">
+        <section class="ed-panel profile-library" aria-labelledby="avLibraryTitle">
+          <div class="ed-panel__head"><h2 id="avLibraryTitle">Списки</h2></div>
+          <div class="ed-panel__body">
+            ${listsHidden
+              ? _privacyGate("Списки скрыты настройками приватности.")
+              : `<div class="ed-tabs tabs-wrap profile-seg" id="avProfileTabs">${tabs}</div>
+                 <div id="avProfileList" class="profile-list-stage" aria-live="polite"></div>`}
+          </div>
+        </section>
+
         ${activityHidden
-          ? `<div class="privacy-gate profile-activity-gate">Активность скрыта настройками приватности</div>`
-          : `<div id="avProfileActivity" class="activity-box"></div>`}
+          ? _privacyGate("Активность скрыта настройками приватности.", "profile-activity-gate")
+          : `<section id="avProfileActivity" class="ed-panel activity-box" aria-label="Активность"></section>`}
       </div>
     </div>`;
+  _upgradeAvatars(ctx.outlet, user.avatar || "");
 
   const profile = ctx.outlet.querySelector(".profile-page");
   const content = profile.querySelector(".profile-content");
@@ -1414,7 +1611,7 @@ export async function viewProfile(handle) {
     content.dataset.mode = mode;
     profile.querySelectorAll("[data-profile-mode]").forEach(button => {
       const selected = button.dataset.profileMode === mode;
-      button.classList.toggle("active", selected);
+      button.classList.toggle("is-active", selected);
       button.setAttribute("aria-pressed", String(selected));
     });
   };
@@ -1433,7 +1630,7 @@ export async function viewProfile(handle) {
     const buildListHtml = (r) => {
       if (r.hidden) {
         return {
-          html: `<div class="privacy-gate">Списки пользователя ограничены настройками приватности</div>`,
+          html: _privacyGate("Списки скрыты настройками приватности."),
           items: [],
         };
       }
@@ -1441,14 +1638,14 @@ export async function viewProfile(handle) {
         return {
           html: ctx.errorPage({
             title: "В этом списке пока пусто",
-            message: "Пользователь ещё не добавил сюда тайтлы.",
-            variant: "empty",
+            message: is_owner ? "Выберите статус на странице аниме, и тайтл появится здесь." : "Пользователь ещё не добавил сюда тайтлы.",
+            icon: "fas fa-list",
           }),
           items: [],
         };
       }
       const grid = document.createElement("div");
-      grid.className = "av-grid";
+      grid.className = "ed-grid av-grid";
       r.items.forEach(v => grid.appendChild(ctx.makeCard({
         mal_id: v.mal_id, title: v.title || "", _ru: v.title || "",
         images: { jpg: { large_image_url: v.poster_url } },
@@ -1500,7 +1697,7 @@ export async function viewProfile(handle) {
       if (list.innerHTML.trim()) {
         list.classList.add("is-loading");
       } else {
-        list.innerHTML = `<div class="profile-list-panel profile-list-loading"><div class="av-empty">Загружаю…</div></div>`;
+        list.innerHTML = `<div class="profile-list-panel profile-list-loading">${ctx.loadingBlock()}</div>`;
       }
 
       try {
@@ -1513,7 +1710,7 @@ export async function viewProfile(handle) {
         if (seq !== listSeq) return;
         paintList(status, ctx.errorPage({
           title: "Не удалось загрузить список",
-          message: "Попробуйте обновить страницу — возможно, временный сбой сети.",
+          message: "Сервер не ответил. Обновите страницу.",
           variant: "sad",
         }));
       }
@@ -1521,12 +1718,12 @@ export async function viewProfile(handle) {
     const tabsEl = profile.querySelector("#avProfileTabs");
     const initial = LIST_ORDER_MYLISTS.find(s => (counts[s] || 0) > 0) || "watching";
     [...tabsEl.querySelectorAll(".seg-item")].forEach(el => {
-      el.classList.toggle("active", el.dataset.status === initial);
+      el.classList.toggle("is-active", el.dataset.status === initial);
       el.setAttribute("aria-pressed", String(el.dataset.status === initial));
       el.addEventListener("click", (e) => {
         e.preventDefault();
         [...tabsEl.querySelectorAll(".seg-item")].forEach(x => {
-          x.classList.toggle("active", x === el);
+          x.classList.toggle("is-active", x === el);
           x.setAttribute("aria-pressed", String(x === el));
         });
         loadTab(el.dataset.status);
@@ -1637,7 +1834,7 @@ function _ruActionsWord(n) {
 
 function _renderActPeriodTabs(current) {
   return ACT_PERIODS.map(d => {
-    const cls = d === current ? "act-period active" : "act-period";
+    const cls = d === current ? "ed-tabs__item act-period is-active" : "ed-tabs__item act-period";
     return `<button type="button" class="${cls}" data-days="${d}" aria-pressed="${d === current}">${d === 365 ? "Год" : `${d} дней`}</button>`;
   }).join("");
 }
@@ -1692,7 +1889,7 @@ function _renderGhCells(weeks) {
     w.map((d, row) => {
       if (!d) return `<span class="gh-cell gh-pad" aria-hidden="true"></span>`;
       const b = _bucketAbsolute(d.n);
-      const label = `${_ruDateLong(d.d)} · ${d.n} ${_ruActionsWord(d.n)}`;
+      const label = `${_ruDateLong(d.d)}, ${d.n} ${_ruActionsWord(d.n)}`;
       return `<button type="button" class="gh-cell gh-b${b}"
         tabindex="-1"
         data-date="${d.d}" data-count="${d.n}" data-col="${col}" data-row="${row}"
@@ -1723,15 +1920,11 @@ function _renderGhStreaks(totals) {
   return `
     <div class="gh-streaks">
       <div class="gh-streak">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-          <path d="M12 2s2 3 2 6-2 4-2 4 4 0 4 4-3 6-6 6-7-2-7-7c0-5 4-6 4-10 3 1 5 3 5 5z"/>
-        </svg>
+        <i class="fas fa-fire" aria-hidden="true"></i>
         <span>Сейчас подряд: <b>${cur} ${curWord}</b></span>
       </div>
       <div class="gh-streak">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-          <path d="M6 3h12v3h3v4a4 4 0 0 1-4 4h-.25A6 6 0 0 1 13 16.93V19h3v2H8v-2h3v-2.07A6 6 0 0 1 7.25 14H7a4 4 0 0 1-4-4V6h3V3zm0 5H5v2a2 2 0 0 0 2 2V8zm12 0v4a2 2 0 0 0 2-2V8h-2z"/>
-        </svg>
+        <i class="fas fa-trophy" aria-hidden="true"></i>
         <span>Лучшая серия за период: <b>${best} ${bestWord}</b></span>
       </div>
     </div>`;
@@ -1770,13 +1963,13 @@ function _renderCalendar(activity, month) {
   // "октябрь 2026 г." from toLocaleDateString would read as "Октябрь 2026 Г." once capitalised.
   const monthName = first.toLocaleDateString("ru-RU", { month: "long", timeZone: "UTC" });
   const title = `${monthName.charAt(0).toUpperCase()}${monthName.slice(1)} ${first.getUTCFullYear()}`;
-  const arrow = (dir, target, label) => `<button type="button" class="act-month-arrow" data-month="${target || ""}" ${target ? "" : "disabled"} aria-label="${label}" title="${label}"><svg width="18" height="18" aria-hidden="true"><use href="/assets/icons/navigation.svg#chevron-${dir}"/></svg></button>`;
+  const arrow = (dir, target, label) => `<button type="button" class="ed-iconbtn act-month-arrow" data-month="${target || ""}" ${target ? "" : "disabled"} aria-label="${label}" title="${label}"><i class="fas fa-chevron-${dir}" aria-hidden="true"></i></button>`;
   return `<div class="act-calendar">
     <div class="act-month-head">${arrow("left", previous, "Предыдущий месяц")}<h3>${esc(title)}</h3>${arrow("right", next, "Следующий месяц")}</div>
     <div class="act-calendar-weekdays" aria-hidden="true">${["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map(d => `<span>${d}</span>`).join("")}</div>
     <div class="act-calendar-days" role="group" aria-label="Календарь активности">
       ${cells.map(({ day, number, col, row }) => day
-        ? `<button type="button" class="gh-cell gh-b${_bucketAbsolute(day.n)}" tabindex="-1" data-date="${day.d}" data-count="${day.n}" data-col="${col}" data-row="${row}" aria-pressed="false" aria-label="${esc(`${_ruDateLong(day.d)} · ${day.n} ${_ruActionsWord(day.n)}`)}">${number}${day.n ? '<i aria-hidden="true"></i>' : ""}</button>`
+        ? `<button type="button" class="gh-cell gh-b${_bucketAbsolute(day.n)}" tabindex="-1" data-date="${day.d}" data-count="${day.n}" data-col="${col}" data-row="${row}" aria-pressed="false" aria-label="${esc(`${_ruDateLong(day.d)}, ${day.n} ${_ruActionsWord(day.n)}`)}">${number}${day.n ? '<i aria-hidden="true"></i>' : ""}</button>`
         : `<span class="act-calendar-outside" aria-hidden="true">${number}</span>`).join("")}
     </div>${_renderGhLegend()}
   </div><div class="act-calendar-summary"><strong>${activity.totals?.events || 0}</strong><span>${_ruActionsWord(activity.totals?.events || 0)} за 30 дней</span>
@@ -1786,10 +1979,10 @@ function _renderCalendar(activity, month) {
 
 function _renderViewToggle(view) {
   return `
-    <div class="gh-view-toggle" role="group" aria-label="Вид активности">
-      <button type="button" class="gh-view-btn${view === "grid" ? " active" : ""}"
+    <div class="ed-tabs gh-view-toggle" role="group" aria-label="Вид активности">
+      <button type="button" class="ed-tabs__item gh-view-btn${view === "grid" ? " is-active" : ""}"
               data-view="grid" aria-pressed="${view === "grid"}">График</button>
-      <button type="button" class="gh-view-btn${view === "list" ? " active" : ""}"
+      <button type="button" class="ed-tabs__item gh-view-btn${view === "list" ? " is-active" : ""}"
               data-view="list" aria-pressed="${view === "list"}">Лента</button>
     </div>`;
 }
@@ -1822,7 +2015,7 @@ async function _loadActivityPeriod(container, days) {
   const mode = container._profileMode;
   const seq = container._periodSeq = (container._periodSeq || 0) + 1;
   const status = container.querySelector(".act-status");
-  if (status) status.textContent = "Загружаю…";
+  if (status) status.textContent = "Загружаем…";
   const fresh = container._cache.get(days) || await container._fetch(days).catch(() => null);
   if (seq !== container._periodSeq || mode !== container._profileMode || !container.isConnected) return;
   if (fresh?.hidden) { _hideActivity(container); return; }
@@ -1886,7 +2079,7 @@ function _hideActivity(container) {
   container._cache.clear();
   container._recentItems = [];
   container._activity = null;
-  container.innerHTML = `<div class="privacy-gate profile-activity-gate">Активность скрыта настройками приватности</div>`;
+  container.innerHTML = `<div class="ed-panel__body">${_privacyGate("Активность скрыта настройками приватности.", "profile-activity-gate")}</div>`;
 }
 
 function _paintActivity(container, activity) {
@@ -1900,37 +2093,44 @@ function _paintActivity(container, activity) {
   }
 
   const filterTabs = ACT_FILTER_GROUPS.map(g =>
-    `<button type="button" class="act-filter-btn${g.key === container._recentGroup ? " active" : ""}" data-group="${g.key}" aria-pressed="${g.key === container._recentGroup}">${esc(g.label)}</button>`
+    `<button type="button" class="ed-chip act-filter-btn${g.key === container._recentGroup ? " is-active" : ""}" data-group="${g.key}" aria-pressed="${g.key === container._recentGroup}">${esc(g.label)}</button>`
   ).join("");
 
+  // .act-top holds the head and the graph: in the overview it is a card above the lists and the history.
   container.innerHTML = `
+    <div class="act-top">
     <div class="act-head">
       <h2>Активность</h2>
-      <div class="act-period-tabs">${_renderActPeriodTabs(period_days || 30)}</div>
-      ${_renderViewToggle(view)}
+      <div class="act-head__tools">
+        <div class="tabs-scroll"><div class="ed-tabs act-period-tabs" role="group" aria-label="Период">${_renderActPeriodTabs(period_days || 30)}</div></div>
+        ${_renderViewToggle(view)}
+      </div>
       <div class="act-status" role="status"></div>
     </div>
     ${view === "grid" ? `<section class="act-visual${period_days === 30 ? " is-calendar" : ""}" aria-label="График активности">${!days.length
-      ? '<div class="av-empty">Пока нет активности за выбранный период</div>'
+      ? `<div class="ed-empty"><div class="ed-empty__icon"><i class="fas fa-chart-simple" aria-hidden="true"></i></div><div class="ed-empty__title">Активности пока нет</div><div class="ed-empty__text">За выбранный период ничего не произошло.</div></div>`
       : period_days === 30 ? _renderCalendar(activity, container._month) : _renderGhView(totals, days, period_days)}</section>` : ""}
+    </div>
     <section class="act-diary" aria-label="История действий">
     <div class="act-recent-head">
       <h2 class="act-recent-title">История действий</h2>
-      <div class="act-filter">${filterTabs}</div>
+      <div class="act-filter" role="group" aria-label="Тип действий">${filterTabs}</div>
     </div>
-    <div class="gh-date-filter" id="avDateFilter" ${container._dayFilter ? "" : "hidden"}>
+    <div class="ed-note gh-date-filter" id="avDateFilter" ${container._dayFilter ? "" : "hidden"}>
+      <i class="fas fa-calendar-day" aria-hidden="true"></i>
       <span>Показано: <b id="avDateFilterText">${container._dayFilter ? esc(_ruDateLong(container._dayFilter)) : ""}</b></span>
-      <button type="button" class="gh-date-clear" id="avDateClear" aria-label="Снять фильтр по дате" title="Снять фильтр по дате"><svg width="16" height="16" aria-hidden="true"><use href="/assets/icons/navigation.svg#x"/></svg></button>
+      <button type="button" class="ed-iconbtn gh-date-clear" id="avDateClear" aria-label="Снять фильтр по дате" title="Снять фильтр по дате"><i class="fas fa-xmark" aria-hidden="true"></i></button>
     </div>
     <ol class="act-recent" id="avActRecent"></ol>
-    <div class="act-recent-empty" id="avActRecentEmpty" hidden>В этом разделе пока нет действий.</div>
+    <div class="ed-empty act-recent-empty" id="avActRecentEmpty" hidden>
+      <div class="ed-empty__icon"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i></div>
+      <div class="ed-empty__title">Действий пока нет</div>
+      <div class="ed-empty__text">Здесь появятся просмотры, списки и оценки.</div>
+    </div>
     <div class="act-recent-status" role="status"></div>
-    <button type="button" class="act-more" id="avActMore" hidden>Показать ещё 10</button>
-    <div class="act-end" id="avActEnd" hidden>
-      <span class="act-end-dot"></span>
-      Это вся активность
-      <span class="act-end-dot"></span>
-    </div><button type="button" class="act-open-diary" data-open-diary>Вся активность <svg width="16" height="16" aria-hidden="true"><use href="/assets/icons/navigation.svg#chevron-right"/></svg></button>
+    <button type="button" class="ed-btn ed-btn--secondary act-more" id="avActMore" hidden>Показать ещё 10</button>
+    <div class="act-end" id="avActEnd" hidden>Это вся активность</div>
+    <button type="button" class="ed-btn ed-btn--ghost act-open-diary" data-open-diary>Вся активность<i class="fas fa-chevron-right" aria-hidden="true"></i></button>
     </section>`;
 
   _bindGhInteractions(container);
@@ -2052,9 +2252,9 @@ function _clearDateFilter(container) {
 function _bindRecentList(container) {
   container.querySelectorAll(".act-filter-btn").forEach(b => {
     b.addEventListener("click", () => {
-      if (b.classList.contains("active")) return;
+      if (b.classList.contains("is-active")) return;
       container.querySelectorAll(".act-filter-btn").forEach(x => {
-        x.classList.toggle("active", x === b);
+        x.classList.toggle("is-active", x === b);
         x.setAttribute("aria-pressed", String(x === b));
       });
       container._recentGroup = b.dataset.group;
@@ -2082,12 +2282,12 @@ function _paintRecent(container) {
   container.querySelector("#avActRecentEmpty").hidden = !!items.length || !!container._recentBusy || !!container._recentError;
   container.querySelector("#avActEnd").hidden = !items.length || container._recentHasMore || !!container._recentError;
   container.querySelector(".act-recent-status").innerHTML = container._recentError
-    ? 'Не удалось загрузить действия. <button type="button" class="act-retry">Повторить</button>' : "";
+    ? 'Не удалось загрузить действия. <button type="button" class="ed-btn ed-btn--ghost ed-btn--sm act-retry">Повторить</button>' : "";
   container.querySelector(".act-retry")?.addEventListener("click", () => _reloadRecent(container, container._failedAppend));
   const moreBtn = container.querySelector("#avActMore");
   moreBtn.hidden = !items.length || !container._recentHasMore || !!container._recentError;
   moreBtn.disabled = !!container._recentBusy;
-  moreBtn.textContent = container._recentBusy ? "Загружаю…" : "Показать ещё 10";
+  moreBtn.textContent = container._recentBusy ? "Загружаем…" : "Показать ещё 10";
 }
 
 async function _reloadRecent(container, append = false) {

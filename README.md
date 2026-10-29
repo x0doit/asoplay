@@ -23,6 +23,7 @@ JavaScript, бэкенд работает на Python/FastAPI, а пользов
 ## Содержание
 
 - [Возможности](#возможности)
+- [Дизайн-система EDDAS](#дизайн-система-eddas)
 - [AsoPlayer и Shield](#asoplayer-и-shield)
 - [Архитектура](#архитектура)
 - [Стек](#стек)
@@ -62,6 +63,55 @@ JavaScript, бэкенд работает на Python/FastAPI, а пользов
   видео, данных и изображений.
 - **Опциональный xray bridge (VLESS + Reality или Shadowsocks)** для окружений,
   где внешние anime API недоступны напрямую.
+- **Интерфейс на дизайн-системе EDDAS**, общей с AnimeSocial: светлая и тёмная
+  тема, телефон как приложение. Подробнее — в следующем разделе.
+
+---
+
+## Дизайн-система EDDAS
+
+Фронтенд собран на EDDAS — дизайн-системе социальной сети AnimeSocial, чтобы оба
+сервиса выглядели как одно семейство. Функциональность от этого не меняется.
+
+- **Файлы системы** лежат в `assets/eddas/`:
+  - `css/tokens.css` — токены светлой и тёмной темы и подключение шрифтов;
+  - `css/eddas.css` — компоненты `ed-*` (кнопки, поля, вкладки, чипы, меню, окна,
+    пустые состояния);
+  - `css/app.css` — каркас и общие примитивы: шапка, меню слева, нижняя панель и
+    лист «Ещё» на телефоне, страница, формы, плитки, списки;
+  - `css/fontawesome.css` и `fonts/fontawesome/` — Font Awesome Free 7.3.1 из
+    npm-пакета `@fortawesome/fontawesome-free`;
+  - `fonts/onest/` и `fonts/unbounded/` — шрифты Onest и Unbounded с лицензиями OFL.
+- `tokens.css` и `eddas.css` скопированы из дизайн-системы AnimeSocial без
+  изменений. `app.css` содержит только нужную AsoPlay часть каркаса соцсети.
+  Файлы обновляются из того же источника; Font Awesome — только из npm.
+- **`styles.css`** описывает только экраны AsoPlay: постеры, карусель, каталог,
+  страницу тайтла, плеер, серии, вход, списки, настройки и профиль. В стилях только
+  токены `var(--…)`, без своих цветов, градиентов, свечений и стекла.
+- **Ширина**: колонка контента до 1440px (в соцсети 1200), чтобы плеер рядом с меню и списком серий
+  оставался крупным. Серии стоят справа от плеера на экранах от 1312px, на более узких — сеткой под ним.
+- **Шрифты**: Onest везде, Unbounded — только логотип и hero на странице входа.
+  Внешние CDN, Google Fonts и kit.fontawesome.com не используются: всё грузится с
+  того же сервера.
+- **Тема**: как в системе, светлая или тёмная. Переключатель есть в меню слева, в
+  листе «Ещё», в меню профиля и в настройках. Выбор хранится в `localStorage` под
+  ключом `as-theme`, как в AnimeSocial, и применяется до отрисовки, без вспышки.
+- **Телефон**:
+  - страница не масштабируется;
+  - шапка закреплена;
+  - страница не пружинит за краями;
+  - навигация — нижняя панель и лист «Ещё»;
+  - выбор озвучки и окна — листы снизу, которые смахиваются пальцем;
+  - подборки на главной листаются вбок, карусель — свайпом;
+  - постеры в каталоге и списках идут в две колонки;
+  - если повернуть телефон боком, плеер вместе с выбором озвучки помещается в экран.
+- **Ленты вбок** (сезоны, вкладки, график активности): с мышью видна тонкая полоса
+  прокрутки, ленту можно крутить колесом и тянуть мышью; на сенсорных экранах она
+  листается пальцем.
+- **Профиль**: сверху активность с графиком, под ней списки и история действий в
+  две колонки (на узком экране одна под другой).
+- **Плеер**: AsoPlayer и обложка Kodik используют тёмную палитру EDDAS. Документ
+  плеера не видит токены сайта, поэтому значения тёмной темы записаны в нём явно.
 
 ---
 
@@ -75,11 +125,11 @@ AsoPlayer — это не отдельная библиотека, а прикл
 Ключевые возможности:
 
 - Контекстное меню по правому клику: `Сделать скриншот`,
-  `Копировать ссылку на аниме`, `Аниме соц сеть`.
+  `Копировать ссылку на аниме`, `Открыть AnimeSocial`.
 - Быстрые PNG-скриншоты текущего кадра с чистыми именами файлов:
   `AsoPlay-{mal_id}-ep{episode}-{hh}-{mm}-{ss}.png`.
-- Отдельный Kodik skin в `assets/player/kodik-skin.css` с фирменным акцентом
-  `#ff6666`.
+- Отдельный Kodik skin в `assets/player/kodik-skin.css` с акцентом тёмной
+  темы EDDAS `#9db3cc`.
 - Same-origin player proxy для iframe и media URL.
 - AsoPlay Shield для фильтрации рекламных URL, блокировки popup/navigation
   сценариев и защиты от шумных third-party scripts внутри sandbox.
@@ -93,14 +143,18 @@ AsoPlayer — это не отдельная библиотека, а прикл
 
 ```text
 .
-├── index.html                  SPA shell и SSR placeholders
+├── index.html                  каркас EDDAS (шапка, меню, нижняя панель) и SSR placeholders
 ├── app.js                      публичный router, каталог, тайтл, player
-├── styles.css                  дизайн-система приложения
+├── styles.css                  экраны AsoPlay на токенах EDDAS
 ├── assets/                     статические media assets
+│   ├── eddas/                  дизайн-система EDDAS: токены, компоненты, каркас, шрифты, значки
 │   └── player/
 │       └── kodik-skin.css      AsoPlayer/Kodik visual skin
 ├── js/
-│   └── account.js              auth UI, личные разделы, store, профили
+│   ├── account.js              auth UI, личные разделы, store, профили
+│   ├── navigation.js           каркас: лист «Ещё», поиск в шапке, тема, активный раздел
+│   ├── profile-activity.js     группировка дневника и календарь активности
+│   └── trailer.js              окно трейлера
 ├── server/
 │   ├── main.py                 FastAPI wiring, static serving, sources
 │   ├── animesocial.py          AnimeSocial DB auth bridge и sessions
@@ -135,7 +189,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 
 ## Стек
 
-- **Frontend:** HTML, CSS, vanilla JavaScript ES modules.
+- **Frontend:** HTML, CSS, vanilla JavaScript ES modules, дизайн-система EDDAS
+  (как в AnimeSocial), шрифты Onest и Unbounded, Font Awesome Free 7.3.1 — локально.
 - **Backend:** Python 3.11+, FastAPI, Uvicorn, httpx.
 - **Database:** MySQL 8 / OpenServer-compatible AnimeSocial database.
 - **Auth:** существующая users-таблица AnimeSocial + локальные `aviev_sessions`.
@@ -349,6 +404,7 @@ JavaScript, the backend runs on Python/FastAPI, and user data is stored in MySQL
 ## Contents
 
 - [Features](#features)
+- [EDDAS Design System](#eddas-design-system)
 - [AsoPlayer and Shield](#asoplayer-and-shield)
 - [Architecture](#architecture)
 - [Stack](#stack)
@@ -387,6 +443,58 @@ JavaScript, the backend runs on Python/FastAPI, and user data is stored in MySQL
   data and media images.
 - **Optional xray bridge (VLESS + Reality or Shadowsocks)** for environments
   where upstream anime metadata APIs are blocked.
+- **EDDAS interface** shared with AnimeSocial: light and dark themes, and a phone
+  layout that behaves like an app. See the next section.
+
+---
+
+## EDDAS Design System
+
+The frontend is built on EDDAS, the design system of the AnimeSocial social
+network, so both services look like one family. The functionality is unchanged.
+
+- **System files** live in `assets/eddas/`:
+  - `css/tokens.css` holds the light and dark theme tokens and the font faces;
+  - `css/eddas.css` holds the `ed-*` components (buttons, fields, tabs, chips,
+    menus, dialogs, empty states);
+  - `css/app.css` holds the shell and shared primitives: header, side menu, phone
+    tab bar and "Ещё" sheet, page layout, forms, tiles, lists;
+  - `css/fontawesome.css` and `fonts/fontawesome/` hold Font Awesome Free 7.3.1
+    from the npm package `@fortawesome/fontawesome-free`;
+  - `fonts/onest/` and `fonts/unbounded/` hold the Onest and Unbounded fonts with
+    their OFL licenses.
+- `tokens.css` and `eddas.css` are unmodified copies from the AnimeSocial design
+  system. `app.css` keeps only the part of the AnimeSocial shell that AsoPlay
+  needs. Update them from the same source; update Font Awesome only from npm.
+- **`styles.css`** covers only AsoPlay screens: posters, carousel, catalog, title
+  page, player, episodes, sign-in, lists, settings and profile. It uses `var(--…)`
+  tokens only, with no own colors, gradients, glows or glass.
+- **Width:** the content column is up to 1440px (AnimeSocial uses 1200), so the
+  player stays large next to the side menu and the episode list. Episodes sit beside
+  the player from 1312px and become a grid under it on narrower screens.
+- **Fonts:** Onest everywhere, Unbounded only for the wordmark and the sign-in
+  hero. No external CDN, Google Fonts or kit.fontawesome.com: everything is served
+  by the same server.
+- **Theme:** system, light or dark. The switch is in the side menu, the "Ещё"
+  sheet, the profile menu and the settings. The choice is stored in `localStorage`
+  under `as-theme`, as in AnimeSocial, and is applied before the first paint.
+- **Phone:**
+  - the page does not zoom;
+  - the header stays fixed;
+  - the page does not bounce at its edges;
+  - navigation uses the bottom tab bar and the "Ещё" sheet;
+  - the dub picker and dialogs open as bottom sheets that can be swiped away;
+  - home rows scroll sideways and the carousel turns with a swipe;
+  - posters in the catalog and lists sit in two columns;
+  - with the phone on its side, the player and the dub picker fit on the screen.
+- **Sideways strips** (seasons, tabs, the activity graph): a mouse user sees a thin
+  scrollbar and can scroll with the wheel or drag the strip; touch screens scroll
+  them with a finger.
+- **Profile:** activity with the graph on top, then the lists and the action
+  history in two columns (stacked on narrow screens).
+- **Player:** AsoPlayer and the Kodik skin use the EDDAS dark palette. The player
+  document cannot see the site tokens, so the dark-theme values are written in it
+  explicitly.
 
 ---
 
@@ -400,11 +508,11 @@ communication with the actual embedded player.
 Key capabilities:
 
 - Right-click context menu: `Сделать скриншот`, `Копировать ссылку на аниме`,
-  `Аниме соц сеть`.
+  `Открыть AnimeSocial`.
 - Quick PNG screenshots of the current frame with clean filenames:
   `AsoPlay-{mal_id}-ep{episode}-{hh}-{mm}-{ss}.png`.
-- Dedicated Kodik skin in `assets/player/kodik-skin.css` with the branded
-  `#ff6666` accent.
+- Dedicated Kodik skin in `assets/player/kodik-skin.css` with the EDDAS
+  dark-theme accent `#9db3cc`.
 - Same-origin player proxy for iframe and media URLs.
 - AsoPlay Shield for filtering ad URLs, blocking popup/navigation flows and
   reducing noisy third-party behavior inside sandboxed players.
@@ -418,14 +526,18 @@ Key capabilities:
 
 ```text
 .
-├── index.html                  SPA shell and SSR placeholders
+├── index.html                  EDDAS shell (header, menu, tab bar) and SSR placeholders
 ├── app.js                      public router, catalog, title page, player
-├── styles.css                  application design system
+├── styles.css                  AsoPlay screens on EDDAS tokens
 ├── assets/                     static media assets
+│   ├── eddas/                  EDDAS design system: tokens, components, shell, fonts, icons
 │   └── player/
 │       └── kodik-skin.css      AsoPlayer/Kodik visual skin
 ├── js/
-│   └── account.js              auth UI, personal sections, store, profiles
+│   ├── account.js              auth UI, personal sections, store, profiles
+│   ├── navigation.js           shell: "Ещё" sheet, header search, theme, active section
+│   ├── profile-activity.js     diary grouping and activity calendar
+│   └── trailer.js              trailer dialog
 ├── server/
 │   ├── main.py                 FastAPI app wiring, static serving, sources
 │   ├── animesocial.py          AnimeSocial DB auth bridge and sessions
@@ -460,7 +572,9 @@ Key capabilities:
 
 ## Stack
 
-- **Frontend:** plain HTML, CSS and JavaScript ES modules.
+- **Frontend:** plain HTML, CSS and JavaScript ES modules, the EDDAS design system
+  (shared with AnimeSocial), Onest and Unbounded fonts, Font Awesome Free 7.3.1, all
+  served locally.
 - **Backend:** Python 3.11+, FastAPI, Uvicorn, httpx.
 - **Database:** MySQL 8 / OpenServer-compatible AnimeSocial database.
 - **Auth:** existing AnimeSocial users table + project-local `aviev_sessions`.

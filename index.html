@@ -6,21 +6,33 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<meta name="theme-color" content="#1e1e1e" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#1b2532" media="(prefers-color-scheme: dark)" />
 <title>AsoPlay — смотреть аниме онлайн в русской озвучке</title>
 <meta name="description" content="Смотреть аниме онлайн бесплатно в высоком качестве. Русская озвучка, субтитры, большой каталог сериалов, фильмов, OVA, ONA." />
 <meta name="author" content="Чепела Даниэль Максимович (x0doit) — https://crazydev.pro/" />
 <meta name="robots" content="index, follow, max-image-preview:large" />
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='11' fill='%23ff6666'/%3E%3Ctext x='12' y='16' text-anchor='middle' fill='white' font-family='Arial' font-weight='700' font-size='12'%3EA%3C/text%3E%3C/svg%3E" />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%234c637b'/%3E%3Ctext x='12' y='16.5' text-anchor='middle' fill='white' font-family='Arial' font-weight='700' font-size='13'%3EA%3C/text%3E%3C/svg%3E" />
+<script>
+  // Тема до отрисовки: сохранённый выбор (ключ as-theme, как в AnimeSocial) или системная, без вспышки светлого фона
+  (function () {
+    try {
+      var t = localStorage.getItem("as-theme");
+      if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {}
+  })();
+</script>
 
 <link rel="preconnect" href="https://graphql.anilist.co" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-
-<link rel="stylesheet" href="/styles.css?v=20261027-profile7" />
-<link rel="stylesheet" href="/assets/profile.css?v=20261027-profile7" />
+<link rel="preload" href="/assets/eddas/fonts/onest/onest-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="/assets/eddas/fonts/onest/onest-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="/assets/eddas/fonts/fontawesome/fa-solid-900.woff2?v=7.3.1" as="font" type="font/woff2" crossorigin />
+<link rel="stylesheet" href="/assets/eddas/css/tokens.css?v=20261029-eddas2" />
+<link rel="stylesheet" href="/assets/eddas/css/eddas.css?v=20261029-eddas2" />
+<link rel="stylesheet" href="/assets/eddas/css/app.css?v=20261029-eddas2" />
+<link rel="stylesheet" href="/assets/eddas/css/fontawesome.css?v=7.3.1" />
+<link rel="stylesheet" href="/styles.css?v=20261029-eddas2" />
 
 <!--av:head-extra-->
 
@@ -46,69 +58,88 @@
 </script>
 </head>
 <body>
+<a class="skip-link" href="#main-content">Перейти к содержимому</a>
 
-<header class="header">
-  <div class="container">
-    <a class="logo" href="/" aria-label="AsoPlay — на главную">
-      <img src="/assets/logo.png?v=20260424-2" alt="AsoPlay" class="logo-img" height="46" decoding="async" />
-    </a>
+<header class="app-header">
+  <div class="app-header__inner">
+    <button type="button" class="ed-iconbtn app-menu-toggle" data-sheet-open aria-label="Все разделы" title="Все разделы" aria-controls="appSheet" aria-expanded="false"><i class="fas fa-bars" aria-hidden="true"></i></button>
+    <a class="app-wordmark" href="/" aria-label="AsoPlay — на главную">AsoPlay</a>
 
-    <button type="button" class="mobile-menu-button" id="mobileMenuBtn" aria-label="Открыть меню" title="Открыть меню" aria-controls="topMenu" aria-expanded="false">
-      <svg width="24" height="24" aria-hidden="true"><use href="/assets/icons/navigation.svg#menu"/></svg>
-    </button>
+    <form class="app-search ed-search" id="appSearch" role="search" action="/catalog">
+      <i class="ed-search__icon fas fa-search" aria-hidden="true"></i>
+      <input class="ed-search__input" id="appSearchInput" name="q" type="search" placeholder="Поиск аниме" aria-label="Поиск аниме" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" />
+    </form>
 
-    <ul class="menu" id="topMenu">
-      <li class="mobile-menu-head">
-        <img src="/assets/logo.png?v=20260424-2" alt="AsoPlay" width="120" height="44" />
-        <button type="button" id="mobileMenuClose" aria-label="Закрыть меню" title="Закрыть меню">
-          <svg width="24" height="24" aria-hidden="true"><use href="/assets/icons/navigation.svg#x"/></svg>
-        </button>
-      </li>
-      <li><a href="/" data-view="home">Главная</a></li>
-      <li><a href="/top" data-view="top">ТОП-100</a></li>
-      <li><a href="/season" data-view="season">Сезон <span>сейчас</span></a></li>
-      <li><a href="/trending" data-view="trending">Тренды</a></li>
-      <li><a href="/movies" data-view="movies">Полнометражные</a></li>
-      <li class="menu-sep"><a href="/search" data-view="search" class="menu-icon" title="Поиск">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M10 2a8 8 0 1 0 4.9 14.3l5.4 5.4 1.4-1.4-5.4-5.4A8 8 0 0 0 10 2m0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12"/></svg>
-        <span>Поиск</span>
-      </a></li>
-      <li><a href="/random" data-view="random" class="menu-icon" title="Случайное аниме">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-11 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3m0 7a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3m4-3.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3M16 7a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3m0 7a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3"/></svg>
-        <span>Рандом</span>
-      </a></li>
-      <li class="menu-account" id="avAccountSlot">
-        <a href="/login" data-view="login" class="menu-icon menu-login" title="Войти">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M10 17l1.4-1.4L8.8 13H21v-2H8.8l2.6-2.6L10 7l-5 5 5 5zM4 5h8V3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8v-2H4V5z"/></svg>
-          <span>Авторизация</span>
-        </a>
-      </li>
-    </ul>
+    <div class="app-header__actions">
+      <button type="button" class="ed-iconbtn app-search-toggle" id="appSearchToggle" aria-label="Поиск" title="Поиск" aria-controls="appSearch" aria-expanded="false"><i class="fas fa-search" aria-hidden="true"></i></button>
+      <div class="app-header__account" id="avAccountSlot">
+        <div class="app-header__actions app-header__actions--guest">
+          <a class="ed-btn ed-btn--ghost" href="/login" data-nav="login">Войти</a>
+        </div>
+      </div>
+    </div>
   </div>
 </header>
 
-<div class="container" id="outlet">
-  <!--av:noscript-->
-</div>
-
-<footer>
-  <div class="container">
-    <p>Весь контент предоставлен сторонними источниками по API и отображается в ознакомительных целях.</p>
-    <p>Видео и медиаданные не хранятся на наших серверах, не размещаются и не модерируются администрацией сайта.</p>
-    <div class="foot-note">
-      Разработано <a href="https://crazydev.pro/" target="_blank" rel="noopener">x0doit</a>
-      &middot; &copy; Чепела Даниэль Максимович
+<div class="app-layout">
+  <nav class="app-nav" id="appNav" aria-label="Основное меню">
+    <a class="app-nav__item" data-nav="home" href="/"><i class="fas fa-house" aria-hidden="true"></i><span>Главная</span></a>
+    <a class="app-nav__item" data-nav="top" href="/top"><i class="fas fa-trophy" aria-hidden="true"></i><span>Топ-100</span></a>
+    <a class="app-nav__item" data-nav="season" href="/season"><i class="fas fa-calendar-days" aria-hidden="true"></i><span>Сезон</span></a>
+    <a class="app-nav__item" data-nav="trending" href="/trending"><i class="fas fa-fire" aria-hidden="true"></i><span>Сейчас смотрят</span></a>
+    <a class="app-nav__item" data-nav="movies" href="/movies"><i class="fas fa-film" aria-hidden="true"></i><span>Фильмы</span></a>
+    <a class="app-nav__item" data-nav="search" href="/catalog"><i class="fas fa-sliders" aria-hidden="true"></i><span>Каталог</span></a>
+    <a class="app-nav__item" data-nav="random" href="/random"><i class="fas fa-shuffle" aria-hidden="true"></i><span>Случайное</span></a>
+    <div id="avNavPersonal" hidden></div>
+    <div class="app-nav__sep" role="separator"></div>
+    <button type="button" class="app-nav__item" data-theme-cycle><i class="fas fa-circle-half-stroke" aria-hidden="true"></i><span>Тема</span><span class="app-menu__value" data-theme-label>Как в системе</span></button>
+    <div class="app-nav__foot">
+      <a href="https://animesocial.online" target="_blank" rel="noopener" data-social-link>AnimeSocial</a>
+      <a href="https://crazydev.pro/" target="_blank" rel="noopener">Разработка x0doit</a>
     </div>
-  </div>
-</footer>
+  </nav>
 
-<div class="to-top" id="toTop" title="Наверх">
-  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 4 4 12l1.4 1.4L11 7.8V20h2V7.8l5.6 5.6L20 12z"/></svg>
+  <main class="app-main" id="main-content" tabindex="-1">
+    <div id="outlet">
+      <!--av:noscript-->
+    </div>
+    <footer class="app-footer">
+      <p>Весь контент предоставлен сторонними источниками по API и отображается в ознакомительных целях. Видео и медиаданные не хранятся на наших серверах, не размещаются и не модерируются администрацией сайта.</p>
+      <p>&copy; Чепела Даниэль Максимович</p>
+    </footer>
+  </main>
 </div>
-<div class="dark-overlay" id="darkOverlay"></div>
+
+<nav class="app-tabbar" aria-label="Навигация">
+  <a class="app-tabbar__item" data-nav="home" href="/" aria-label="Главная"><i class="fas fa-house" aria-hidden="true"></i></a>
+  <a class="app-tabbar__item" data-nav="search" href="/catalog" aria-label="Каталог"><i class="fas fa-sliders" aria-hidden="true"></i></a>
+  <a class="app-tabbar__item" data-nav="season" href="/season" aria-label="Сезон"><i class="fas fa-calendar-days" aria-hidden="true"></i></a>
+  <a class="app-tabbar__item" id="avTabAccount" data-nav="login" href="/login" aria-label="Войти"><i class="fas fa-right-to-bracket" aria-hidden="true"></i></a>
+  <button type="button" class="app-tabbar__item" data-sheet-open aria-label="Ещё" aria-controls="appSheet" aria-expanded="false"><i class="fas fa-bars" aria-hidden="true"></i></button>
+</nav>
+
+<div class="app-sheet" id="appSheet" aria-hidden="true">
+  <div class="app-sheet__scrim" data-sheet-close></div>
+  <div class="app-sheet__panel" role="dialog" aria-label="Все разделы">
+    <div class="app-sheet__grip"></div>
+    <a class="ed-menu__item" data-nav="home" href="/"><i class="fas fa-house" aria-hidden="true"></i>Главная</a>
+    <a class="ed-menu__item" data-nav="top" href="/top"><i class="fas fa-trophy" aria-hidden="true"></i>Топ-100</a>
+    <a class="ed-menu__item" data-nav="season" href="/season"><i class="fas fa-calendar-days" aria-hidden="true"></i>Сезон</a>
+    <a class="ed-menu__item" data-nav="trending" href="/trending"><i class="fas fa-fire" aria-hidden="true"></i>Сейчас смотрят</a>
+    <a class="ed-menu__item" data-nav="movies" href="/movies"><i class="fas fa-film" aria-hidden="true"></i>Фильмы</a>
+    <a class="ed-menu__item" data-nav="search" href="/catalog"><i class="fas fa-sliders" aria-hidden="true"></i>Каталог</a>
+    <a class="ed-menu__item" data-nav="random" href="/random"><i class="fas fa-shuffle" aria-hidden="true"></i>Случайное</a>
+    <div id="avSheetPersonal"></div>
+    <div class="ed-menu__divider" role="separator"></div>
+    <button type="button" class="ed-menu__item" data-theme-cycle><i class="fas fa-circle-half-stroke" aria-hidden="true"></i>Тема<span class="app-menu__value" data-theme-label>Как в системе</span></button>
+    <a class="ed-menu__item" href="https://animesocial.online" target="_blank" rel="noopener" data-social-link><i class="fas fa-users" aria-hidden="true"></i>AnimeSocial</a>
+  </div>
+</div>
+
+<button type="button" class="ed-iconbtn to-top" id="toTop" aria-label="Наверх" title="Наверх"><i class="fas fa-arrow-up" aria-hidden="true"></i></button>
 
 <!--av:preload-->
 
-<script src="/app.js?v=20261028-brand1" type="module"></script>
+<script src="/app.js?v=20261029-eddas2" type="module"></script>
 </body>
 </html>

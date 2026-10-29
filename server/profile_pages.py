@@ -199,9 +199,14 @@ def _render_shell(head_extra: str, noscript: str, *,
 def profile_page(handle: str):
     target = resolve_handle(handle)
     if not target:
-        # не кидаем HTML-404 — пусть SPA шеллом покажет свою 404-страницу,
-        # если handle в принципе не резолвится.
-        raise HTTPException(404, "profile not found")
+        # Неизвестный handle: оболочка SPA с кодом 404, а «Профиль не найден» рисует сам фронтенд.
+        # Голый HTTPException отдавал браузеру JSON вместо страницы.
+        missing = _render_shell(
+            "", "<noscript><h1>Профиль не найден</h1></noscript>",
+            title=f"Профиль не найден — {SITE_NAME}", robots="noindex, follow",
+        )
+        missing.status_code = 404
+        return missing
 
     privacy = read_privacy(target["id"])
     show_lists = not privacy["hide_lists"]
