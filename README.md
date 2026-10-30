@@ -222,12 +222,18 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── db.php              формат DB-конфига AnimeSocial
 │   │   ├── server/             шаблон xray-конфига и unit systemd
 │   │   └── cache/              рабочие файлы: HTTP-кеш, adblock, xray (вне git)
+│   ├── tests/                  проверки ядра: раздел — test_{раздел}.py, большой — вход и папка частей;
+│   │                           запуск run.py, как запускать и что нужно — README.md
 │   └── migrations/
 │       ├── 0000_schema.sql                       базовая схема aviev_*
 │       ├── 2026-04-30_lists_privacy_activity.sql списки, приватность, активность, compatibility
 │       ├── 2026-10-30_admin_panel.sql            жалобы, пометки тайтлов, настройки сайта, журнал, время просмотра
 │       ├── 2026-10-30_as_sessions.sql            сессии входа через AnimeSocial
 │       └── 2026-10-30_presence.sql               настройки присутствия на AsoPlay
+├── design/EDDAS/tests/         проверки фронтенда (Node); до шага 6 читают app.js и js/ из корня
+├── tools/
+│   ├── guard/                  сторожа рефакторинга: длины, импорты, docblock, контракт, ответы, стили (all.py)
+│   └── qa/                     браузерный QA экранов: eddas-qa.cjs и сценарии в scenarios/
 ├── .env.example                шаблон environment variables
 ├── COPYRIGHT                   proprietary copyright notice
 └── .gitignore                  ignored local/runtime artifacts
@@ -714,12 +720,18 @@ Key capabilities:
 │   │   ├── db.php              AnimeSocial DB config format
 │   │   ├── server/             xray config template and the systemd unit
 │   │   └── cache/              work files: HTTP cache, adblock, xray (not in git)
+│   ├── tests/                  core checks: a section is test_{section}.py, a big one is an entry and a parts
+│   │                           folder; run.py runs them, README.md says how and what each needs
 │   └── migrations/
 │       ├── 0000_schema.sql                       base aviev_* schema
 │       ├── 2026-04-30_lists_privacy_activity.sql lists, privacy, activity and compatibility
 │       ├── 2026-10-30_admin_panel.sql            reports, title flags, site settings, audit log, watch time
 │       ├── 2026-10-30_as_sessions.sql            sign-in with AnimeSocial sessions
 │       └── 2026-10-30_presence.sql               presence settings
+├── design/EDDAS/tests/         frontend checks (Node); until step 6 they read app.js and js/ from the root
+├── tools/
+│   ├── guard/                  refactoring guards: lengths, imports, docblocks, contract, responses, styles (all.py)
+│   └── qa/                     browser QA of the screens: eddas-qa.cjs and the scenarios in scenarios/
 ├── .env.example                environment template
 ├── COPYRIGHT                   proprietary copyright notice
 └── .gitignore                  ignored local/runtime artifacts

@@ -1,0 +1,2873 @@
+{
+ "ADBLOCK_CACHE_DIR": [
+  "= ff8f2bf1b1a4"
+ ],
+ "ALLOWED_DAYS": [
+  "= 3e614fd36757"
+ ],
+ "ALLOWED_KINDS": [
+  "= 75282d553b0b"
+ ],
+ "ALLOWED_ORIGINS": [
+  "= 90b6dc87bf8d"
+ ],
+ "ANIMESOCIAL_JSON": [
+  "= 5dffa7ff4439"
+ ],
+ "ASApiError": [
+  "class(Exception)"
+ ],
+ "ASApiError.__init__": [
+  "def(self, status: int, code: str, message: str='', retry_after: int=0)"
+ ],
+ "AUTHOR_NAME": [
+  "= 1bd52457993d"
+ ],
+ "AUTHOR_URL": [
+  "= 3d6003370d33"
+ ],
+ "AUTH_VERIFIER": [
+  "= a772f4addc15"
+ ],
+ "AdblockEngine": [
+  "class()"
+ ],
+ "AdblockEngine.__init__": [
+  "def(self) -> None"
+ ],
+ "AdblockEngine._compile": [
+  "def(self, filter_texts: list[str]) -> _CompiledRules"
+ ],
+ "AdblockEngine._get_filter_text": [
+  "async def(self, client: httpx.AsyncClient, url: str) -> str | None"
+ ],
+ "AdblockEngine._load_cached": [
+  "async def(self) -> None"
+ ],
+ "AdblockEngine._parse_line": [
+  "def(self, raw: str, rules: _CompiledRules, *, regex_limit: int, snippet_limit: int) -> None"
+ ],
+ "AdblockEngine._refresh": [
+  "async def(self) -> None"
+ ],
+ "AdblockEngine.filter_videos": [
+  "async def(self, videos: list[dict[str, Any]]) -> list[dict[str, Any]]"
+ ],
+ "AdblockEngine.should_block": [
+  "def(self, url: str) -> tuple[bool, str | None]"
+ ],
+ "AdblockEngine.shutdown": [
+  "async def(self) -> None"
+ ],
+ "AdblockEngine.startup": [
+  "async def(self) -> None"
+ ],
+ "AdblockEngine.status": [
+  "def(self) -> dict[str, Any]"
+ ],
+ "AdblockEngine.wait_ready": [
+  "async def(self, timeout: float=1.5) -> None"
+ ],
+ "AdminError": [
+  "class(Exception)"
+ ],
+ "AdminError.__init__": [
+  "def(self, status: int, code: str, message: str='')"
+ ],
+ "Animevost": [
+  "class()"
+ ],
+ "Animevost.__init__": [
+  "def(self, proxy: str | None=None) -> None"
+ ],
+ "Animevost._format_item": [
+  "@staticmethod def(raw: dict) -> dict"
+ ],
+ "Animevost._parse_episode_num": [
+  "@staticmethod def(name: str) -> int | None"
+ ],
+ "Animevost._split_title": [
+  "@staticmethod def(full: str) -> tuple[str, str, str]"
+ ],
+ "Animevost.close": [
+  "async def(self) -> None"
+ ],
+ "Animevost.episodes": [
+  "async def(self, vost_id: int | str) -> list[dict]"
+ ],
+ "Animevost.search": [
+  "async def(self, query: str, limit: int=20) -> list[dict]"
+ ],
+ "BACKOFF_MAX": [
+  "= 22d200f8670d"
+ ],
+ "BAD_KEYS_WAIT": [
+  "= e26973e6ee8a"
+ ],
+ "BASE": [
+  "= 2cbc373a1a5c",
+  "= d5d5d1b100b9"
+ ],
+ "CACHE_DIR": [
+  "= c5061ae78c53"
+ ],
+ "CATALOG_WAIT": [
+  "= 743da23f34ee"
+ ],
+ "CONFIG_DIR": [
+  "= 7ed902dbb12f"
+ ],
+ "COOKIE_NAME": [
+  "= 4ed1a1797c1b"
+ ],
+ "COOKIE_SAMESITE": [
+  "= 8fa3482a20f2"
+ ],
+ "COOKIE_SECURE": [
+  "= 2f8c0e39cc07"
+ ],
+ "COOLDOWN_SECONDS": [
+  "= df1f005bd0e9"
+ ],
+ "Conn": [
+  "class()"
+ ],
+ "Conn.allow_frame": [
+  "def(self, now: float) -> bool"
+ ],
+ "Conn.brief": [
+  "dict[str, Any] | None = da39a3ee5e6b"
+ ],
+ "Conn.frames": [
+  "list[float] = b1e8f0f90a08"
+ ],
+ "Conn.id": [
+  "int = da39a3ee5e6b"
+ ],
+ "Conn.ip": [
+  "str = da39a3ee5e6b"
+ ],
+ "Conn.mal_id": [
+  "int = b6589fc6ab0d"
+ ],
+ "Conn.session": [
+  "str = da39a3ee5e6b"
+ ],
+ "Conn.title": [
+  "str = b6ee60926c0a"
+ ],
+ "Conn.user_id": [
+  "int = da39a3ee5e6b"
+ ],
+ "Conn.visible": [
+  "bool = 97cdbdc7feff"
+ ],
+ "Conn.ws": [
+  "WebSocket = da39a3ee5e6b"
+ ],
+ "DB_PHP": [
+  "= 054a31130356"
+ ],
+ "DEDUP_BY_TITLE_PER_DAY": [
+  "= 98d9b151f9ed"
+ ],
+ "DEFAULT_DAYS": [
+  "= 22d200f8670d"
+ ],
+ "DubPrefIn": [
+  "class(BaseModel)"
+ ],
+ "DubPrefIn.dub_norm": [
+  "str = 866da439fa11"
+ ],
+ "ENV_FILE": [
+  "= de597316493b"
+ ],
+ "FAIL_THRESHOLD": [
+  "= 77de68daecd8"
+ ],
+ "FLOW_COOKIE": [
+  "= 81211f7d3047"
+ ],
+ "FLOW_TTL": [
+  "= 15aa0c7e8fbd"
+ ],
+ "FRAME_LIMIT": [
+  "= 41c6e99b9747"
+ ],
+ "FRAME_WINDOW": [
+  "= 41c6e99b9747"
+ ],
+ "FRIENDS_TTL": [
+  "= 775bc5c30e27"
+ ],
+ "FavoriteIn": [
+  "class(BaseModel)",
+  "class(BaseModel)"
+ ],
+ "FavoriteIn.is_favorite": [
+  "bool = da39a3ee5e6b"
+ ],
+ "FavoriteIn.mal_id": [
+  "conint(ge=1, le=10000000) = da39a3ee5e6b"
+ ],
+ "FavoriteIn.poster_url": [
+  "str = f8ee4cc99729",
+  "str = f8ee4cc99729"
+ ],
+ "FavoriteIn.title": [
+  "str = f8ee4cc99729",
+  "str = f8ee4cc99729"
+ ],
+ "FeaturesIn": [
+  "class(BaseModel)"
+ ],
+ "FeaturesIn.as_login": [
+  "bool | None = 6eef6648406c"
+ ],
+ "FeaturesIn.comments": [
+  "bool | None = 6eef6648406c"
+ ],
+ "FeaturesIn.password_login": [
+  "bool | None = 6eef6648406c"
+ ],
+ "Flags": [
+  "class()"
+ ],
+ "Flags.adult": [
+  "frozenset[int] = c814e69f6eb7"
+ ],
+ "Flags.hidden": [
+  "frozenset[int] = c814e69f6eb7"
+ ],
+ "Flags.pinned": [
+  "tuple[int, ...] = f9065fa73897"
+ ],
+ "GRACE": [
+  "= 22d200f8670d"
+ ],
+ "HistoryIn": [
+  "class(BaseModel)"
+ ],
+ "HistoryIn.episode_duration": [
+  "conint(ge=0, le=200000) = b6589fc6ab0d"
+ ],
+ "HistoryIn.episode_seconds": [
+  "conint(ge=0, le=200000) = b6589fc6ab0d"
+ ],
+ "HistoryIn.episodes_total": [
+  "conint(ge=0, le=10000) = b6589fc6ab0d"
+ ],
+ "HistoryIn.last_episode": [
+  "conint(ge=1, le=10000) = 356a192b7913"
+ ],
+ "HistoryIn.mal_id": [
+  "conint(ge=1, le=10000000) = da39a3ee5e6b"
+ ],
+ "HistoryIn.poster_url": [
+  "str = f8ee4cc99729"
+ ],
+ "HistoryIn.title": [
+  "str = f8ee4cc99729"
+ ],
+ "Hub": [
+  "class()"
+ ],
+ "Hub.__init__": [
+  "def(self, clock: Callable[[], float]=time.monotonic)"
+ ],
+ "Hub._loop_forever": [
+  "async def(self) -> None"
+ ],
+ "Hub._rules": [
+  "async def(self, user_id: int) -> presence.Privacy"
+ ],
+ "Hub._title": [
+  "async def(self, mal_id: int, fallback: str) -> tuple[str, str]"
+ ],
+ "Hub._to_people": [
+  "async def(self, user_ids: list[int], frame: dict[str, Any]) -> None"
+ ],
+ "Hub.broadcast_status": [
+  "async def(self) -> None"
+ ],
+ "Hub.check_sessions": [
+  "async def(self) -> None"
+ ],
+ "Hub.close": [
+  "async def(self, conn: Conn, code: int) -> None"
+ ],
+ "Hub.drop_session": [
+  "async def(self, session: str) -> None"
+ ],
+ "Hub.drop_session_from_thread": [
+  "def(self, session: str) -> None"
+ ],
+ "Hub.friends_from_thread": [
+  "def(self, user_id: int, ids: list[int]) -> None"
+ ],
+ "Hub.handle": [
+  "async def(self, conn: Conn, text: str) -> None"
+ ],
+ "Hub.has_room": [
+  "def(self, user: dict[str, Any] | None, ip: str) -> bool"
+ ],
+ "Hub.join": [
+  "def(self, ws: WebSocket, user: dict[str, Any] | None, session: str, ip: str) -> Conn"
+ ],
+ "Hub.leave": [
+  "async def(self, conn: Conn) -> None"
+ ],
+ "Hub.load_friends": [
+  "async def(self, conn: Conn) -> None"
+ ],
+ "Hub.on_social_event": [
+  "async def(self, name: str, data: dict[str, Any], to: list[int]) -> None"
+ ],
+ "Hub.privacy_changed": [
+  "async def(self, user_id: int) -> None"
+ ],
+ "Hub.privacy_changed_from_thread": [
+  "def(self, user_id: int) -> None"
+ ],
+ "Hub.publish": [
+  "async def(self, user_id: int) -> None"
+ ],
+ "Hub.send": [
+  "async def(self, conn: Conn, data: dict[str, Any]) -> None"
+ ],
+ "Hub.set_friends": [
+  "def(self, user_id: int, ids: frozenset[int]) -> None"
+ ],
+ "Hub.social_snapshot": [
+  "async def(self) -> dict[str, Any]"
+ ],
+ "Hub.spawn": [
+  "def(self, coro) -> None"
+ ],
+ "Hub.start": [
+  "async def(self) -> None"
+ ],
+ "Hub.status": [
+  "def(self) -> dict[str, Any]"
+ ],
+ "Hub.status_changed_from_thread": [
+  "def(self) -> None"
+ ],
+ "Hub.stop": [
+  "async def(self) -> None"
+ ],
+ "Hub.sweep": [
+  "async def(self) -> None"
+ ],
+ "ImportBlob": [
+  "class(BaseModel)"
+ ],
+ "ImportBlob.autonext": [
+  "bool | None = 6eef6648406c"
+ ],
+ "ImportBlob.dub_prefs": [
+  "dict[str, str] = 5b1283453318"
+ ],
+ "ImportBlob.favorites": [
+  "list[dict[str, Any]] = e64e30f9ecdd"
+ ],
+ "ImportBlob.ratings": [
+  "dict[str, int] = 5b1283453318"
+ ],
+ "ImportBlob.watch": [
+  "dict[str, dict[str, Any]] = 5b1283453318"
+ ],
+ "KINDS": [
+  "= 3a60903c9581"
+ ],
+ "KIND_GROUPS": [
+  "= 21767560556a"
+ ],
+ "LEGACY_VPN_FILES": [
+  "= f049b50232d3"
+ ],
+ "LIMIT": [
+  "= b1d5781111d8"
+ ],
+ "LOGIN_WINDOW": [
+  "= f142b51ba867"
+ ],
+ "ListItemIn": [
+  "class(BaseModel)"
+ ],
+ "ListItemIn.poster_url": [
+  "str = f8ee4cc99729"
+ ],
+ "ListItemIn.status": [
+  "constr(strip_whitespace=True, min_length=0, max_length=16) | None = 6eef6648406c"
+ ],
+ "ListItemIn.title": [
+  "str = f8ee4cc99729"
+ ],
+ "LoginIn": [
+  "class(BaseModel)"
+ ],
+ "LoginIn.login": [
+  "str = f6c325bb2304"
+ ],
+ "LoginIn.password": [
+  "str = a6d6270fa4a4"
+ ],
+ "MAL_MAX": [
+  "= 9dfdd483be2b",
+  "= 9dfdd483be2b"
+ ],
+ "MAX_AGE": [
+  "= e6c3dd630428"
+ ],
+ "MAX_ERROR_LENGTH": [
+  "= ec7f1f650671"
+ ],
+ "MAX_FRAME": [
+  "= 6124cb94c33d"
+ ],
+ "MAX_GUESTS_PER_IP": [
+  "= 22d200f8670d"
+ ],
+ "MAX_QUEUE": [
+  "= 8a12a315082a"
+ ],
+ "MAX_TABS_PER_USER": [
+  "= 91032ad7bbcb"
+ ],
+ "Mark": [
+  "class()"
+ ],
+ "Mark.at": [
+  "float = da39a3ee5e6b"
+ ],
+ "Mark.mal_id": [
+  "int = b6589fc6ab0d"
+ ],
+ "Mark.title": [
+  "str = b6ee60926c0a"
+ ],
+ "MessageIn": [
+  "class(BaseModel)"
+ ],
+ "MessageIn.text": [
+  "str = cb400581ac9f"
+ ],
+ "NATIVE_SOURCES": [
+  "= 88945ee3c648",
+  "= 91e8488f217e",
+  "= bf21a9e8fbc5"
+ ],
+ "NOTICE_MAX": [
+  "= f83a383c0fa8"
+ ],
+ "NoticeIn": [
+  "class(BaseModel)"
+ ],
+ "NoticeIn.text": [
+  "str = aba375c84816"
+ ],
+ "NoticeIn.until": [
+  "int | None = b084b11a4f87"
+ ],
+ "OPEN_TIMEOUT": [
+  "= b1d5781111d8"
+ ],
+ "OldYummy": [
+  "class()"
+ ],
+ "OldYummy.__init__": [
+  "def(self, proxy: str | None=None) -> None"
+ ],
+ "OldYummy._format_item": [
+  "@staticmethod def(raw: dict) -> dict"
+ ],
+ "OldYummy.close": [
+  "async def(self) -> None"
+ ],
+ "OldYummy.search": [
+  "async def(self, query: str, limit: int=20) -> list[dict]"
+ ],
+ "OldYummy.videos": [
+  "async def(self, anime_id: int | str) -> list[dict]"
+ ],
+ "PAGE": [
+  "= e1822db470e6"
+ ],
+ "PLAYER_MAX_TEXT_REWRITE": [
+  "= 1f132d14ed70"
+ ],
+ "PRIVACY_FIELDS": [
+  "= f82e57e295e0"
+ ],
+ "PRIVACY_TTL": [
+  "= e6c3dd630428"
+ ],
+ "Presence": [
+  "class()"
+ ],
+ "Presence.__init__": [
+  "def(self, grace: float=GRACE, clock: Callable[[], float]=time.monotonic)"
+ ],
+ "Presence._here_locked": [
+  "def(self, user_id: int) -> Mark | None"
+ ],
+ "Presence._settle_locked": [
+  "def(self, user_id: int, was: Mark | None) -> None"
+ ],
+ "Presence.close": [
+  "def(self, user_id: int, tab_id: int) -> None"
+ ],
+ "Presence.current": [
+  "def(self) -> dict[int, Mark]"
+ ],
+ "Presence.tab": [
+  "def(self, user_id: int, tab_id: int, visible: bool, mal_id: int=0, title: str='') -> None"
+ ],
+ "Privacy": [
+  "class()"
+ ],
+ "Privacy.hide_lists": [
+  "bool = 97cdbdc7feff"
+ ],
+ "Privacy.hide_presence": [
+  "bool = 97cdbdc7feff"
+ ],
+ "Privacy.show_watching": [
+  "bool = 97cdbdc7feff"
+ ],
+ "PrivacyIn": [
+  "class(BaseModel)"
+ ],
+ "PrivacyIn.hide_activity": [
+  "bool | None = 6eef6648406c"
+ ],
+ "PrivacyIn.hide_lists": [
+  "bool | None = 6eef6648406c"
+ ],
+ "PrivacyIn.hide_presence": [
+  "bool | None = 6eef6648406c"
+ ],
+ "PrivacyIn.show_watching": [
+  "bool | None = 6eef6648406c"
+ ],
+ "ProgressEventIn": [
+  "class(BaseModel)"
+ ],
+ "ProgressEventIn.duration": [
+  "conint(ge=0, le=200000) = b6589fc6ab0d"
+ ],
+ "ProgressEventIn.episode_num": [
+  "conint(ge=1, le=10000) = da39a3ee5e6b"
+ ],
+ "ProgressEventIn.episodes_total": [
+  "conint(ge=0, le=10000) = b6589fc6ab0d"
+ ],
+ "ProgressEventIn.mal_id": [
+  "conint(ge=1, le=10000000) = da39a3ee5e6b"
+ ],
+ "ProgressEventIn.poster_url": [
+  "str = f8ee4cc99729"
+ ],
+ "ProgressEventIn.seconds": [
+  "conint(ge=0, le=200000) = da39a3ee5e6b"
+ ],
+ "ProgressEventIn.title": [
+  "str = f8ee4cc99729"
+ ],
+ "ProgressIn": [
+  "class(BaseModel)"
+ ],
+ "ProgressIn.duration": [
+  "conint(ge=0, le=200000) = b6589fc6ab0d"
+ ],
+ "ProgressIn.episode_num": [
+  "conint(ge=1, le=10000) = da39a3ee5e6b"
+ ],
+ "ProgressIn.episodes_total": [
+  "conint(ge=0, le=10000) = b6589fc6ab0d"
+ ],
+ "ProgressIn.poster_url": [
+  "str = f8ee4cc99729"
+ ],
+ "ProgressIn.seconds": [
+  "conint(ge=0, le=200000) = da39a3ee5e6b"
+ ],
+ "ProgressIn.title": [
+  "str = f8ee4cc99729"
+ ],
+ "REPORT_EVERY": [
+  "= e6c3dd630428"
+ ],
+ "ROOT": [
+  "= 25b03a64adba"
+ ],
+ "RatingIn": [
+  "class(BaseModel)"
+ ],
+ "RatingIn.score": [
+  "conint(ge=1, le=10) = da39a3ee5e6b"
+ ],
+ "RecordIn": [
+  "class(BaseModel)"
+ ],
+ "RecordIn.airing_status": [
+  "str = 57779f18b122"
+ ],
+ "RecordIn.banner_url": [
+  "str = f8ee4cc99729"
+ ],
+ "RecordIn.episodes_total": [
+  "int | None = 6eef6648406c"
+ ],
+ "RecordIn.genres": [
+  "list[str] = e64e30f9ecdd"
+ ],
+ "RecordIn.kind": [
+  "str = 57779f18b122"
+ ],
+ "RecordIn.mal_id": [
+  "conint(ge=1, le=10000000) = da39a3ee5e6b"
+ ],
+ "RecordIn.poster_url": [
+  "str = f8ee4cc99729"
+ ],
+ "RecordIn.score": [
+  "float | None = 6eef6648406c"
+ ],
+ "RecordIn.studios": [
+  "str = f8ee4cc99729"
+ ],
+ "RecordIn.synopsis": [
+  "str = d6f671a68d27"
+ ],
+ "RecordIn.title_en": [
+  "str = f8ee4cc99729"
+ ],
+ "RecordIn.title_jp": [
+  "str = f8ee4cc99729"
+ ],
+ "RecordIn.title_ru": [
+  "str = f8ee4cc99729"
+ ],
+ "RecordIn.year": [
+  "int | None = 6eef6648406c"
+ ],
+ "ReportIn": [
+  "class(BaseModel)"
+ ],
+ "ReportIn.dub": [
+  "str = a22704babb40"
+ ],
+ "ReportIn.episode": [
+  "int | None = 9c69ea486b6d"
+ ],
+ "ReportIn.kind": [
+  "str = da39a3ee5e6b"
+ ],
+ "ReportIn.mal_id": [
+  "int = 9bd0895e4170"
+ ],
+ "ReportIn.player": [
+  "str = 4ca5190644f7"
+ ],
+ "ReportIn.source": [
+  "str = 409dcce6a7d7"
+ ],
+ "ReportIn.text": [
+  "str = 5047950bc06b"
+ ],
+ "ReportPatch": [
+  "class(BaseModel)"
+ ],
+ "ReportPatch.note": [
+  "str = 3907dc2a7cd5"
+ ],
+ "ReportPatch.status": [
+  "str = da39a3ee5e6b"
+ ],
+ "SEND_TIMEOUT": [
+  "= ac3478d69a3c"
+ ],
+ "SESSION_CHECK_EVERY": [
+  "= e26973e6ee8a"
+ ],
+ "SESSION_TTL_DAYS": [
+  "= b3e3a99e9090"
+ ],
+ "SHIKI_HEADERS": [
+  "= 8fa8ac208cc6"
+ ],
+ "SHIKI_HOST": [
+  "= caef514ab661"
+ ],
+ "SHIKI_ORIGIN": [
+  "= f89a088539c9"
+ ],
+ "SITE_NAME": [
+  "= e3a2dd69c18e"
+ ],
+ "SITE_URL": [
+  "= 62ef6f2f9e34"
+ ],
+ "SOURCES": [
+  "= 1dd7ccd9a2f5",
+  "= bf21a9e8fbc5"
+ ],
+ "SOURCE_NAMES": [
+  "= fe3cc1ce4934"
+ ],
+ "STARTED_AT": [
+  "= f553d16f1e93"
+ ],
+ "STATUSES": [
+  "= 0c8df4bb6485",
+  "= 0c8df4bb6485",
+  "= bbc6f0539231"
+ ],
+ "SWEEP_EVERY": [
+  "= ac3478d69a3c"
+ ],
+ "Settings": [
+  "class()"
+ ],
+ "Settings.features": [
+  "dict[str, bool] = 1f1efac482f4"
+ ],
+ "Settings.notice": [
+  "dict[str, Any] = 5cf6b9898c7f"
+ ],
+ "Settings.sources": [
+  "tuple[dict[str, Any], ...] = f9065fa73897"
+ ],
+ "SettingsIn": [
+  "class(BaseModel)",
+  "class(BaseModel)"
+ ],
+ "SettingsIn.auto_add_lists": [
+  "bool | None = 6eef6648406c"
+ ],
+ "SettingsIn.autonext": [
+  "bool | None = 6eef6648406c"
+ ],
+ "SettingsIn.extra": [
+  "dict[str, Any] | None = 6eef6648406c"
+ ],
+ "SettingsIn.features": [
+  "FeaturesIn | None = 6eef6648406c"
+ ],
+ "SettingsIn.notice": [
+  "NoticeIn | None = 6eef6648406c"
+ ],
+ "SettingsIn.sources": [
+  "list[SourceIn] | None = 8a00905e1485"
+ ],
+ "SlidingWindow": [
+  "class()"
+ ],
+ "SlidingWindow.__init__": [
+  "def(self, limit: int, window: float, max_keys: int=50000, clock: Callable[[], float]=time.monotonic)"
+ ],
+ "SlidingWindow._evict": [
+  "def(self, now: float) -> None"
+ ],
+ "SlidingWindow._trim": [
+  "def(self, key: str, now: float) -> Deque[float] | None"
+ ],
+ "SlidingWindow.hit": [
+  "def(self, key: str) -> None"
+ ],
+ "SlidingWindow.reset": [
+  "def(self, key: str) -> None"
+ ],
+ "SlidingWindow.retry_after": [
+  "def(self, key: str) -> int"
+ ],
+ "SocialLink": [
+  "class()"
+ ],
+ "SocialLink.__init__": [
+  "def(self, snapshot: Callable[[], Awaitable[dict[str, Any]]], on_event: Callable[[str, dict[str, Any], list[int]], Awaitable[None]], connect: Callable[..., Any]=websockets.connect)"
+ ],
+ "SocialLink._handle": [
+  "async def(self, message: Any) -> str | None"
+ ],
+ "SocialLink._loop": [
+  "async def(self) -> None"
+ ],
+ "SocialLink._realtime_url": [
+  "async def(self) -> str"
+ ],
+ "SocialLink._send_loop": [
+  "async def(self, ws) -> None"
+ ],
+ "SocialLink.presence": [
+  "def(self, user_id: int, online: bool, watching: dict[str, str] | None) -> None"
+ ],
+ "SocialLink.run_once": [
+  "async def(self) -> str"
+ ],
+ "SocialLink.start": [
+  "def(self) -> None"
+ ],
+ "SocialLink.stop": [
+  "async def(self) -> None"
+ ],
+ "SourceIn": [
+  "class(BaseModel)"
+ ],
+ "SourceIn.enabled": [
+  "bool = 88b33e4e12f7"
+ ],
+ "SourceIn.id": [
+  "str = de546ec6436b"
+ ],
+ "SourceIn.order": [
+  "int = 1e9114810c20"
+ ],
+ "SourceState": [
+  "class()"
+ ],
+ "SourceState._hour": [
+  "def(self) -> list[int]"
+ ],
+ "SourceState.consecutive_failures": [
+  "int = b6589fc6ab0d"
+ ],
+ "SourceState.cooldown_until": [
+  "float = 38f6d7875e31"
+ ],
+ "SourceState.failures": [
+  "int = b6589fc6ab0d"
+ ],
+ "SourceState.hours": [
+  "dict[int, list[int]] = bb0779f614fd"
+ ],
+ "SourceState.last_error": [
+  "str = b6ee60926c0a"
+ ],
+ "SourceState.last_error_at": [
+  "float = 38f6d7875e31"
+ ],
+ "SourceState.last_ok_at": [
+  "float = 38f6d7875e31"
+ ],
+ "SourceState.latency_ms": [
+  "int | None = 6eef6648406c"
+ ],
+ "SourceState.name": [
+  "str = da39a3ee5e6b"
+ ],
+ "SourceState.successes": [
+  "int = b6589fc6ab0d"
+ ],
+ "TEXT_MAX": [
+  "= e26973e6ee8a"
+ ],
+ "TIMEOUT": [
+  "= 4fde6b87a266",
+  "= 4fde6b87a266"
+ ],
+ "TTL_FRESH": [
+  "= 1a50418c7d7f"
+ ],
+ "TTL_STALE": [
+  "= b57b703d8b01"
+ ],
+ "Tab": [
+  "class()"
+ ],
+ "Tab.at": [
+  "float = da39a3ee5e6b"
+ ],
+ "Tab.mal_id": [
+  "int = da39a3ee5e6b"
+ ],
+ "Tab.title": [
+  "str = da39a3ee5e6b"
+ ],
+ "Tab.visible": [
+  "bool = da39a3ee5e6b"
+ ],
+ "TitleIn": [
+  "class(BaseModel)"
+ ],
+ "TitleIn.adult": [
+  "bool | None = 6eef6648406c"
+ ],
+ "TitleIn.hidden": [
+  "bool | None = 6eef6648406c"
+ ],
+ "TitleIn.note": [
+  "str | None = 64e10d1ffa8d"
+ ],
+ "TitleIn.pinned": [
+  "bool | None = 6eef6648406c"
+ ],
+ "UA": [
+  "= 243042ee209b",
+  "= d6b3ee3cf2c5"
+ ],
+ "VK_SCORE": [
+  "= 35c0ba310bf1"
+ ],
+ "VPN_HOST": [
+  "= 374bf9ee4a0b"
+ ],
+ "VPN_HTTP_PORT": [
+  "= 00e5cd06bd0f"
+ ],
+ "VPN_METRICS_PORT": [
+  "= ba8074100d1f"
+ ],
+ "VPN_PROXY_URL": [
+  "= abcb8f01dc03"
+ ],
+ "VPN_SOCKS_PORT": [
+  "= ac79d7b219b8"
+ ],
+ "VPN_SOCKS_URL": [
+  "= d5d70b29759c"
+ ],
+ "VPN_STICKY_SECONDS": [
+  "= afea213dc1b7"
+ ],
+ "WATCH_EVENT_HAS_PROGRESS_SQL": [
+  "= 7feb4591118b"
+ ],
+ "WINDOW_HOURS": [
+  "= 4d134bc07221"
+ ],
+ "XRAY_LOG": [
+  "= 78969d464fe8"
+ ],
+ "XRAY_RUNTIME": [
+  "= c7c734692ab0"
+ ],
+ "XRAY_TEMPLATE": [
+  "= f2820481e428"
+ ],
+ "_AD_PAYLOAD_KEYS": [
+  "= 901d8bed3903"
+ ],
+ "_AD_TEXT_RE": [
+  "= 190b5e1f42a3"
+ ],
+ "_ALIAS": [
+  "= c3d8b8221b6a"
+ ],
+ "_ASSETS_DIR": [
+  "= 82d1b344fe84"
+ ],
+ "_ASSET_DIRS": [
+  "= eed1256b6334"
+ ],
+ "_BLOCKED_HEADERS": [
+  "= cf9816cd6025"
+ ],
+ "_BRIDGE": [
+  "= 5890bf19f0fb"
+ ],
+ "_BRIDGE_PROXY_VALUES": [
+  "= 03b1810cafa5"
+ ],
+ "_CACHE": [
+  "= bf21a9e8fbc5"
+ ],
+ "_CACHE_SHELL": [
+  "= 6eef6648406c"
+ ],
+ "_CHROME_UA": [
+  "= d3a1bafa2196"
+ ],
+ "_CONTROL": [
+  "= 2dd2fd8dc46d",
+  "= 98758fa8f853"
+ ],
+ "_CompiledRules": [
+  "class()"
+ ],
+ "_CompiledRules.allow_hosts": [
+  "set[str] = 798a99d7c583"
+ ],
+ "_CompiledRules.allow_regexes": [
+  "list[re.Pattern[str]] = b1e8f0f90a08"
+ ],
+ "_CompiledRules.allow_snippets": [
+  "set[str] = 798a99d7c583"
+ ],
+ "_CompiledRules.block_hosts": [
+  "set[str] = adac6bc4d64b"
+ ],
+ "_CompiledRules.block_regexes": [
+  "list[re.Pattern[str]] = b1e8f0f90a08"
+ ],
+ "_CompiledRules.block_snippets": [
+  "set[str] = b9507b5013de"
+ ],
+ "_CompiledRules.loaded_filters": [
+  "int = b6589fc6ab0d"
+ ],
+ "_CompiledRules.parsed_rules": [
+  "int = b6589fc6ab0d"
+ ],
+ "_CompiledRules.updated_at": [
+  "float = 38f6d7875e31"
+ ],
+ "_DEAD_SESSION": [
+  "= b1eb27577455"
+ ],
+ "_DEFAULT_FILTER_URLS": [
+  "= 93124bbce0fc"
+ ],
+ "_DEV_ORIGINS": [
+  "= d2582db579ed"
+ ],
+ "_DOCUMENT_TYPES": [
+  "= b7cae0f22549"
+ ],
+ "_FALLBACK_BLOCK_HOSTS": [
+  "= 9b19a08b6f47"
+ ],
+ "_FALLBACK_SNIPPETS": [
+  "= 4bd953ce9154"
+ ],
+ "_FlowStore": [
+  "class()"
+ ],
+ "_FlowStore.__init__": [
+  "def(self, ttl: float, max_items: int=10000, clock: Callable[[], float]=time.monotonic)"
+ ],
+ "_FlowStore.put": [
+  "def(self, state: str, data: dict[str, Any]) -> None"
+ ],
+ "_FlowStore.take": [
+  "def(self, state: str) -> dict[str, Any] | None"
+ ],
+ "_HLS_TYPE": [
+  "= 7c442550060e"
+ ],
+ "_HOST_HEADER_RE": [
+  "= 92c76e04b7a3"
+ ],
+ "_IMG_HOSTS": [
+  "= 4c48fbf539f6"
+ ],
+ "_IMG_TTL": [
+  "= aea5b14bc5bf"
+ ],
+ "_INDEX_HTML": [
+  "= 2f469a7f829a"
+ ],
+ "_INTEGRITY_ATTR_RE": [
+  "= 12d336816565"
+ ],
+ "_JS_DIR": [
+  "= c43aeeb3b05d"
+ ],
+ "_KODIK_SKIN_CSS": [
+  "= fe3c370312c6"
+ ],
+ "_LEGACY_PATHS": [
+  "= 5ba758654a48"
+ ],
+ "_LOOPBACK": [
+  "= 6aa6c39ae4ae",
+  "= 7d56bf911333"
+ ],
+ "_MAL_LIMIT": [
+  "= 9f2e8f4238a7"
+ ],
+ "_NETWORK_ERRORS": [
+  "= bb2a3e218dcc"
+ ],
+ "_NONCE": [
+  "= 0ee1b477c91d"
+ ],
+ "_NONCE_BYTES": [
+  "= 7b52009b64fd"
+ ],
+ "_NON_ALNUM": [
+  "= a17d35a61d0c"
+ ],
+ "_OLDYUMMY_CATALOG_MAX": [
+  "= 8a12a315082a"
+ ],
+ "_OPEN": [
+  "= b49dc5f80dc2"
+ ],
+ "_PASSTHROUGH_REQUEST_HEADERS": [
+  "= a3d98a40aa17"
+ ],
+ "_PLAYER": [
+  "= 2a60e0240262"
+ ],
+ "_PROXY_VERSION": [
+  "= 6d9afe2344ba"
+ ],
+ "_REFRESH_MARGIN": [
+  "= e6c3dd630428"
+ ],
+ "_REFUSALS": [
+  "= aa55e45a267b"
+ ],
+ "_REPORT_COLUMNS": [
+  "= 8d9115176837"
+ ],
+ "_RETRY_STATUS_CODES": [
+  "= 15b9572724ca"
+ ],
+ "_ROUTE_ERRORS": [
+  "= 13d76b7969ec"
+ ],
+ "_RateLimiter": [
+  "class()"
+ ],
+ "_RateLimiter.__init__": [
+  "def(self, rps: float)"
+ ],
+ "_RateLimiter._lock": [
+  "def(self) -> asyncio.Lock"
+ ],
+ "_RateLimiter.wait": [
+  "async def(self) -> None"
+ ],
+ "_ResourceTagParser": [
+  "class(HTMLParser)"
+ ],
+ "_ResourceTagParser.handle_starttag": [
+  "def(self, tag, attrs)"
+ ],
+ "_SHIELD_LOGGER_JS": [
+  "= 9a4bcd9eacf3"
+ ],
+ "_SOCIAL_WHERE": [
+  "= f03606f6f317"
+ ],
+ "_SOURCE": [
+  "= 5b1ec3a3aac6"
+ ],
+ "_SQL_CHUNK": [
+  "= e3cbba8883fe"
+ ],
+ "_STATES": [
+  "= bf21a9e8fbc5"
+ ],
+ "_STATUS_ORDER": [
+  "= c709ed3ff8b9"
+ ],
+ "_Seen": [
+  "class()"
+ ],
+ "_Seen.__init__": [
+  "def(self) -> None"
+ ],
+ "_Seen.first": [
+  "def(self, signature: str, now: float) -> bool"
+ ],
+ "_State": [
+  "class()"
+ ],
+ "_State.__init__": [
+  "def(self) -> None"
+ ],
+ "_State.load": [
+  "def(self) -> None"
+ ],
+ "_StaticAssets": [
+  "class(StaticFiles)"
+ ],
+ "_StaticAssets.get_response": [
+  "async def(self, path, scope)"
+ ],
+ "_TEXT_TYPES": [
+  "= e5953ddec187"
+ ],
+ "_TIMEOUT": [
+  "= a32a7973b5c7"
+ ],
+ "_TITLE_FRIENDS_MAX": [
+  "= 22d200f8670d"
+ ],
+ "_TITLE_MAX": [
+  "= 310b86e0b62b"
+ ],
+ "_TYPE_MODIFIERS": [
+  "= 888677e45d35"
+ ],
+ "_UNSUPPORTED_MODIFIERS": [
+  "= 288901d6b8f4"
+ ],
+ "_USERS_CHUNK": [
+  "= f83a383c0fa8"
+ ],
+ "_VERSION": [
+  "= 914f00ecca05"
+ ],
+ "_VIDEO_HOST_SUFFIXES": [
+  "= 7e99ddbda720"
+ ],
+ "_VK_DOMAINS": [
+  "= 190bed4f14f7"
+ ],
+ "_VK_MEDIA_HOSTS": [
+  "= 9ca4f4466a8d"
+ ],
+ "_VK_OWNER_RE": [
+  "= f8c6f363ae98"
+ ],
+ "_VK_STREAM_KEYS": [
+  "= 1fd989785761"
+ ],
+ "_VK_VIDEO_RE": [
+  "= c7a38401b531"
+ ],
+ "_VK_WRAPPER_NAMES": [
+  "= 2d70eb6c72df"
+ ],
+ "_XRAY_CANDIDATES": [
+  "= e1b809fa00ec"
+ ],
+ "_YUMMY_SITE": [
+  "= 367e9fc8f96f"
+ ],
+ "_activity_title": [
+  "def(value: str | None) -> str"
+ ],
+ "_aead": [
+  "def() -> Any"
+ ],
+ "_after": [
+  "def(cursor: str) -> int"
+ ],
+ "_all_sources": [
+  "def() -> list[str]"
+ ],
+ "_allowed": [
+  "= 65dd83d71744"
+ ],
+ "_anicli_http": [
+  "def(source: str, route: str) -> tuple[Any, Any]"
+ ],
+ "_ascii_url": [
+  "def(url: str) -> str"
+ ],
+ "_attach_shell": [
+  "def(app, path: str) -> None"
+ ],
+ "_auth_result": [
+  "def(result: Any) -> tuple[dict[str, Any], int, dict[str, Any]] | None"
+ ],
+ "_authorize_url": [
+  "def() -> str"
+ ],
+ "_bridge": [
+  "async def(payload: dict) -> dict"
+ ],
+ "_bridge_desired": [
+  "= 97cdbdc7feff"
+ ],
+ "_bridge_proxy": [
+  "def() -> str"
+ ],
+ "_bridge_script": [
+  "def(base: str) -> str"
+ ],
+ "_brief": [
+  "def(user: dict[str, Any]) -> dict[str, Any]"
+ ],
+ "_build_config": [
+  "def() -> dict | None"
+ ],
+ "_cache_get": [
+  "def(key: str, ttl: float) -> tuple[bytes, str, int] | None"
+ ],
+ "_cache_get_any": [
+  "def(key: str) -> tuple[bytes, str, int] | None"
+ ],
+ "_cache_key": [
+  "def(method: str, url: str, params: dict | None=None, body: Any=None) -> str"
+ ],
+ "_cache_path": [
+  "def(key: str) -> Path"
+ ],
+ "_cache_put": [
+  "def(key: str, body: bytes, content_type: str, status: int=200) -> None"
+ ],
+ "_cached_matches": [
+  "def(q: str) -> dict[int, str]"
+ ],
+ "_canonical_path": [
+  "def(mal_id: int, slug: str) -> str"
+ ],
+ "_canonical_url": [
+  "def(mal_id: int, slug: str) -> str"
+ ],
+ "_catalog": [
+  "async def(coro: Any) -> Any"
+ ],
+ "_cfg_cache": [
+  "= 6eef6648406c"
+ ],
+ "_charset_from_content_type": [
+  "def(content_type: str) -> str"
+ ],
+ "_check_one": [
+  "def(how: str, plain: str, stored: str, salt: str | None) -> bool"
+ ],
+ "_chunks": [
+  "def(ids: Iterable[int], size: int=_SQL_CHUNK) -> Iterable[list[int]]"
+ ],
+ "_clamp_days": [
+  "def(days: int | None) -> int"
+ ],
+ "_clean_video_frame": [
+  "def(source_url: str, base_url: str, poster_url: str='', *, element_id: str='av-clean-video', sources: list[dict[str, str]] | None=None) -> Response"
+ ],
+ "_clear_cookie": [
+  "def(resp: Response) -> None"
+ ],
+ "_client": [
+  "= 6eef6648406c"
+ ],
+ "_context": [
+  "def(session: str, field: str) -> str"
+ ],
+ "_counts_for": [
+  "def(user_id: int) -> dict[str, int]"
+ ],
+ "_csv": [
+  "def(name: str) -> tuple[str, ...]"
+ ],
+ "_cvh_error_frame": [
+  "def(message: str) -> Response"
+ ],
+ "_cvh_frame": [
+  "async def(request: Request, iframe_url: str) -> Response"
+ ],
+ "_cvh_video_sources": [
+  "def(data: dict) -> list[dict[str, str]]"
+ ],
+ "_decode_text": [
+  "def(response: httpx.Response) -> str"
+ ],
+ "_delete": [
+  "def(session: str) -> None"
+ ],
+ "_domain_from_anchor": [
+  "def(pattern: str) -> str | None"
+ ],
+ "_expiry": [
+  "def(tokens: dict[str, Any], field: str, lifetime: int) -> int"
+ ],
+ "_extractor": [
+  "def(source: str, route: str)"
+ ],
+ "_fetch": [
+  "async def(request: Request, url: str, base: str | None, *, frame: bool=False, referer: str | None=None) -> Response"
+ ],
+ "_fetch_and_store": [
+  "async def(mal_id: int) -> dict[str, Any] | None"
+ ],
+ "_fetch_native": [
+  "async def(path: str, params: dict) -> dict"
+ ],
+ "_fetch_recent": [
+  "def(conn, user_id: int, *, offset: int=0, limit: int=10, group: str | None=None, day: str | None=None) -> list[dict[str, Any]]"
+ ],
+ "_fetch_uncached": [
+  "async def(method, url, *, params, json_body, timeout, headers, key, stale, catalog_api=False)"
+ ],
+ "_file_route": [
+  "def(app: FastAPI, route: str, path: Path, media: str | None=None) -> None"
+ ],
+ "_filter_by_year": [
+  "def(results: list[dict], year: int | None) -> list[dict]"
+ ],
+ "_filter_source_videos": [
+  "async def(videos: list[dict]) -> list[dict]"
+ ],
+ "_find_xray": [
+  "def() -> str | None"
+ ],
+ "_finish": [
+  "def(location: str) -> RedirectResponse"
+ ],
+ "_first_route_timeout": [
+  "def(timeout)"
+ ],
+ "_flagged": [
+  "def(offset: int) -> list[dict[str, Any]]"
+ ],
+ "_flags_for": [
+  "def(ids: list[int]) -> dict[int, tuple]"
+ ],
+ "_flows": [
+  "= 11e199702906"
+ ],
+ "_friend_action": [
+  "def(request: Request, session: str | None, user: dict[str, Any], method: str, peer_id: int, suffix: str='') -> dict[str, Any]"
+ ],
+ "_friend_cache": [
+  "= bf21a9e8fbc5"
+ ],
+ "_friend_ids": [
+  "def(user_id: int, token: str, user_ip: str, user_agent: str) -> list[int]"
+ ],
+ "_friend_lock": [
+  "= c6d6acc28078"
+ ],
+ "_get": [
+  "def(key: str) -> Any"
+ ],
+ "_get_client": [
+  "async def() -> httpx.AsyncClient"
+ ],
+ "_get_extractor": [
+  "def(source: str)"
+ ],
+ "_graph_for_user": [
+  "def(user_id: int, days: int=DEFAULT_DAYS) -> dict[str, Any]"
+ ],
+ "_guard_source": [
+  "async def(source: str, op: str, awaitable, timeout: float)"
+ ],
+ "_guess_base": [
+  "def(url: str, base: str | None) -> str"
+ ],
+ "_handle_for": [
+  "def(user_id: int, alias: str | None) -> str"
+ ],
+ "_headers_for_upstream": [
+  "def(request: Request, url: str, base: str | None, referer: str | None=None) -> dict[str, str]"
+ ],
+ "_hls_quality_sources": [
+  "def(master_url: str, playlist: str) -> list[dict[str, str]]"
+ ],
+ "_host_suffixes": [
+  "def(host: str) -> list[str]"
+ ],
+ "_http_client": [
+  "= 6eef6648406c"
+ ],
+ "_http_error": [
+  "@app.exception_handler(StarletteHTTPException) async def(request: Request, exc: StarletteHTTPException)"
+ ],
+ "_httpx_limits": [
+  "= f57f9067d46e"
+ ],
+ "_ids": [
+  "def(values: Any) -> list[int]"
+ ],
+ "_in": [
+  "def(ids: list[int]) -> str"
+ ],
+ "_insert": [
+  "def(session: str, uid: int, tokens: dict[str, Any]) -> None"
+ ],
+ "_instance": [
+  "= 6eef6648406c",
+  "= 6eef6648406c"
+ ],
+ "_int_or_none": [
+  "def(value: Any) -> int | None"
+ ],
+ "_introspect_schema": [
+  "def() -> dict[str, Any]"
+ ],
+ "_is_alloha_base": [
+  "def(base: str) -> bool"
+ ],
+ "_is_banned": [
+  "def(status_col_name: str | None, value: Any) -> bool"
+ ],
+ "_is_cvh_iframe_url": [
+  "def(url: str) -> bool"
+ ],
+ "_is_javascript": [
+  "def(content_type: str, url: str='') -> bool"
+ ],
+ "_is_kodik_base": [
+  "def(base: str) -> bool"
+ ],
+ "_is_kodik_cdn_probe": [
+  "def(url: str) -> bool"
+ ],
+ "_is_playlist": [
+  "def(content_type: str, url: str, content: bytes=b'') -> bool"
+ ],
+ "_is_sibnet_iframe_url": [
+  "def(url: str) -> bool"
+ ],
+ "_is_vk_host": [
+  "def(host: str) -> bool"
+ ],
+ "_is_vk_media_url": [
+  "def(url: str) -> bool"
+ ],
+ "_items_for": [
+  "def(user_id: int, status: str | None) -> list[dict[str, Any]]"
+ ],
+ "_json_string_field": [
+  "def(text: str, key: str) -> str"
+ ],
+ "_key": [
+  "def() -> bytes | None"
+ ],
+ "_kodik_mirror": [
+  "async def(request: Request, kind: str, rest: str)"
+ ],
+ "_last_points": [
+  "= bf21a9e8fbc5"
+ ],
+ "_launch_xray": [
+  "def(config_path: Path) -> subprocess.Popen | None"
+ ],
+ "_limiter": [
+  "= 4e3ce3681989"
+ ],
+ "_link": [
+  "def(session: str, uid: int, tokens: dict[str, Any], user_ip: str='', user_agent: str='') -> None"
+ ],
+ "_list_entry_for_title": [
+  "def(conn, user_id: int, mal_id: int) -> dict[str, Any] | None"
+ ],
+ "_list_statuses": [
+  "def(mal_id: int, user_ids: Iterable[int]) -> dict[int, str]"
+ ],
+ "_listed": [
+  "def(user: dict[str, Any], **extra: Any) -> dict[str, Any]"
+ ],
+ "_load": [
+  "def(session: str) -> dict[str, Any] | None"
+ ],
+ "_load_cached": [
+  "def(mal_id: int) -> dict[str, Any] | None"
+ ],
+ "_load_raw": [
+  "def() -> dict[str, Any]"
+ ],
+ "_login_by_identity": [
+  "= d5b13a078488"
+ ],
+ "_login_by_ip": [
+  "= f1f04dc02b7c"
+ ],
+ "_logout_quietly": [
+  "def(token: str, user_ip: str='', user_agent: str='') -> None"
+ ],
+ "_looks_textual": [
+  "def(content_type: str) -> bool"
+ ],
+ "_lookup_user": [
+  "def(identity: str) -> dict[str, Any] | None"
+ ],
+ "_mark_previous_episodes_done_if_needed": [
+  "def(conn, user_id: int, mal_id: int, episode_num: int, seconds: int, duration: int, updated_at: datetime) -> None"
+ ],
+ "_match_first": [
+  "def(patterns: tuple[str, ...], text: str) -> str"
+ ],
+ "_module_proxy_url": [
+  "def(url: str, base: str) -> str"
+ ],
+ "_names_for": [
+  "def(cur: Any, ids: list[int]) -> dict[int, str]"
+ ],
+ "_native": [
+  "async def(path: str, params: dict) -> dict",
+  "def(source: str, route: str)"
+ ],
+ "_native_dubs": [
+  "async def(source: str, key: str)"
+ ],
+ "_native_episodes": [
+  "async def(source: str, key: str, route: str='direct')"
+ ],
+ "_native_search": [
+  "async def(source: str, q: str, mal_id: int | None=None, route: str='direct')"
+ ],
+ "_native_videos": [
+  "async def(source: str, key: str)"
+ ],
+ "_network": [
+  "= c50c2fdd5566"
+ ],
+ "_norm_dub_name": [
+  "def(name: str) -> str"
+ ],
+ "_on_route": [
+  "def(source: str, obj, route: str)"
+ ],
+ "_open_session": [
+  "def(uid: int, tokens: dict[str, Any], request: Request, user_ip: str, user_agent: str) -> str | None"
+ ],
+ "_origin": [
+  "def(url: str) -> str",
+  "def(url: str) -> str"
+ ],
+ "_origin_ok": [
+  "def(ws: WebSocket) -> bool"
+ ],
+ "_override_head": [
+  "def(shell: str, *, title: str | None=None, description: str | None=None, robots: str | None=None) -> str"
+ ],
+ "_page": [
+  "def(items: list, page: int, limit: int, has_next: bool) -> dict",
+  "def(items: list[dict[str, Any]], key: str='id') -> dict[str, Any]"
+ ],
+ "_path_proxy_url": [
+  "def(url: str, base: str, *, document: bool=False) -> str"
+ ],
+ "_path_resource": [
+  "async def(request: Request, scheme: str, host: str, *, document: bool)"
+ ],
+ "_pattern_to_regex": [
+  "def(pattern: str) -> re.Pattern[str] | None"
+ ],
+ "_pending": [
+  "= bf21a9e8fbc5"
+ ],
+ "_pending_fetches": [
+  "= bf21a9e8fbc5"
+ ],
+ "_people": [
+  "def(ids: list[int], token: str, user_ip: str, user_agent: str) -> list[dict[str, Any]]"
+ ],
+ "_person": [
+  "def(user: dict[str, Any]) -> dict[str, Any]"
+ ],
+ "_php": [
+  "= 6eef6648406c"
+ ],
+ "_php_binary": [
+  "def() -> str"
+ ],
+ "_php_defines": [
+  "def(path: Path) -> dict[str, str]"
+ ],
+ "_pick_cvh_item": [
+  "def(items: list[dict], episode: int, voice_code: str) -> dict | None"
+ ],
+ "_player_proxy_null_origin_cors": [
+  "@app.middleware('http') async def(request: Request, call_next)"
+ ],
+ "_player_sources": [
+  "def() -> list[str]"
+ ],
+ "_points_lock": [
+  "= c6d6acc28078"
+ ],
+ "_port_alive": [
+  "def(host: str, port: int, timeout: float=1.0) -> bool"
+ ],
+ "_prepare_runtime": [
+  "def() -> Path | None"
+ ],
+ "_privacy": [
+  "def(user_ids: Iterable[int]) -> dict[int, Privacy]"
+ ],
+ "_proxy_url": [
+  "def(url: str, base: str | None=None) -> str"
+ ],
+ "_purge": [
+  "def(mal_id: int, admin: int) -> dict[str, Any]"
+ ],
+ "_put": [
+  "def(obj: Any) -> str"
+ ],
+ "_pymysql": [
+  "= 6eef6648406c"
+ ],
+ "_pymysql_module": [
+  "def()"
+ ],
+ "_query_id": [
+  "def(q: str) -> int | None"
+ ],
+ "_random_watchable": [
+  "async def()"
+ ],
+ "_rank": [
+  "def(item: dict[str, Any]) -> tuple"
+ ],
+ "_read_shell": [
+  "def() -> str"
+ ],
+ "_redact_url": [
+  "def(url: str) -> str"
+ ],
+ "_refresh_locks": [
+  "= 01ddb94bf2fb"
+ ],
+ "_register": [
+  "def(name: str, import_paths: list[str]) -> None"
+ ],
+ "_register_url": [
+  "def() -> str"
+ ],
+ "_render_generic": [
+  "def() -> HTMLResponse"
+ ],
+ "_render_missing_title": [
+  "def(mal_id: int, slug: str) -> HTMLResponse"
+ ],
+ "_render_shell": [
+  "def(head_extra: str, noscript: str, *, title: str | None=None, description: str | None=None, robots: str | None=None) -> HTMLResponse"
+ ],
+ "_render_title_page": [
+  "def(info: dict[str, Any]) -> HTMLResponse"
+ ],
+ "_report": [
+  "def(row: tuple) -> dict[str, Any]"
+ ],
+ "_report_loop": [
+  "async def() -> None"
+ ],
+ "_resolve_kinds": [
+  "def(group: str | None) -> list[str] | None"
+ ],
+ "_resolve_template": [
+  "def(template: str, **params: Any) -> str"
+ ],
+ "_response_headers": [
+  "def(upstream: httpx.Response, *, html_frame: bool=False, origin: str='') -> dict[str, str]"
+ ],
+ "_restart_bridge_async": [
+  "def() -> None"
+ ],
+ "_restart_bridge_locked": [
+  "def() -> bool"
+ ],
+ "_restart_lock": [
+  "= c6d6acc28078"
+ ],
+ "_retry_after": [
+  "= 38f6d7875e31"
+ ],
+ "_rewrite_attrs": [
+  "def(text: str, base: str, *, module: bool=False, document: bool=False) -> str"
+ ],
+ "_rewrite_body": [
+  "def(content: bytes, content_type: str, base: str, *, frame: bool=False, referer: str | None=None) -> bytes"
+ ],
+ "_rewrite_css_urls": [
+  "def(text: str, base: str) -> str"
+ ],
+ "_rewrite_html": [
+  "def(text: str, base: str) -> str"
+ ],
+ "_rewrite_javascript": [
+  "def(text: str, base: str) -> str"
+ ],
+ "_rewrite_m3u8": [
+  "def(text: str, base: str, referer: str | None=None) -> str"
+ ],
+ "_rewrite_resource_tag": [
+  "def(tag: str, base: str) -> str"
+ ],
+ "_row_to_dict": [
+  "def(row: tuple) -> dict[str, Any]"
+ ],
+ "_rule_applies_to_player_url": [
+  "def(modifiers: str) -> bool"
+ ],
+ "_run": [
+  "async def(fn, *args, **kwargs)"
+ ],
+ "_safe": [
+  "def(item: dict) -> bool"
+ ],
+ "_safe_next": [
+  "def(value: str) -> str"
+ ],
+ "_save_title": [
+  "def(mal_id: int, changes: dict[str, Any], admin: int, name: str) -> tuple[dict[str, Any], bool]"
+ ],
+ "_schema_cache": [
+  "= 6eef6648406c"
+ ],
+ "_sealed": [
+  "def(session: str, tokens: dict[str, Any]) -> tuple[bytes, int, bytes, int]"
+ ],
+ "_seen": [
+  "= 5af8cc004a97"
+ ],
+ "_serialize_user": [
+  "def(row: dict[str, Any]) -> dict[str, Any]"
+ ],
+ "_server_error": [
+  "@app.exception_handler(Exception) async def(request: Request, exc: Exception)"
+ ],
+ "_session_user": [
+  "def(session: str) -> dict[str, Any] | None",
+  "def(session: str) -> dict[str, Any] | None"
+ ],
+ "_settings_view": [
+  "def() -> dict[str, Any]"
+ ],
+ "_shutdown": [
+  "@app.on_event('shutdown') async def() -> None"
+ ],
+ "_sibnet_frame": [
+  "async def(request: Request, iframe_url: str) -> Response"
+ ],
+ "_site_origin": [
+  "def(request: Request) -> str"
+ ],
+ "_slugify": [
+  "def(text: str) -> str"
+ ],
+ "_social_call": [
+  "def(request: Request, session: str | None, method: str, path: str, body: dict[str, Any] | None=None) -> Any"
+ ],
+ "_social_failure": [
+  "def(session: str | None, exc: as_api.ASApiError, unlinked: dict[str, Any]) -> dict[str, Any]"
+ ],
+ "_social_origins": [
+  "def() -> set[str]"
+ ],
+ "_social_session": [
+  "def(request: Request, session: str | None) -> tuple[str | None, str, str]"
+ ],
+ "_source_call": [
+  "async def(source: str, op: str, run, timeout: float)"
+ ],
+ "_source_unavailable": [
+  "def(source: str) -> HTTPException"
+ ],
+ "_sources_key": [
+  "def(sources: Any) -> list[tuple[str, bool, int]]"
+ ],
+ "_split": [
+  "def(url: str)"
+ ],
+ "_startup": [
+  "@app.on_event('startup') async def() -> None"
+ ],
+ "_state": [
+  "def(source: str) -> SourceState"
+ ],
+ "_status": [
+  "= d33d861d6786"
+ ],
+ "_store_title": [
+  "def(payload: dict[str, Any]) -> dict[str, Any]"
+ ],
+ "_strip_ad_payload": [
+  "def(value)"
+ ],
+ "_strip_cvh_ads": [
+  "def(content: bytes, content_type: str, url: str) -> bytes"
+ ],
+ "_summary": [
+  "def() -> dict[str, Any]"
+ ],
+ "_task": [
+  "= 6eef6648406c"
+ ],
+ "_title_item": [
+  "def(mal_id: int, name: str, flags: tuple | None) -> dict[str, Any]"
+ ],
+ "_title_name": [
+  "async def(mal_id: int) -> str | None"
+ ],
+ "_titles": [
+  "def(mal_ids: Iterable[int]) -> dict[int, tuple[str, str]]"
+ ],
+ "_tls": [
+  "@functools.lru_cache(maxsize=4) def(ca: str) -> ssl.SSLContext | bool",
+  "def(url: str) -> ssl.SSLContext | None"
+ ],
+ "_unplayable_player_url": [
+  "def(url: str) -> bool"
+ ],
+ "_update": [
+  "def(session: str, tokens: dict[str, Any]) -> None"
+ ],
+ "_upstream_connect_failures": [
+  "= bf21a9e8fbc5"
+ ],
+ "_upstream_retry_after": [
+  "= bf21a9e8fbc5"
+ ],
+ "_valid_http_url": [
+  "def(url: str) -> bool"
+ ],
+ "_valid_ip": [
+  "def(value: str) -> bool"
+ ],
+ "_validate": [
+  "def(path: str, params: dict) -> dict"
+ ],
+ "_validation_error": [
+  "@app.exception_handler(RequestValidationError) async def(request: Request, exc: RequestValidationError)"
+ ],
+ "_verify_password": [
+  "def(plain: str, stored_hash: str, salt: str | None) -> bool"
+ ],
+ "_version": [
+  "@lru_cache(maxsize=1) def() -> str"
+ ],
+ "_vk_frame": [
+  "async def(request: Request, ref: dict[str, str]) -> Response"
+ ],
+ "_vk_last": [
+  "def(identities: list, scores: dict) -> list"
+ ],
+ "_vless_outbound": [
+  "def(link: str) -> dict | None"
+ ],
+ "_vpn_client": [
+  "= 6eef6648406c"
+ ],
+ "_vpn_client_proxy": [
+  "= 6eef6648406c"
+ ],
+ "_vpn_extractors": [
+  "= bf21a9e8fbc5"
+ ],
+ "_vpn_http": [
+  "= 6eef6648406c"
+ ],
+ "_vpn_natives": [
+  "= bf21a9e8fbc5"
+ ],
+ "_vpn_preferred_until": [
+  "= bf21a9e8fbc5"
+ ],
+ "_watchdog_stop": [
+  "= 65ca2c3f8054"
+ ],
+ "_watchdog_thread": [
+  "= 6eef6648406c"
+ ],
+ "_watching": [
+  "def(mark: Mark | None, privacy: Privacy, titles: dict[int, tuple[str, str]]) -> dict[str, Any] | None"
+ ],
+ "_wildcard_to_regex": [
+  "def(pattern: str) -> str"
+ ],
+ "_with_as": [
+  "def(path: str, outcome: str) -> str"
+ ],
+ "_workers": [
+  "= 6f8742e0e742"
+ ],
+ "_xray_proc": [
+  "= 6eef6648406c"
+ ],
+ "_yummy_search": [
+  "async def(q: str, limit: int, page: int)"
+ ],
+ "absolute": [
+  "def(path: str) -> str"
+ ],
+ "access_token": [
+  "def(session: str, user_ip: str='', user_agent: str='') -> str | None"
+ ],
+ "activate": [
+  "def() -> bool"
+ ],
+ "activity_my": [
+  "@router.get('') def(days: int=Query(default=DEFAULT_DAYS, ge=1, le=365), user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "activity_my_recent": [
+  "@router.get('/recent') def(offset: int=Query(default=0, ge=0), limit: int=Query(default=10, ge=1, le=50), group: str=Query(default='all'), date: str | None=Query(default=None, pattern='^\\\\d{4}-\\\\d{2}-\\\\d{2}$'), user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "adblock_allow_hosts": [
+  "def() -> tuple[str, ...]"
+ ],
+ "adblock_cache_ttl": [
+  "def() -> int"
+ ],
+ "adblock_check": [
+  "@app.get('/adblock/check') def(url: str=Query(..., min_length=4))"
+ ],
+ "adblock_enabled": [
+  "def() -> bool"
+ ],
+ "adblock_filter_urls": [
+  "def() -> tuple[str, ...]"
+ ],
+ "adblock_regex_limit": [
+  "def() -> int"
+ ],
+ "adblock_snippet_limit": [
+  "def() -> int"
+ ],
+ "adblock_status": [
+  "@app.get('/adblock/status') def()"
+ ],
+ "adjust_auto_list_status_after_unwatch": [
+  "def(conn, user_id: int, mal_id: int, *, removed_episode: int, episodes_total: int) -> dict[str, Any] | None"
+ ],
+ "admin_secret": [
+  "def() -> bytes"
+ ],
+ "admin_summary.loaded_sources": [
+  "= 2a7a41920a2e"
+ ],
+ "admin_user": [
+  "async def(request: Request) -> int"
+ ],
+ "adult": [
+  "def(mal_id: Any) -> bool"
+ ],
+ "animesocial_site_url": [
+  "def() -> str | None"
+ ],
+ "app": [
+  "= 29d68d469c61"
+ ],
+ "as_api_url": [
+  "def() -> str"
+ ],
+ "as_ca": [
+  "def() -> str"
+ ],
+ "as_callback": [
+  "@router.get('/callback') def(request: Request, code: str='', state: str='', error: str='', flow_state: str | None=Cookie(default=None, alias=FLOW_COOKIE)) -> RedirectResponse"
+ ],
+ "as_client_keys": [
+  "def() -> tuple[str, str]"
+ ],
+ "as_login_flag": [
+  "def() -> bool"
+ ],
+ "as_origins": [
+  "def() -> list[str]"
+ ],
+ "as_redirect_uri": [
+  "def() -> str"
+ ],
+ "as_start": [
+  "@router.get('/start') def(request: Request, next: str='/') -> RedirectResponse"
+ ],
+ "as_to_social": [
+  "@router.get('/to-social') def(request: Request, next: str='/', nonce: str='', session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> RedirectResponse"
+ ],
+ "as_whoami": [
+  "@router.get('/whoami') def(request: Request, user: dict[str, Any] | None=Depends(db.current_user_optional)) -> JSONResponse"
+ ],
+ "asoplay_shield_js": [
+  "@router.get('/asoplay-shield.js', include_in_schema=False) def()"
+ ],
+ "audit": [
+  "def(cur: Any, user_id: int, action: str, target: str, details: dict[str, Any] | None=None) -> None"
+ ],
+ "audit_list": [
+  "@router.get('/audit') def(cursor: str='', _admin: int=Depends(admin_user)) -> dict[str, Any]"
+ ],
+ "auth_config": [
+  "@router.get('/config') def() -> dict[str, Any]"
+ ],
+ "auth_login": [
+  "@router.post('/login') def(payload: LoginIn, request: Request, response: Response) -> dict[str, Any]"
+ ],
+ "auth_logout": [
+  "@router.post('/logout') def(request: Request, response: Response, token: str | None=Cookie(default=None, alias=COOKIE_NAME)) -> dict[str, Any]"
+ ],
+ "auth_me": [
+  "@router.get('/me') def(user: dict[str, Any] | None=Depends(current_user_optional)) -> dict[str, Any]"
+ ],
+ "auth_register_redirect": [
+  "@router.get('/register') def() -> Response"
+ ],
+ "auto_add_enabled": [
+  "def(conn, user_id: int) -> bool"
+ ],
+ "auto_watching_qualified": [
+  "def(seconds: int, duration: int) -> bool"
+ ],
+ "available": [
+  "def() -> bool"
+ ],
+ "available_sources": [
+  "def(sources: Iterable[str]) -> list[str]"
+ ],
+ "avatar_url": [
+  "def(user_id: int | str | None, photo: str | None, size: str='medium') -> str"
+ ],
+ "base_url": [
+  "def() -> str"
+ ],
+ "batch_needed": [
+  "= ffa6e535e0cc"
+ ],
+ "bind_host": [
+  "def() -> str"
+ ],
+ "bind_port": [
+  "def() -> int"
+ ],
+ "build_batch": [
+  "def() -> dict[str, Any]"
+ ],
+ "cache_drop": [
+  "def(key: str) -> bool"
+ ],
+ "cached_fetch": [
+  "async def(method: str, url: str, *, params: dict | None=None, json_body: Any=None, ttl: float, timeout: float=15.0, headers: dict | None=None) -> tuple[bytes, str, int]"
+ ],
+ "call": [
+  "def(method: str, path: str, *, token: str | None=None, body: dict[str, Any] | None=None, user_ip: str='', user_agent: str='') -> Any"
+ ],
+ "canonical_title": [
+  "@router.get('/anime/{stub}/', response_class=HTMLResponse) @router.get('/anime/{stub}', response_class=HTMLResponse) async def(stub: str)"
+ ],
+ "catalog": [
+  "async def(path: str, params: dict | None=None) -> dict"
+ ],
+ "changed": [
+  "def(what: set[str]) -> None"
+ ],
+ "clean": [
+  "def(value: str, limit: int) -> str"
+ ],
+ "clean_title": [
+  "def(value: Any) -> str"
+ ],
+ "clear_env": [
+  "def() -> None"
+ ],
+ "client_id": [
+  "def() -> str"
+ ],
+ "client_ip": [
+  "def(request: Request) -> str"
+ ],
+ "configured": [
+  "def() -> bool"
+ ],
+ "connect": [
+  "@contextmanager def() -> Iterator[Any]"
+ ],
+ "cooldown_remaining": [
+  "def(source: str) -> int"
+ ],
+ "cover_url": [
+  "def(user_id: int | str | None, cover: str | None) -> str"
+ ],
+ "create_session": [
+  "def(user_id: int, request: Request) -> str"
+ ],
+ "current_user_optional": [
+  "def(request: Request, token: str | None=Cookie(default=None, alias=COOKIE_NAME)) -> dict[str, Any] | None"
+ ],
+ "current_user_required": [
+  "def(user: dict[str, Any] | None=Depends(current_user_optional)) -> dict[str, Any]"
+ ],
+ "cvh_api": [
+  "@router.api_route('/cvh-api/{path:path}', methods=['GET', 'POST', 'HEAD', 'OPTIONS']) async def(request: Request, path: str)"
+ ],
+ "db_config": [
+  "def() -> dict[str, Any]"
+ ],
+ "db_settings": [
+  "def() -> dict[str, Any]"
+ ],
+ "debug_check": [
+  "@router.get('/debug/check') def(url: str=Query(..., min_length=4))"
+ ],
+ "drop_session": [
+  "def(session: str) -> None"
+ ],
+ "dub_prefs_all": [
+  "@router.get('/dub-prefs') def(user: dict[str, Any]=Depends(current_user_required)) -> dict[str, str]"
+ ],
+ "dub_prefs_set": [
+  "@router.put('/dub-prefs/{mal_id}') def(mal_id: int, payload: DubPrefIn, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "dubs_for_episode": [
+  "@app.get('/src/dubs') async def(key: str, source: str='anilibria')"
+ ],
+ "enabled": [
+  "def() -> bool",
+  "def() -> bool"
+ ],
+ "end_session": [
+  "def(session: str, user_ip: str='', user_agent: str='') -> None"
+ ],
+ "engine": [
+  "= 9589e8620e29"
+ ],
+ "ensure_active": [
+  "def(*, blocking: bool=True) -> bool"
+ ],
+ "episodes": [
+  "@app.get('/src/episodes') async def(key: str, source: str='anilibria')"
+ ],
+ "error_response": [
+  "def(_request: Request, exc: AdminError) -> JSONResponse"
+ ],
+ "exchange_code": [
+  "def(code: str, verifier: str, user_ip: str='', user_agent: str='') -> dict[str, Any]"
+ ],
+ "extra_origins": [
+  "= 9aadf8ef192d"
+ ],
+ "favorite_add": [
+  "@router.put('/favorites/{mal_id}') def(mal_id: int, payload: FavoriteIn, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "favorite_remove": [
+  "@router.delete('/favorites/{mal_id}') def(mal_id: int, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "favorites_list": [
+  "@router.get('/favorites') def(user: dict[str, Any]=Depends(current_user_required)) -> list[dict[str, Any]]"
+ ],
+ "feature": [
+  "def(name: str) -> bool"
+ ],
+ "fetch": [
+  "async def(path: str, params: dict | None=None, *, timeout: float=25) -> tuple[bytes, str, int]"
+ ],
+ "fetch_entry": [
+  "def(conn, user_id: int, mal_id: int) -> dict[str, Any] | None"
+ ],
+ "fetch_recent_paged": [
+  "def(user_id: int, *, offset: int, limit: int, group: str | None, day: str | None=None) -> dict[str, Any]"
+ ],
+ "filter_videos": [
+  "async def(videos: list[dict[str, Any]]) -> list[dict[str, Any]]"
+ ],
+ "fon_url": [
+  "def(user_id: int | str | None, fon: str | None) -> str"
+ ],
+ "forget": [
+  "def(mal_id: int) -> None"
+ ],
+ "forget_friends": [
+  "def(user_id: int) -> None"
+ ],
+ "forget_if_dead": [
+  "def(session: str, exc: as_api.ASApiError) -> bool"
+ ],
+ "forget_shiki_title": [
+  "def(mal_id: int) -> bool"
+ ],
+ "forget_title": [
+  "def(mal_id: int) -> int"
+ ],
+ "frame": [
+  "@router.get('/frame') async def(request: Request, url: str=Query(..., min_length=8))"
+ ],
+ "friend_accept": [
+  "@router.post('/friends/{peer_id}/accept') def(peer_id: int, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+ ],
+ "friend_add": [
+  "@router.post('/friends/{peer_id}') def(peer_id: int, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+ ],
+ "friend_decline": [
+  "@router.post('/friends/{peer_id}/decline') def(peer_id: int, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+ ],
+ "friend_listeners": [
+  "= 97d170e1550e"
+ ],
+ "friend_remove": [
+  "@router.delete('/friends/{peer_id}') def(peer_id: int, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+ ],
+ "friend_requests": [
+  "@router.get('/friends/requests') def(request: Request, type: str='incoming', cursor: str='', user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+ ],
+ "friend_suggestions": [
+  "@router.get('/friends/suggestions') def(request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+ ],
+ "friends": [
+  "@router.get('/friends') def(request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+ ],
+ "friends_on_title": [
+  "@router.get('/friends/title/{mal_id}') def(mal_id: int, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+ ],
+ "from_local_proxy": [
+  "def(request: Request) -> bool"
+ ],
+ "get_animevost": [
+  "def() -> Animevost"
+ ],
+ "get_client": [
+  "async def() -> httpx.AsyncClient"
+ ],
+ "get_config": [
+  "@lru_cache(maxsize=1) def() -> dict[str, Any]"
+ ],
+ "get_oldyummy": [
+  "def() -> OldYummy"
+ ],
+ "get_vpn_client": [
+  "async def() -> httpx.AsyncClient | None"
+ ],
+ "graph_for_user_public": [
+  "def(user_id: int, days: int=DEFAULT_DAYS) -> dict[str, Any]"
+ ],
+ "health": [
+  "@app.get('/health') def()",
+  "def() -> dict[str, Any]"
+ ],
+ "hidden": [
+  "def(mal_id: Any) -> bool"
+ ],
+ "history_clear_all": [
+  "@router.delete('/history') def(user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "history_list": [
+  "@router.get('/history') def(user: dict[str, Any]=Depends(current_user_required)) -> list[dict[str, Any]]"
+ ],
+ "history_qualified": [
+  "def(seconds: int, duration: int) -> bool"
+ ],
+ "history_remove": [
+  "@router.delete('/history/{mal_id}') def(mal_id: int, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "history_row_for_title": [
+  "def(conn, user_id: int, mal_id: int) -> dict[str, Any] | None"
+ ],
+ "history_upsert": [
+  "@router.put('/history/{mal_id}') def(mal_id: int, payload: HistoryIn, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "hub": [
+  "= fd86d7ebf9ab"
+ ],
+ "iframe_preference_score": [
+  "def(url: str) -> int"
+ ],
+ "import_localstorage": [
+  "@router.post('/import-localstorage') def(blob: ImportBlob=Body(...), force: bool=Query(default=False), user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "import_marks": [
+  "@router.get('/import-marks') def(user: dict[str, Any]=Depends(current_user_required)) -> dict[str, str]"
+ ],
+ "is_active": [
+  "def() -> bool"
+ ],
+ "is_available": [
+  "def(source: str) -> bool"
+ ],
+ "is_disabled_player_url": [
+  "def(url: str) -> bool"
+ ],
+ "is_enabled": [
+  "def() -> bool"
+ ],
+ "jikan_php": [
+  "def() -> str"
+ ],
+ "kodik_cdn_check": [
+  "@router.get('/cdn-check') async def(request: Request, url: str=Query(...), base: str=Query(...))"
+ ],
+ "kodik_episode": [
+  "@kodik_router.api_route('/episode/{rest:path}', methods=['GET', 'POST', 'HEAD', 'OPTIONS']) async def(request: Request, rest: str)"
+ ],
+ "kodik_router": [
+  "= 82e1a4f1c862"
+ ],
+ "kodik_season": [
+  "@kodik_router.api_route('/season/{rest:path}', methods=['GET', 'POST', 'HEAD', 'OPTIONS']) async def(request: Request, rest: str)"
+ ],
+ "kodik_seria": [
+  "@kodik_router.api_route('/seria/{rest:path}', methods=['GET', 'POST', 'HEAD', 'OPTIONS']) async def(request: Request, rest: str)"
+ ],
+ "kodik_serial": [
+  "@kodik_router.api_route('/serial/{rest:path}', methods=['GET', 'POST', 'HEAD', 'OPTIONS']) async def(request: Request, rest: str)"
+ ],
+ "kodik_skin_css": [
+  "@router.get('/kodik-skin.css', include_in_schema=False) def()"
+ ],
+ "kodik_uv": [
+  "@kodik_router.api_route('/uv/{rest:path}', methods=['GET', 'POST', 'HEAD', 'OPTIONS']) async def(request: Request, rest: str)"
+ ],
+ "kodik_video": [
+  "@kodik_router.api_route('/video/{rest:path}', methods=['GET', 'POST', 'HEAD', 'OPTIONS']) async def(request: Request, rest: str)"
+ ],
+ "list_all": [
+  "@router.get('') def(status: str | None=Query(default=None), user: dict[str, Any]=Depends(current_user_required)) -> list[dict[str, Any]]"
+ ],
+ "list_counts": [
+  "@router.get('/counts') def(user: dict[str, Any]=Depends(current_user_required)) -> dict[str, int]"
+ ],
+ "list_entry": [
+  "@router.get('/{mal_id}') def(mal_id: int, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "list_remove": [
+  "@router.delete('/{mal_id}') def(mal_id: int, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "listeners": [
+  "= 97d170e1550e"
+ ],
+ "load": [
+  "def() -> None"
+ ],
+ "loaded_sources": [
+  "= 42186eaf8b75"
+ ],
+ "log": [
+  "= 097e77fd8975",
+  "= 09e04af44e51",
+  "= 1775a40410d5",
+  "= 32d06339fc74",
+  "= 3acb6a6c60f8",
+  "= 48bd8c61a38f",
+  "= 8a1db55198b6",
+  "= 96ff858b959b",
+  "= 9a6a5b08b0f5",
+  "= 9d8fc02d77ae",
+  "= a4c65cd75c4e",
+  "= b3b24f687743",
+  "= b424f540bc0b",
+  "= bd836eb04249",
+  "= c37b55460f21",
+  "= cc6e10537509",
+  "= d4a1c99740de",
+  "= e8debe1c1a68",
+  "= ea77bb90f150",
+  "= eae50792383d",
+  "= ee32d4684644"
+ ],
+ "login_url": [
+  "def() -> str"
+ ],
+ "logout": [
+  "def(access_token: str, user_ip: str='', user_agent: str='') -> None"
+ ],
+ "lookup": [
+  "async def(mal_id: int) -> dict[str, Any] | None"
+ ],
+ "main": [
+  "def() -> None"
+ ],
+ "mal_id_exists": [
+  "async def(mal_id: int) -> bool"
+ ],
+ "manual_sweep": [
+  "@router.post('/sweep') def(user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "mark_failure": [
+  "def(source: str, error: object) -> None"
+ ],
+ "mark_success": [
+  "def(source: str, latency_ms: int | None=None) -> None"
+ ],
+ "notice": [
+  "def() -> dict[str, Any] | None"
+ ],
+ "ok": [
+  "def(data: Any) -> dict[str, Any]"
+ ],
+ "ospanel_dir": [
+  "def() -> Path"
+ ],
+ "parse_json": [
+  "def(value: Any) -> Any"
+ ],
+ "password_login": [
+  "def(email: str, password: str, request: Request) -> tuple[str, dict[str, Any]] | None",
+  "def(email: str, password: str, user_ip: str='', user_agent: str='') -> dict[str, Any]"
+ ],
+ "path_for": [
+  "def(key: str, **params: Any) -> str"
+ ],
+ "pinned": [
+  "def() -> tuple[int, ...]"
+ ],
+ "player_document": [
+  "@router.get('/documents/{scheme}/{host}/{path:path}') async def(request: Request, scheme: str, host: str, path: str)"
+ ],
+ "player_module": [
+  "@router.get('/modules/{scheme}/{host}/{path:path}') async def(request: Request, scheme: str, host: str, path: str)"
+ ],
+ "presence": [
+  "= fb958eb6a32b"
+ ],
+ "presence.batch_needed": [
+  "= 172567c8c836"
+ ],
+ "privacy_changed": [
+  "def(user_id: int) -> None"
+ ],
+ "privacy_get": [
+  "@router.get('/privacy') def(user: dict[str, Any]=Depends(current_user_required)) -> dict[str, bool]"
+ ],
+ "privacy_put": [
+  "@router.put('/privacy') def(payload: PrivacyIn, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, bool]"
+ ],
+ "profile_activity": [
+  "@router.get('/profile/{handle}/activity') def(handle: str, days: int=Query(default=30, ge=1, le=365), viewer: dict[str, Any] | None=Depends(current_user_optional)) -> dict[str, Any]"
+ ],
+ "profile_activity_recent": [
+  "@router.get('/profile/{handle}/activity/recent') def(handle: str, offset: int=Query(default=0, ge=0), limit: int=Query(default=10, ge=1, le=50), group: str=Query(default='all'), date: str | None=Query(default=None, pattern='^\\\\d{4}-\\\\d{2}-\\\\d{2}$'), viewer: dict[str, Any] | None=Depends(current_user_optional)) -> dict[str, Any]"
+ ],
+ "profile_lists": [
+  "@router.get('/profile/{handle}/lists') def(handle: str, status: str='watching', viewer: dict[str, Any] | None=Depends(current_user_optional)) -> dict[str, Any]"
+ ],
+ "profile_page": [
+  "@router.get('/@{handle}', response_class=HTMLResponse) @router.get('/@{handle}/', response_class=HTMLResponse) def(handle: str)"
+ ],
+ "profile_summary": [
+  "@router.get('/profile/{handle}/summary') def(handle: str, days: int=Query(default=30, ge=1, le=365), viewer: dict[str, Any] | None=Depends(current_user_optional)) -> dict[str, Any]"
+ ],
+ "profile_url": [
+  "def(user_id: int | str) -> str"
+ ],
+ "progress_done": [
+  "def(seconds: int, duration: int) -> bool"
+ ],
+ "progress_event": [
+  "@router.post('/progress-event') def(event: ProgressEventIn, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "progress_for_title": [
+  "@router.get('/progress/{mal_id}') def(mal_id: int, user: dict[str, Any]=Depends(current_user_required)) -> list[dict[str, Any]]"
+ ],
+ "progress_rows_for_title": [
+  "def(conn, user_id: int, mal_id: int) -> list[dict[str, Any]]"
+ ],
+ "progress_unwatch_episode": [
+  "@router.delete('/progress/{mal_id}/{episode_num}') def(mal_id: int, episode_num: int, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "progress_upsert": [
+  "@router.put('/progress/{mal_id}') def(mal_id: int, payload: ProgressIn, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "proxy": [
+  "@router.api_route('/proxy', methods=['GET', 'POST', 'HEAD', 'OPTIONS']) async def(request: Request, url: str=Query(..., min_length=8), base: str | None=Query(None))"
+ ],
+ "proxy_anilist": [
+  "@router.post('/proxy/anilist') async def(request: Request)"
+ ],
+ "proxy_img": [
+  "@router.get('/proxy/img') async def(url: str=Query(...))"
+ ],
+ "proxy_jikan": [
+  "@router.get('/proxy/jikan/{path:path}') async def(path: str, request: Request)"
+ ],
+ "proxy_translate": [
+  "@router.get('/proxy/translate') async def(q: str=Query(...), sl: str='auto', tl: str='ru')"
+ ],
+ "proxy_url": [
+  "def() -> str | None"
+ ],
+ "public_state": [
+  "def() -> dict[str, Any]"
+ ],
+ "public_view": [
+  "def() -> dict[str, Any]"
+ ],
+ "random_watchable": [
+  "@app.get('/random/watchable') async def()"
+ ],
+ "rating_clear": [
+  "@router.delete('/ratings/{mal_id}') def(mal_id: int, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "rating_set": [
+  "@router.put('/ratings/{mal_id}') def(mal_id: int, payload: RatingIn, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "ratings_all": [
+  "@router.get('/ratings') def(user: dict[str, Any]=Depends(current_user_required)) -> dict[str, int]"
+ ],
+ "read_privacy": [
+  "def(user_id: int) -> dict[str, bool]"
+ ],
+ "realtime.extra_origins": [
+  "= 4641e5957bc3"
+ ],
+ "realtime.status_provider": [
+  "= b57e0c80e95c"
+ ],
+ "record_event": [
+  "def(conn, user_id: int, *, kind: str, mal_id: int | None=None, meta: str | None=None) -> None"
+ ],
+ "recover_url": [
+  "def() -> str"
+ ],
+ "redirect_uri": [
+  "def(request: Request) -> str"
+ ],
+ "refresh": [
+  "def(refresh_token: str, user_ip: str='', user_agent: str='') -> dict[str, Any]"
+ ],
+ "register_shell_routes": [
+  "def(app) -> None"
+ ],
+ "register_url": [
+  "def() -> str"
+ ],
+ "register_url_override": [
+  "def() -> str"
+ ],
+ "remember_route": [
+  "def(host: str, route: str) -> None"
+ ],
+ "report_create": [
+  "@router.post('') def(body: ReportIn, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "report_kinds": [
+  "@router.get('/kinds') def() -> dict[str, Any]"
+ ],
+ "report_once": [
+  "def(reported: bool) -> bool"
+ ],
+ "reports_list": [
+  "@router.get('/reports') def(status: str='open', cursor: str='', _admin: int=Depends(admin_user)) -> dict[str, Any]"
+ ],
+ "reports_patch": [
+  "@router.patch('/reports/{report_id}') def(report_id: int, body: ReportPatch, admin: int=Depends(admin_user)) -> dict[str, Any]"
+ ],
+ "request": [
+  "async def(method: str, url: str, **kwargs) -> httpx.Response"
+ ],
+ "resolve_handle": [
+  "def(handle: str) -> dict[str, Any] | None"
+ ],
+ "resync_watch_history_from_latest_progress": [
+  "def(conn, user_id: int, mal_id: int) -> dict[str, Any] | None"
+ ],
+ "revoke_session": [
+  "def(token: str) -> None"
+ ],
+ "revoke_user_sessions": [
+  "def(user_id: int) -> None"
+ ],
+ "robots": [
+  "@router.get('/robots.txt', response_class=PlainTextResponse) def() -> PlainTextResponse"
+ ],
+ "route_order": [
+  "def(host: str) -> list[str]"
+ ],
+ "router": [
+  "= 01621af1b1f4",
+  "= 1173cb0fcdfa",
+  "= 2350873edac3",
+  "= 38a8009d6ab6",
+  "= 603dd6e11367",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= f115762622b1",
+  "= f115762622b1",
+  "= f9207de8e1db"
+ ],
+ "row_to_public": [
+  "def(row: tuple) -> dict[str, Any]"
+ ],
+ "seal": [
+  "def(text: str, context: str) -> bytes"
+ ],
+ "search": [
+  "@app.get('/src/search') async def(q: str=Query(..., min_length=1), source: str='anilibria', year: int | None=None, mal_id: int | None=None)"
+ ],
+ "search_titles": [
+  "async def(q: str, limit: int=10) -> list[dict]"
+ ],
+ "send_message": [
+  "@router.post('/messages/{peer_id}') def(peer_id: int, payload: MessageIn, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+ ],
+ "set_favorite": [
+  "@router.put('/{mal_id}/favorite') async def(mal_id: int, payload: FavoriteIn, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "set_session_cookie": [
+  "def(resp: Response, token: str) -> None"
+ ],
+ "set_status": [
+  "@router.put('/{mal_id}/status') async def(mal_id: int, payload: ListItemIn, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "settings_get": [
+  "@router.get('/settings') def(_admin: int=Depends(admin_user)) -> dict[str, Any]",
+  "@router.get('/settings') def(user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "settings_put": [
+  "@router.put('/settings') def(body: SettingsIn, admin: int=Depends(admin_user)) -> dict[str, Any]",
+  "@router.put('/settings') def(payload: SettingsIn, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
+ ],
+ "shiki_anime": [
+  "@router.get('/shiki/anime/{mal_id}') async def(mal_id: int)"
+ ],
+ "shiki_batch": [
+  "@router.get('/shiki/batch') async def(ids: str=Query(..., description='comma-separated MAL ids'))"
+ ],
+ "shiki_cache": [
+  "= bf21a9e8fbc5"
+ ],
+ "shiki_search": [
+  "@router.get('/shiki/search') async def(q: str=Query(..., min_length=1), limit: int=Query(default=24, ge=1, le=50), page: int=Query(default=1, ge=1, le=50))"
+ ],
+ "should_block": [
+  "def(url: str) -> tuple[bool, str | None]"
+ ],
+ "shutdown": [
+  "async def() -> None",
+  "async def() -> None",
+  "async def() -> None",
+  "async def() -> None",
+  "async def() -> None",
+  "async def() -> None",
+  "def() -> None"
+ ],
+ "sign": [
+  "def(secret: bytes, ts: str, method: str, path_with_query: str, admin_user: str, body: bytes) -> str"
+ ],
+ "site_url": [
+  "def() -> str",
+  "def() -> str"
+ ],
+ "sitemap": [
+  "@router.get('/sitemap.xml') def() -> Response"
+ ],
+ "snapshot": [
+  "def(sources: Iterable[str] | None=None) -> dict[str, dict[str, object]]"
+ ],
+ "source_enabled": [
+  "def(source: str) -> bool"
+ ],
+ "source_health_status": [
+  "@app.get('/source-health') def()"
+ ],
+ "source_order": [
+  "def() -> list[str]"
+ ],
+ "sources": [
+  "@app.get('/sources') def()"
+ ],
+ "sources_view": [
+  "def() -> list[dict[str, Any]]"
+ ],
+ "ss_address": [
+  "def() -> str"
+ ],
+ "ss_method": [
+  "def() -> str"
+ ],
+ "ss_password": [
+  "def() -> str"
+ ],
+ "ss_port": [
+  "def() -> str | None"
+ ],
+ "start_watchdog": [
+  "def() -> None"
+ ],
+ "startup": [
+  "async def() -> None",
+  "async def() -> None",
+  "async def() -> None",
+  "async def() -> None",
+  "async def() -> None",
+  "async def() -> None"
+ ],
+ "state": [
+  "= 09c0d3d8663d"
+ ],
+ "status": [
+  "def() -> dict",
+  "def() -> dict[str, Any]"
+ ],
+ "status_changed": [
+  "def() -> None"
+ ],
+ "status_provider": [
+  "= 0cc4b4298a8b"
+ ],
+ "stop_watchdog": [
+  "def() -> None"
+ ],
+ "summary": [
+  "@router.get('/summary') def(_admin: int=Depends(admin_user)) -> dict[str, Any]"
+ ],
+ "sweep_dropped_after_30_days": [
+  "def(conn) -> int"
+ ],
+ "sync_watch_history_from_progress": [
+  "def(conn, user_id: int, mal_id: int, *, episode_num: int, title: str='', poster_url: str='', episodes_total: int=0, updated_at: datetime | None=None) -> None"
+ ],
+ "title_name": [
+  "def(cur: Any, mal_id: int) -> str"
+ ],
+ "title_record": [
+  "@router.post('/title-pages/record') def(payload: RecordIn) -> dict[str, Any]"
+ ],
+ "titles_list": [
+  "@router.get('/titles') async def(q: str='', cursor: str='', _admin: int=Depends(admin_user)) -> dict[str, Any]"
+ ],
+ "titles_purge": [
+  "@router.post('/titles/{mal_id}/purge') def(mal_id: int, admin: int=Depends(admin_user)) -> dict[str, Any]"
+ ],
+ "titles_put": [
+  "@router.put('/titles/{mal_id}') async def(mal_id: int, body: TitleIn, admin: int=Depends(admin_user)) -> dict[str, Any]"
+ ],
+ "token_key": [
+  "def() -> str"
+ ],
+ "touch_session": [
+  "def(token: str) -> dict[str, Any] | None"
+ ],
+ "unix": [
+  "def(value: datetime | None) -> int | None"
+ ],
+ "unseal": [
+  "def(blob: bytes, context: str) -> str | None"
+ ],
+ "upsert_episode_progress": [
+  "def(conn, user_id: int, mal_id: int, episode_num: int, seconds: int, duration: int, updated_at: datetime | None=None) -> None"
+ ],
+ "upsert_status": [
+  "def(conn, user_id: int, mal_id: int, status: str | None, source: str, title: str='', poster_url: str='') -> None"
+ ],
+ "user_banned_values": [
+  "def() -> str"
+ ],
+ "user_column": [
+  "def(env_key: str) -> str | None"
+ ],
+ "user_table": [
+  "def() -> str | None"
+ ],
+ "utc_now": [
+  "def() -> datetime"
+ ],
+ "videos": [
+  "@app.get('/src/videos') async def(key: str, source: str='anilibria')"
+ ],
+ "visible": [
+  "def(items: list[Any], key: str='mal_id') -> list[Any]"
+ ],
+ "vk_video_ref": [
+  "def(url: str) -> dict[str, str] | None"
+ ],
+ "vpn_config_file": [
+  "def() -> str"
+ ],
+ "vpn_enabled": [
+  "def() -> bool"
+ ],
+ "vpn_url": [
+  "def() -> str"
+ ],
+ "vpn_watchdog_interval": [
+  "def() -> float"
+ ],
+ "watched_seconds": [
+  "def(user_id: int, mal_id: int, episode: int, position: int, clock: Any=time.monotonic) -> int"
+ ],
+ "web_login": [
+  "def(access_token: str, path: str, nonce: str='', user_ip: str='', user_agent: str='') -> dict[str, Any]"
+ ],
+ "window": [
+  "def(source: str) -> dict[str, object]"
+ ],
+ "ws_endpoint": [
+  "@router.websocket('/ws') async def(ws: WebSocket) -> None"
+ ]
+}

@@ -24,15 +24,24 @@ core/classes/jikan/php/vendor/
 
 # Старые/внешние агентские workspace-артефакты
 .claude/
+.serena/
 claude-playbook-*/
 .playwright-mcp/
 CODEX.md
 docs/
-tools/
 tmp-frame.html
 .run.log
 .run.out.log
 .run.err.log
+
+# Инструменты: в git — сторожа (tools/guard) и QA (tools/qa); остальное в tools/ — локальные помощники
+tools/*
+!tools/guard/
+!tools/qa/
+# Базы сторожей, которые снимаются на месте через --save: ответы локальной базы, записанные ответы API, замеры машины
+tools/guard/baseline/responses.json
+tools/guard/baseline/styles/
+tools/guard/baseline/firstload-*.json
 
 # System
 Thumbs.db

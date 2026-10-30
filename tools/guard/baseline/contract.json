@@ -1,0 +1,5596 @@
+{
+ "hidden": [
+  "GET /",
+  "GET /catalog",
+  "GET /filter",
+  "GET /genre/{genre_id}/{name:path}",
+  "GET /login",
+  "GET /movies",
+  "GET /my/{tail:path}",
+  "GET /random",
+  "GET /search",
+  "GET /season",
+  "GET /top",
+  "GET /trending",
+  "GET,HEAD /docs",
+  "GET,HEAD /docs/oauth2-redirect",
+  "GET,HEAD /openapi.json",
+  "GET,HEAD /redoc"
+ ],
+ "order": [
+  "GET,HEAD /openapi.json",
+  "GET,HEAD /docs",
+  "GET,HEAD /docs/oauth2-redirect",
+  "GET,HEAD /redoc",
+  "GET /health",
+  "GET /sources",
+  "GET /source-health",
+  "GET /adblock/status",
+  "GET /adblock/check",
+  "GET /src/search",
+  "GET /src/episodes",
+  "GET /src/dubs",
+  "GET /src/videos",
+  "GET /random/watchable",
+  "GET /shiki/anime/{mal_id}",
+  "GET /shiki/batch",
+  "GET /shiki/search",
+  "GET /proxy/jikan/{path:path}",
+  "POST /proxy/anilist",
+  "GET /proxy/translate",
+  "GET /proxy/img",
+  "POST /auth/login",
+  "POST /auth/logout",
+  "GET /auth/me",
+  "GET /auth/register",
+  "GET /auth/config",
+  "GET /auth/as/start",
+  "GET /auth/as/callback",
+  "GET /auth/as/whoami",
+  "GET /auth/as/to-social",
+  "GET /account/favorites",
+  "PUT /account/favorites/{mal_id}",
+  "DELETE /account/favorites/{mal_id}",
+  "GET /account/history",
+  "PUT /account/history/{mal_id}",
+  "DELETE /account/history/{mal_id}",
+  "DELETE /account/history",
+  "GET /account/progress/{mal_id}",
+  "PUT /account/progress/{mal_id}",
+  "DELETE /account/progress/{mal_id}/{episode_num}",
+  "GET /account/ratings",
+  "PUT /account/ratings/{mal_id}",
+  "DELETE /account/ratings/{mal_id}",
+  "GET /account/dub-prefs",
+  "PUT /account/dub-prefs/{mal_id}",
+  "GET /account/settings",
+  "PUT /account/settings",
+  "GET /account/privacy",
+  "PUT /account/privacy",
+  "GET /account/import-marks",
+  "POST /account/import-localstorage",
+  "GET /account/friends",
+  "GET /account/friends/title/{mal_id}",
+  "GET /account/friends/requests",
+  "GET /account/friends/suggestions",
+  "POST /account/friends/{peer_id}",
+  "POST /account/friends/{peer_id}/accept",
+  "POST /account/friends/{peer_id}/decline",
+  "DELETE /account/friends/{peer_id}",
+  "POST /account/messages/{peer_id}",
+  "WS /ws",
+  "GET /account/lists",
+  "GET /account/lists/counts",
+  "GET /account/lists/{mal_id}",
+  "PUT /account/lists/{mal_id}/status",
+  "PUT /account/lists/{mal_id}/favorite",
+  "DELETE /account/lists/{mal_id}",
+  "POST /account/lists/progress-event",
+  "POST /account/lists/sweep",
+  "GET /account/activity",
+  "GET /account/activity/recent",
+  "GET /profile/{handle}/summary",
+  "GET /profile/{handle}/activity",
+  "GET /profile/{handle}/activity/recent",
+  "GET /profile/{handle}/lists",
+  "GET /@{handle}/",
+  "GET /@{handle}",
+  "GET /player/frame",
+  "GET /player/modules/{scheme}/{host}/{path:path}",
+  "GET /player/documents/{scheme}/{host}/{path:path}",
+  "GET /player/cdn-check",
+  "GET,HEAD,OPTIONS,POST /player/proxy",
+  "GET,HEAD,OPTIONS,POST /player/cvh-api/{path:path}",
+  "GET /player/debug/check",
+  "GET,HEAD,OPTIONS,POST /season/{rest:path}",
+  "GET,HEAD,OPTIONS,POST /serial/{rest:path}",
+  "GET,HEAD,OPTIONS,POST /episode/{rest:path}",
+  "GET,HEAD,OPTIONS,POST /seria/{rest:path}",
+  "GET,HEAD,OPTIONS,POST /video/{rest:path}",
+  "GET,HEAD,OPTIONS,POST /uv/{rest:path}",
+  "POST /title-pages/record",
+  "GET /anime/{stub}",
+  "GET /anime/{stub}/",
+  "GET /sitemap.xml",
+  "GET /robots.txt",
+  "GET /reports/kinds",
+  "POST /reports",
+  "GET /api/admin/reports",
+  "PATCH /api/admin/reports/{report_id}",
+  "GET /api/admin/audit",
+  "GET /api/admin/settings",
+  "PUT /api/admin/settings",
+  "GET /api/admin/titles",
+  "PUT /api/admin/titles/{mal_id}",
+  "POST /api/admin/titles/{mal_id}/purge",
+  "GET /api/admin/summary",
+  "GET /",
+  "GET /top",
+  "GET /season",
+  "GET /trending",
+  "GET /movies",
+  "GET /catalog",
+  "GET /filter",
+  "GET /random",
+  "GET /login",
+  "GET /search",
+  "GET /genre/{genre_id}/{name:path}",
+  "GET /my/{tail:path}"
+ ],
+ "paths": {
+  "/@{handle}": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "handle",
+      "required": true,
+      "schema": {
+       "title": "Handle",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "text/html": {
+        "schema": {
+         "type": "string"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Profile Page"
+   }
+  },
+  "/@{handle}/": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "handle",
+      "required": true,
+      "schema": {
+       "title": "Handle",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "text/html": {
+        "schema": {
+         "type": "string"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Profile Page"
+   }
+  },
+  "/account/activity": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "days",
+      "required": false,
+      "schema": {
+       "default": 30,
+       "maximum": 365,
+       "minimum": 1,
+       "title": "Days",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Activity My Account Activity Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Activity My"
+   }
+  },
+  "/account/activity/recent": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "offset",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "minimum": 0,
+       "title": "Offset",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 10,
+       "maximum": 50,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "group",
+      "required": false,
+      "schema": {
+       "default": "all",
+       "title": "Group",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "date",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Date"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Activity My Recent Account Activity Recent Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Activity My Recent"
+   }
+  },
+  "/account/dub-prefs": {
+   "get": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "string"
+         },
+         "title": "Response Dub Prefs All Account Dub Prefs Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Dub Prefs All"
+   }
+  },
+  "/account/dub-prefs/{mal_id}": {
+   "put": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DubPrefIn@773e9b6b"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Dub Prefs Set Account Dub Prefs  Mal Id  Put",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Dub Prefs Set"
+   }
+  },
+  "/account/favorites": {
+   "get": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "additionalProperties": true,
+          "type": "object"
+         },
+         "title": "Response Favorites List Account Favorites Get",
+         "type": "array"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Favorites List"
+   }
+  },
+  "/account/favorites/{mal_id}": {
+   "delete": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Favorite Remove Account Favorites  Mal Id  Delete",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Favorite Remove"
+   },
+   "put": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FavoriteIn@e06f352c"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Favorite Add Account Favorites  Mal Id  Put",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Favorite Add"
+   }
+  },
+  "/account/friends": {
+   "get": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Friends Account Friends Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Friends"
+   }
+  },
+  "/account/friends/requests": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "type",
+      "required": false,
+      "schema": {
+       "default": "incoming",
+       "title": "Type",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "cursor",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Cursor",
+       "type": "string"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Friend Requests Account Friends Requests Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Friend Requests"
+   }
+  },
+  "/account/friends/suggestions": {
+   "get": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Friend Suggestions Account Friends Suggestions Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Friend Suggestions"
+   }
+  },
+  "/account/friends/title/{mal_id}": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Friends On Title Account Friends Title  Mal Id  Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Friends On Title"
+   }
+  },
+  "/account/friends/{peer_id}": {
+   "delete": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "peer_id",
+      "required": true,
+      "schema": {
+       "title": "Peer Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Friend Remove Account Friends  Peer Id  Delete",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Friend Remove"
+   },
+   "post": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "peer_id",
+      "required": true,
+      "schema": {
+       "title": "Peer Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Friend Add Account Friends  Peer Id  Post",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Friend Add"
+   }
+  },
+  "/account/friends/{peer_id}/accept": {
+   "post": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "peer_id",
+      "required": true,
+      "schema": {
+       "title": "Peer Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Friend Accept Account Friends  Peer Id  Accept Post",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Friend Accept"
+   }
+  },
+  "/account/friends/{peer_id}/decline": {
+   "post": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "peer_id",
+      "required": true,
+      "schema": {
+       "title": "Peer Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Friend Decline Account Friends  Peer Id  Decline Post",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Friend Decline"
+   }
+  },
+  "/account/history": {
+   "delete": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response History Clear All Account History Delete",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "History Clear All"
+   },
+   "get": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "additionalProperties": true,
+          "type": "object"
+         },
+         "title": "Response History List Account History Get",
+         "type": "array"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "History List"
+   }
+  },
+  "/account/history/{mal_id}": {
+   "delete": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response History Remove Account History  Mal Id  Delete",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "History Remove"
+   },
+   "put": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/HistoryIn@0c95291a"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response History Upsert Account History  Mal Id  Put",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "History Upsert"
+   }
+  },
+  "/account/import-localstorage": {
+   "post": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "force",
+      "required": false,
+      "schema": {
+       "default": false,
+       "title": "Force",
+       "type": "boolean"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ImportBlob@a3471af9"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Import Localstorage Account Import Localstorage Post",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Import Localstorage"
+   }
+  },
+  "/account/import-marks": {
+   "get": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "string"
+         },
+         "title": "Response Import Marks Account Import Marks Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Import Marks"
+   }
+  },
+  "/account/lists": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "additionalProperties": true,
+          "type": "object"
+         },
+         "title": "Response List All Account Lists Get",
+         "type": "array"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "List All"
+   }
+  },
+  "/account/lists/counts": {
+   "get": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "integer"
+         },
+         "title": "Response List Counts Account Lists Counts Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "List Counts"
+   }
+  },
+  "/account/lists/progress-event": {
+   "post": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProgressEventIn@ac3450b2"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Progress Event Account Lists Progress Event Post",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Progress Event"
+   }
+  },
+  "/account/lists/sweep": {
+   "post": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Manual Sweep Account Lists Sweep Post",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Manual Sweep"
+   }
+  },
+  "/account/lists/{mal_id}": {
+   "delete": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Remove Account Lists  Mal Id  Delete",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "List Remove"
+   },
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Entry Account Lists  Mal Id  Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "List Entry"
+   }
+  },
+  "/account/lists/{mal_id}/favorite": {
+   "put": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FavoriteIn@4e87e294"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Set Favorite Account Lists  Mal Id  Favorite Put",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Set Favorite"
+   }
+  },
+  "/account/lists/{mal_id}/status": {
+   "put": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ListItemIn@24ca981e"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Set Status Account Lists  Mal Id  Status Put",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Set Status"
+   }
+  },
+  "/account/messages/{peer_id}": {
+   "post": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "peer_id",
+      "required": true,
+      "schema": {
+       "title": "Peer Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/MessageIn@5517af25"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Send Message Account Messages  Peer Id  Post",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Send Message"
+   }
+  },
+  "/account/privacy": {
+   "get": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "boolean"
+         },
+         "title": "Response Privacy Get Account Privacy Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Privacy Get"
+   },
+   "put": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PrivacyIn@0e038f5a"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "boolean"
+         },
+         "title": "Response Privacy Put Account Privacy Put",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Privacy Put"
+   }
+  },
+  "/account/progress/{mal_id}": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "additionalProperties": true,
+          "type": "object"
+         },
+         "title": "Response Progress For Title Account Progress  Mal Id  Get",
+         "type": "array"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Progress For Title"
+   },
+   "put": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProgressIn@edebfdb1"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Progress Upsert Account Progress  Mal Id  Put",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Progress Upsert"
+   }
+  },
+  "/account/progress/{mal_id}/{episode_num}": {
+   "delete": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "path",
+      "name": "episode_num",
+      "required": true,
+      "schema": {
+       "title": "Episode Num",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Progress Unwatch Episode Account Progress  Mal Id   Episode Num  Delete",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Progress Unwatch Episode"
+   }
+  },
+  "/account/ratings": {
+   "get": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "integer"
+         },
+         "title": "Response Ratings All Account Ratings Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Ratings All"
+   }
+  },
+  "/account/ratings/{mal_id}": {
+   "delete": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Rating Clear Account Ratings  Mal Id  Delete",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Rating Clear"
+   },
+   "put": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RatingIn@06d6aff6"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Rating Set Account Ratings  Mal Id  Put",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Rating Set"
+   }
+  },
+  "/account/settings": {
+   "get": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Settings Get Account Settings Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Settings Get"
+   },
+   "put": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SettingsIn@26a952e3"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Settings Put Account Settings Put",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Settings Put"
+   }
+  },
+  "/adblock/check": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "url",
+      "required": true,
+      "schema": {
+       "minLength": 4,
+       "title": "Url",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Adblock Check"
+   }
+  },
+  "/adblock/status": {
+   "get": {
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    },
+    "summary": "Adblock Status"
+   }
+  },
+  "/anime/{stub}": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "stub",
+      "required": true,
+      "schema": {
+       "title": "Stub",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "text/html": {
+        "schema": {
+         "type": "string"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Canonical Title"
+   }
+  },
+  "/anime/{stub}/": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "stub",
+      "required": true,
+      "schema": {
+       "title": "Stub",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "text/html": {
+        "schema": {
+         "type": "string"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Canonical Title"
+   }
+  },
+  "/api/admin/audit": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "cursor",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Cursor",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Audit List Api Admin Audit Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Audit List"
+   }
+  },
+  "/api/admin/reports": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "default": "open",
+       "title": "Status",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "cursor",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Cursor",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Reports List Api Admin Reports Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Reports List"
+   }
+  },
+  "/api/admin/reports/{report_id}": {
+   "patch": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReportPatch@b8d71a2b"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Reports Patch Api Admin Reports  Report Id  Patch",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Reports Patch"
+   }
+  },
+  "/api/admin/settings": {
+   "get": {
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Settings Get Api Admin Settings Get",
+         "type": "object"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Settings Get"
+   },
+   "put": {
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SettingsIn@953e8edf"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Settings Put Api Admin Settings Put",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Settings Put"
+   }
+  },
+  "/api/admin/summary": {
+   "get": {
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Summary Api Admin Summary Get",
+         "type": "object"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Summary"
+   }
+  },
+  "/api/admin/titles": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "q",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Q",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "cursor",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Cursor",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Titles List Api Admin Titles Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Titles List"
+   }
+  },
+  "/api/admin/titles/{mal_id}": {
+   "put": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TitleIn@a8c13772"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Titles Put Api Admin Titles  Mal Id  Put",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Titles Put"
+   }
+  },
+  "/api/admin/titles/{mal_id}/purge": {
+   "post": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Titles Purge Api Admin Titles  Mal Id  Purge Post",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Titles Purge"
+   }
+  },
+  "/auth/as/callback": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "code",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Code",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "state",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "State",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "error",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Error",
+       "type": "string"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_as_flow",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev As Flow"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "As Callback"
+   }
+  },
+  "/auth/as/start": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "next",
+      "required": false,
+      "schema": {
+       "default": "/",
+       "title": "Next",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "As Start"
+   }
+  },
+  "/auth/as/to-social": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "next",
+      "required": false,
+      "schema": {
+       "default": "/",
+       "title": "Next",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "nonce",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Nonce",
+       "type": "string"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "As To Social"
+   }
+  },
+  "/auth/as/whoami": {
+   "get": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "As Whoami"
+   }
+  },
+  "/auth/config": {
+   "get": {
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Auth Config Auth Config Get",
+         "type": "object"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Auth Config"
+   }
+  },
+  "/auth/login": {
+   "post": {
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LoginIn@c5db96c9"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Auth Login Auth Login Post",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Auth Login"
+   }
+  },
+  "/auth/logout": {
+   "post": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Auth Logout Auth Logout Post",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Auth Logout"
+   }
+  },
+  "/auth/me": {
+   "get": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Auth Me Auth Me Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Auth Me"
+   }
+  },
+  "/auth/register": {
+   "get": {
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    },
+    "summary": "Auth Register Redirect"
+   }
+  },
+  "/episode/{rest}": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Episode"
+   },
+   "head": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Episode"
+   },
+   "options": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Episode"
+   },
+   "post": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Episode"
+   }
+  },
+  "/health": {
+   "get": {
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    },
+    "summary": "Health"
+   }
+  },
+  "/player/cdn-check": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "url",
+      "required": true,
+      "schema": {
+       "title": "Url",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "base",
+      "required": true,
+      "schema": {
+       "title": "Base",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Cdn Check"
+   }
+  },
+  "/player/cvh-api/{path}": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "path",
+      "required": true,
+      "schema": {
+       "title": "Path",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Cvh Api"
+   },
+   "head": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "path",
+      "required": true,
+      "schema": {
+       "title": "Path",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Cvh Api"
+   },
+   "options": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "path",
+      "required": true,
+      "schema": {
+       "title": "Path",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Cvh Api"
+   },
+   "post": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "path",
+      "required": true,
+      "schema": {
+       "title": "Path",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Cvh Api"
+   }
+  },
+  "/player/debug/check": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "url",
+      "required": true,
+      "schema": {
+       "minLength": 4,
+       "title": "Url",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Debug Check"
+   }
+  },
+  "/player/documents/{scheme}/{host}/{path}": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scheme",
+      "required": true,
+      "schema": {
+       "title": "Scheme",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "host",
+      "required": true,
+      "schema": {
+       "title": "Host",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "path",
+      "required": true,
+      "schema": {
+       "title": "Path",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Player Document"
+   }
+  },
+  "/player/frame": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "url",
+      "required": true,
+      "schema": {
+       "minLength": 8,
+       "title": "Url",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Frame"
+   }
+  },
+  "/player/modules/{scheme}/{host}/{path}": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scheme",
+      "required": true,
+      "schema": {
+       "title": "Scheme",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "host",
+      "required": true,
+      "schema": {
+       "title": "Host",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "path",
+      "required": true,
+      "schema": {
+       "title": "Path",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Player Module"
+   }
+  },
+  "/player/proxy": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "url",
+      "required": true,
+      "schema": {
+       "minLength": 8,
+       "title": "Url",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "base",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Base"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Proxy"
+   },
+   "head": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "url",
+      "required": true,
+      "schema": {
+       "minLength": 8,
+       "title": "Url",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "base",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Base"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Proxy"
+   },
+   "options": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "url",
+      "required": true,
+      "schema": {
+       "minLength": 8,
+       "title": "Url",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "base",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Base"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Proxy"
+   },
+   "post": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "url",
+      "required": true,
+      "schema": {
+       "minLength": 8,
+       "title": "Url",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "base",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Base"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Proxy"
+   }
+  },
+  "/profile/{handle}/activity": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "handle",
+      "required": true,
+      "schema": {
+       "title": "Handle",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "days",
+      "required": false,
+      "schema": {
+       "default": 30,
+       "maximum": 365,
+       "minimum": 1,
+       "title": "Days",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Profile Activity Profile  Handle  Activity Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Profile Activity"
+   }
+  },
+  "/profile/{handle}/activity/recent": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "handle",
+      "required": true,
+      "schema": {
+       "title": "Handle",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "offset",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "minimum": 0,
+       "title": "Offset",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 10,
+       "maximum": 50,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "group",
+      "required": false,
+      "schema": {
+       "default": "all",
+       "title": "Group",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "date",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Date"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Profile Activity Recent Profile  Handle  Activity Recent Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Profile Activity Recent"
+   }
+  },
+  "/profile/{handle}/lists": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "handle",
+      "required": true,
+      "schema": {
+       "title": "Handle",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "default": "watching",
+       "title": "Status",
+       "type": "string"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Profile Lists Profile  Handle  Lists Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Profile Lists"
+   }
+  },
+  "/profile/{handle}/summary": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "handle",
+      "required": true,
+      "schema": {
+       "title": "Handle",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "days",
+      "required": false,
+      "schema": {
+       "default": 30,
+       "maximum": 365,
+       "minimum": 1,
+       "title": "Days",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Profile Summary Profile  Handle  Summary Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Profile Summary"
+   }
+  },
+  "/proxy/anilist": {
+   "post": {
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    },
+    "summary": "Proxy Anilist"
+   }
+  },
+  "/proxy/img": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "url",
+      "required": true,
+      "schema": {
+       "title": "Url",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Proxy Img"
+   }
+  },
+  "/proxy/jikan/{path}": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "path",
+      "required": true,
+      "schema": {
+       "title": "Path",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Proxy Jikan"
+   }
+  },
+  "/proxy/translate": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "q",
+      "required": true,
+      "schema": {
+       "title": "Q",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "sl",
+      "required": false,
+      "schema": {
+       "default": "auto",
+       "title": "Sl",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "tl",
+      "required": false,
+      "schema": {
+       "default": "ru",
+       "title": "Tl",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Proxy Translate"
+   }
+  },
+  "/random/watchable": {
+   "get": {
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    },
+    "summary": "Random Watchable"
+   }
+  },
+  "/reports": {
+   "post": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReportIn@187c883a"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Report Create Reports Post",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Report Create"
+   }
+  },
+  "/reports/kinds": {
+   "get": {
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Report Kinds Reports Kinds Get",
+         "type": "object"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Report Kinds"
+   }
+  },
+  "/robots.txt": {
+   "get": {
+    "responses": {
+     "200": {
+      "content": {
+       "text/plain": {
+        "schema": {
+         "type": "string"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Robots"
+   }
+  },
+  "/season/{rest}": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Season"
+   },
+   "head": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Season"
+   },
+   "options": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Season"
+   },
+   "post": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Season"
+   }
+  },
+  "/seria/{rest}": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Seria"
+   },
+   "head": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Seria"
+   },
+   "options": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Seria"
+   },
+   "post": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Seria"
+   }
+  },
+  "/serial/{rest}": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Serial"
+   },
+   "head": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Serial"
+   },
+   "options": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Serial"
+   },
+   "post": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Serial"
+   }
+  },
+  "/shiki/anime/{mal_id}": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mal_id",
+      "required": true,
+      "schema": {
+       "title": "Mal Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Shiki Anime"
+   }
+  },
+  "/shiki/batch": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "ids",
+      "required": true,
+      "schema": {
+       "title": "Ids",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Shiki Batch"
+   }
+  },
+  "/shiki/search": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "q",
+      "required": true,
+      "schema": {
+       "minLength": 1,
+       "title": "Q",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 24,
+       "maximum": 50,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "page",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "maximum": 50,
+       "minimum": 1,
+       "title": "Page",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Shiki Search"
+   }
+  },
+  "/sitemap.xml": {
+   "get": {
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    },
+    "summary": "Sitemap"
+   }
+  },
+  "/source-health": {
+   "get": {
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    },
+    "summary": "Source Health Status"
+   }
+  },
+  "/sources": {
+   "get": {
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    },
+    "summary": "Sources"
+   }
+  },
+  "/src/dubs": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "key",
+      "required": true,
+      "schema": {
+       "title": "Key",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "source",
+      "required": false,
+      "schema": {
+       "default": "anilibria",
+       "title": "Source",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Dubs For Episode"
+   }
+  },
+  "/src/episodes": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "key",
+      "required": true,
+      "schema": {
+       "title": "Key",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "source",
+      "required": false,
+      "schema": {
+       "default": "anilibria",
+       "title": "Source",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Episodes"
+   }
+  },
+  "/src/search": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "q",
+      "required": true,
+      "schema": {
+       "minLength": 1,
+       "title": "Q",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "source",
+      "required": false,
+      "schema": {
+       "default": "anilibria",
+       "title": "Source",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "year",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Year"
+      }
+     },
+     {
+      "in": "query",
+      "name": "mal_id",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Mal Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Search"
+   }
+  },
+  "/src/videos": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "key",
+      "required": true,
+      "schema": {
+       "title": "Key",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "source",
+      "required": false,
+      "schema": {
+       "default": "anilibria",
+       "title": "Source",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Videos"
+   }
+  },
+  "/title-pages/record": {
+   "post": {
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RecordIn@6f456e35"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Title Record Title Pages Record Post",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Title Record"
+   }
+  },
+  "/uv/{rest}": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Uv"
+   },
+   "head": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Uv"
+   },
+   "options": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Uv"
+   },
+   "post": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Uv"
+   }
+  },
+  "/video/{rest}": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Video"
+   },
+   "head": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Video"
+   },
+   "options": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Video"
+   },
+   "post": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "rest",
+      "required": true,
+      "schema": {
+       "title": "Rest",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Kodik Video"
+   }
+  }
+ },
+ "schemas": [
+  "{\"DubPrefIn@773e9b6b\": {\"properties\": {\"dub_norm\": {\"maxLength\": 128, \"minLength\": 1, \"title\": \"Dub Norm\", \"type\": \"string\"}}, \"required\": [\"dub_norm\"], \"title\": \"DubPrefIn\", \"type\": \"object\"}}",
+  "{\"FavoriteIn@4e87e294\": {\"properties\": {\"is_favorite\": {\"title\": \"Is Favorite\", \"type\": \"boolean\"}, \"poster_url\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Poster Url\", \"type\": \"string\"}, \"title\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title\", \"type\": \"string\"}}, \"required\": [\"is_favorite\"], \"title\": \"FavoriteIn\", \"type\": \"object\"}}",
+  "{\"FavoriteIn@e06f352c\": {\"properties\": {\"mal_id\": {\"maximum\": 10000000.0, \"minimum\": 1.0, \"title\": \"Mal Id\", \"type\": \"integer\"}, \"poster_url\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Poster Url\", \"type\": \"string\"}, \"title\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title\", \"type\": \"string\"}}, \"required\": [\"mal_id\"], \"title\": \"FavoriteIn\", \"type\": \"object\"}}",
+  "{\"FeaturesIn@7efcfba0\": {\"properties\": {\"as_login\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"As Login\"}, \"comments\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Comments\"}, \"password_login\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Password Login\"}}, \"title\": \"FeaturesIn\", \"type\": \"object\"}}",
+  "{\"HTTPValidationError@c3fc8f07\": {\"properties\": {\"detail\": {\"items\": {\"$ref\": \"#/components/schemas/ValidationError@0bf248aa\"}, \"title\": \"Detail\", \"type\": \"array\"}}, \"title\": \"HTTPValidationError\", \"type\": \"object\"}}",
+  "{\"HistoryIn@0c95291a\": {\"properties\": {\"episode_duration\": {\"default\": 0, \"maximum\": 200000.0, \"minimum\": 0.0, \"title\": \"Episode Duration\", \"type\": \"integer\"}, \"episode_seconds\": {\"default\": 0, \"maximum\": 200000.0, \"minimum\": 0.0, \"title\": \"Episode Seconds\", \"type\": \"integer\"}, \"episodes_total\": {\"default\": 0, \"maximum\": 10000.0, \"minimum\": 0.0, \"title\": \"Episodes Total\", \"type\": \"integer\"}, \"last_episode\": {\"default\": 1, \"maximum\": 10000.0, \"minimum\": 1.0, \"title\": \"Last Episode\", \"type\": \"integer\"}, \"mal_id\": {\"maximum\": 10000000.0, \"minimum\": 1.0, \"title\": \"Mal Id\", \"type\": \"integer\"}, \"poster_url\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Poster Url\", \"type\": \"string\"}, \"title\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title\", \"type\": \"string\"}}, \"required\": [\"mal_id\"], \"title\": \"HistoryIn\", \"type\": \"object\"}}",
+  "{\"ImportBlob@a3471af9\": {\"properties\": {\"autonext\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Autonext\"}, \"dub_prefs\": {\"additionalProperties\": {\"type\": \"string\"}, \"title\": \"Dub Prefs\", \"type\": \"object\"}, \"favorites\": {\"items\": {\"additionalProperties\": true, \"type\": \"object\"}, \"title\": \"Favorites\", \"type\": \"array\"}, \"ratings\": {\"additionalProperties\": {\"type\": \"integer\"}, \"title\": \"Ratings\", \"type\": \"object\"}, \"watch\": {\"additionalProperties\": {\"additionalProperties\": true, \"type\": \"object\"}, \"title\": \"Watch\", \"type\": \"object\"}}, \"title\": \"ImportBlob\", \"type\": \"object\"}}",
+  "{\"ListItemIn@24ca981e\": {\"properties\": {\"poster_url\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Poster Url\", \"type\": \"string\"}, \"status\": {\"anyOf\": [{\"maxLength\": 16, \"minLength\": 0, \"type\": \"string\"}, {\"type\": \"null\"}], \"title\": \"Status\"}, \"title\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title\", \"type\": \"string\"}}, \"title\": \"ListItemIn\", \"type\": \"object\"}}",
+  "{\"LoginIn@c5db96c9\": {\"properties\": {\"login\": {\"maxLength\": 200, \"title\": \"Login\", \"type\": \"string\"}, \"password\": {\"maxLength\": 500, \"title\": \"Password\", \"type\": \"string\"}}, \"required\": [\"login\", \"password\"], \"title\": \"LoginIn\", \"type\": \"object\"}}",
+  "{\"MessageIn@5517af25\": {\"properties\": {\"text\": {\"maxLength\": 8000, \"title\": \"Text\", \"type\": \"string\"}}, \"required\": [\"text\"], \"title\": \"MessageIn\", \"type\": \"object\"}}",
+  "{\"NoticeIn@e0fa44fe\": {\"properties\": {\"text\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Text\", \"type\": \"string\"}, \"until\": {\"anyOf\": [{\"minimum\": 0.0, \"type\": \"integer\"}, {\"type\": \"null\"}], \"title\": \"Until\"}}, \"title\": \"NoticeIn\", \"type\": \"object\"}}",
+  "{\"PrivacyIn@0e038f5a\": {\"properties\": {\"hide_activity\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Hide Activity\"}, \"hide_lists\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Hide Lists\"}, \"hide_presence\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Hide Presence\"}, \"show_watching\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Show Watching\"}}, \"title\": \"PrivacyIn\", \"type\": \"object\"}}",
+  "{\"ProgressEventIn@ac3450b2\": {\"properties\": {\"duration\": {\"default\": 0, \"maximum\": 200000.0, \"minimum\": 0.0, \"title\": \"Duration\", \"type\": \"integer\"}, \"episode_num\": {\"maximum\": 10000.0, \"minimum\": 1.0, \"title\": \"Episode Num\", \"type\": \"integer\"}, \"episodes_total\": {\"default\": 0, \"maximum\": 10000.0, \"minimum\": 0.0, \"title\": \"Episodes Total\", \"type\": \"integer\"}, \"mal_id\": {\"maximum\": 10000000.0, \"minimum\": 1.0, \"title\": \"Mal Id\", \"type\": \"integer\"}, \"poster_url\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Poster Url\", \"type\": \"string\"}, \"seconds\": {\"maximum\": 200000.0, \"minimum\": 0.0, \"title\": \"Seconds\", \"type\": \"integer\"}, \"title\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title\", \"type\": \"string\"}}, \"required\": [\"mal_id\", \"episode_num\", \"seconds\"], \"title\": \"ProgressEventIn\", \"type\": \"object\"}}",
+  "{\"ProgressIn@edebfdb1\": {\"properties\": {\"duration\": {\"default\": 0, \"maximum\": 200000.0, \"minimum\": 0.0, \"title\": \"Duration\", \"type\": \"integer\"}, \"episode_num\": {\"maximum\": 10000.0, \"minimum\": 1.0, \"title\": \"Episode Num\", \"type\": \"integer\"}, \"episodes_total\": {\"default\": 0, \"maximum\": 10000.0, \"minimum\": 0.0, \"title\": \"Episodes Total\", \"type\": \"integer\"}, \"poster_url\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Poster Url\", \"type\": \"string\"}, \"seconds\": {\"maximum\": 200000.0, \"minimum\": 0.0, \"title\": \"Seconds\", \"type\": \"integer\"}, \"title\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title\", \"type\": \"string\"}}, \"required\": [\"episode_num\", \"seconds\"], \"title\": \"ProgressIn\", \"type\": \"object\"}}",
+  "{\"RatingIn@06d6aff6\": {\"properties\": {\"score\": {\"maximum\": 10.0, \"minimum\": 1.0, \"title\": \"Score\", \"type\": \"integer\"}}, \"required\": [\"score\"], \"title\": \"RatingIn\", \"type\": \"object\"}}",
+  "{\"RecordIn@6f456e35\": {\"properties\": {\"airing_status\": {\"default\": \"\", \"maxLength\": 24, \"title\": \"Airing Status\", \"type\": \"string\"}, \"banner_url\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Banner Url\", \"type\": \"string\"}, \"episodes_total\": {\"anyOf\": [{\"type\": \"integer\"}, {\"type\": \"null\"}], \"title\": \"Episodes Total\"}, \"genres\": {\"items\": {\"type\": \"string\"}, \"title\": \"Genres\", \"type\": \"array\"}, \"kind\": {\"default\": \"\", \"maxLength\": 24, \"title\": \"Kind\", \"type\": \"string\"}, \"mal_id\": {\"maximum\": 10000000.0, \"minimum\": 1.0, \"title\": \"Mal Id\", \"type\": \"integer\"}, \"poster_url\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Poster Url\", \"type\": \"string\"}, \"score\": {\"anyOf\": [{\"type\": \"number\"}, {\"type\": \"null\"}], \"title\": \"Score\"}, \"studios\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Studios\", \"type\": \"string\"}, \"synopsis\": {\"default\": \"\", \"maxLength\": 20000, \"title\": \"Synopsis\", \"type\": \"string\"}, \"title_en\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title En\", \"type\": \"string\"}, \"title_jp\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title Jp\", \"type\": \"string\"}, \"title_ru\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title Ru\", \"type\": \"string\"}, \"year\": {\"anyOf\": [{\"type\": \"integer\"}, {\"type\": \"null\"}], \"title\": \"Year\"}}, \"required\": [\"mal_id\"], \"title\": \"RecordIn\", \"type\": \"object\"}}",
+  "{\"ReportIn@187c883a\": {\"properties\": {\"dub\": {\"default\": \"\", \"maxLength\": 200, \"title\": \"Dub\", \"type\": \"string\"}, \"episode\": {\"anyOf\": [{\"maximum\": 65535.0, \"minimum\": 1.0, \"type\": \"integer\"}, {\"type\": \"null\"}], \"title\": \"Episode\"}, \"kind\": {\"title\": \"Kind\", \"type\": \"string\"}, \"mal_id\": {\"exclusiveMaximum\": 10000000.0, \"exclusiveMinimum\": 0.0, \"title\": \"Mal Id\", \"type\": \"integer\"}, \"player\": {\"default\": \"\", \"maxLength\": 100, \"title\": \"Player\", \"type\": \"string\"}, \"source\": {\"default\": \"\", \"maxLength\": 64, \"title\": \"Source\", \"type\": \"string\"}, \"text\": {\"default\": \"\", \"maxLength\": 2000, \"title\": \"Text\", \"type\": \"string\"}}, \"required\": [\"mal_id\", \"kind\"], \"title\": \"ReportIn\", \"type\": \"object\"}}",
+  "{\"ReportPatch@b8d71a2b\": {\"properties\": {\"note\": {\"default\": \"\", \"maxLength\": 1000, \"title\": \"Note\", \"type\": \"string\"}, \"status\": {\"title\": \"Status\", \"type\": \"string\"}}, \"required\": [\"status\"], \"title\": \"ReportPatch\", \"type\": \"object\"}}",
+  "{\"SettingsIn@26a952e3\": {\"properties\": {\"auto_add_lists\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Auto Add Lists\"}, \"autonext\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Autonext\"}, \"extra\": {\"anyOf\": [{\"additionalProperties\": true, \"type\": \"object\"}, {\"type\": \"null\"}], \"title\": \"Extra\"}}, \"title\": \"SettingsIn\", \"type\": \"object\"}}",
+  "{\"SettingsIn@953e8edf\": {\"properties\": {\"features\": {\"anyOf\": [{\"$ref\": \"#/components/schemas/FeaturesIn@7efcfba0\"}, {\"type\": \"null\"}]}, \"notice\": {\"anyOf\": [{\"$ref\": \"#/components/schemas/NoticeIn@e0fa44fe\"}, {\"type\": \"null\"}]}, \"sources\": {\"anyOf\": [{\"items\": {\"$ref\": \"#/components/schemas/SourceIn@f0d06b14\"}, \"maxItems\": 50, \"type\": \"array\"}, {\"type\": \"null\"}], \"title\": \"Sources\"}}, \"title\": \"SettingsIn\", \"type\": \"object\"}}",
+  "{\"SourceIn@f0d06b14\": {\"properties\": {\"enabled\": {\"default\": true, \"title\": \"Enabled\", \"type\": \"boolean\"}, \"id\": {\"maxLength\": 32, \"minLength\": 1, \"title\": \"Id\", \"type\": \"string\"}, \"order\": {\"default\": 0, \"maximum\": 1000.0, \"minimum\": 0.0, \"title\": \"Order\", \"type\": \"integer\"}}, \"required\": [\"id\"], \"title\": \"SourceIn\", \"type\": \"object\"}}",
+  "{\"TitleIn@a8c13772\": {\"properties\": {\"adult\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Adult\"}, \"hidden\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Hidden\"}, \"note\": {\"anyOf\": [{\"maxLength\": 1000, \"type\": \"string\"}, {\"type\": \"null\"}], \"title\": \"Note\"}, \"pinned\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Pinned\"}}, \"title\": \"TitleIn\", \"type\": \"object\"}}",
+  "{\"ValidationError@0bf248aa\": {\"properties\": {\"ctx\": {\"title\": \"Context\", \"type\": \"object\"}, \"input\": {\"title\": \"Input\"}, \"loc\": {\"items\": {\"anyOf\": [{\"type\": \"string\"}, {\"type\": \"integer\"}]}, \"title\": \"Location\", \"type\": \"array\"}, \"msg\": {\"title\": \"Message\", \"type\": \"string\"}, \"type\": {\"title\": \"Error Type\", \"type\": \"string\"}}, \"required\": [\"loc\", \"msg\", \"type\"], \"title\": \"ValidationError\", \"type\": \"object\"}}"
+ ],
+ "static": [
+  "/app.js",
+  "/assets",
+  "/js",
+  "/player/asoplay-shield.js",
+  "/player/kodik-skin.css",
+  "/styles.css"
+ ],
+ "websocket": [
+  "/ws"
+ ]
+}
