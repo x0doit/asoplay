@@ -1511,6 +1511,15 @@ a.ed-tabs__item {
   flex-wrap: wrap;
 }
 
+/* «Войти через Anime Social» длиннее, чем «Войти»: кнопки столбиком, главная сверху — как на телефоне */
+.av-dialog .gate-actions--stack {
+  flex-direction: column-reverse;
+}
+
+.av-dialog .gate-actions--stack .ed-btn {
+  width: 100%;
+}
+
 .gate-points {
   display: flex;
   flex-direction: column;
@@ -1774,6 +1783,80 @@ a.ed-tabs__item {
   text-align: center;
   font: 400 14px/1.5 var(--font-sans);
   color: var(--text-muted);
+}
+
+/* Вход через Anime Social — кнопкой; почта — второй вид той же карточки, по ссылке под кнопкой */
+.auth-as .ed-ava {
+  width: 24px;
+  height: 24px;
+  font-size: 11px;
+}
+
+.auth-as__label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.auth-as-error {
+  margin-top: var(--space-3);
+}
+
+.auth-switch {
+  display: block;
+  margin: var(--space-4) auto 0;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: 500 14px/1.4 var(--font-sans);
+  color: var(--brand);
+  cursor: pointer;
+}
+
+/* «Имя Фамилия, это вы?» — гостю, который вошёл в Anime Social: плавающая карточка, не окно */
+.as-hint {
+  position: fixed;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  z-index: 1040;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: min(360px, calc(100vw - var(--space-8)));
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--overlay);
+  box-shadow: var(--shadow-float);
+}
+
+.as-hint .ed-ava {
+  width: 44px;
+  height: 44px;
+  font-size: 17px;
+}
+
+.as-hint__body {
+  min-width: 0;
+}
+
+.as-hint__title {
+  font: 600 15px/1.35 var(--font-sans);
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+
+.as-hint__text {
+  margin-top: 2px;
+  font: 400 14px/1.45 var(--font-sans);
+  color: var(--text-muted);
+}
+
+.as-hint__actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .auth-link {
@@ -2842,6 +2925,13 @@ html.is-compact-frame .hero-bg {
     bottom: calc(var(--space-12) + var(--space-3) + env(safe-area-inset-bottom));
   }
 
+  .as-hint {
+    left: var(--space-3);
+    right: var(--space-3);
+    bottom: calc(var(--space-12) + var(--space-3) + env(safe-area-inset-bottom));
+    width: auto;
+  }
+
   .import-bar-actions {
     width: 100%;
   }
@@ -3012,6 +3102,7 @@ html.is-compact-frame .hero-bg {
   .title-links .ed-btn:hover { color: var(--text-strong); }
   .trailer-close:hover { background: var(--hover); color: var(--text-strong); }
   .auth__links a:hover { color: var(--text-strong); }
+  .auth-switch:hover { color: var(--brand-hover); background: var(--hover); }
   .act-session h3 a:hover { color: var(--brand); }
   .gh-cell:not(.gh-pad):hover { outline-color: var(--border-strong); }
   .title-poster:hover img,

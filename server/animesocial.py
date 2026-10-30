@@ -34,7 +34,7 @@ from typing import Any, Iterator
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from server import animesocial_config
+from server import animesocial_config, rate_limit
 
 log = logging.getLogger("asoplay.auth")
 
@@ -464,7 +464,7 @@ def create_session(user_id: int, request: Request) -> str:
     token = secrets.token_hex(32)  # 64 hex chars
     now = _now()
     ua = (request.headers.get("user-agent") or "")[:255]
-    ip = (request.client.host if request.client else "") or ""
+    ip = rate_limit.client_ip(request)
     with connect() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -565,7 +565,7 @@ class LoginIn(BaseModel):
     password: str = Field(..., max_length=500)
 
 
-def _set_cookie(resp: Response, token: str) -> None:
+def set_session_cookie(resp: Response, token: str) -> None:
     resp.set_cookie(
         key=COOKIE_NAME,
         value=token,
@@ -581,32 +581,49 @@ def _clear_cookie(resp: Response) -> None:
     resp.delete_cookie(COOKIE_NAME, path="/")
 
 
+# Перебор паролей Anime Social через эту форму: лимиты как у входа на сайте — не больше
+# 20 неудачных попыток с одного адреса и 8 на один логин за 15 минут
+LOGIN_WINDOW = 15 * 60
+_login_by_ip = rate_limit.SlidingWindow(20, LOGIN_WINDOW)
+_login_by_identity = rate_limit.SlidingWindow(8, LOGIN_WINDOW)
+
+
 @router.post("/login")
 def auth_login(payload: LoginIn, request: Request, response: Response) -> dict[str, Any]:
     identity = payload.login.strip()
+    ip = rate_limit.client_ip(request)
+    identity_key = identity.lower()
+    wait = max(_login_by_ip.retry_after(ip), _login_by_identity.retry_after(identity_key))
+    if wait:
+        raise HTTPException(429, "too many login attempts", headers={"Retry-After": str(wait)})
     if not identity or not payload.password:
         raise HTTPException(401, "invalid credentials")
     row = _lookup_user(identity)
-    if not row:
+    # Блокировку называем только тому, кто знает пароль: иначе форма выдаёт, что аккаунт есть
+    if not row or not _verify_password(payload.password, row["hash_col"], row.get("salt_col")):
+        _login_by_ip.hit(ip)
+        _login_by_identity.hit(identity_key)
         raise HTTPException(401, "invalid credentials")
+    _login_by_identity.reset(identity_key)
     schema = _introspect_schema()
     if _is_banned(schema.get("status_col"), row.get("status_col")):
         raise HTTPException(403, "account is blocked")
-    salt = row.get("salt_col")
-    if not _verify_password(payload.password, row["hash_col"], salt):
-        raise HTTPException(401, "invalid credentials")
     user = _serialize_user(row)
     token = create_session(user["id"], request)
-    _set_cookie(response, token)
+    set_session_cookie(response, token)
     return {"ok": True, "user": user}
 
 
 @router.post("/logout")
 def auth_logout(
+    request: Request,
     response: Response,
     token: str | None = Cookie(default=None, alias=COOKIE_NAME),
 ) -> dict[str, Any]:
     if token:
+        # as_login сам импортирует этот модуль, поэтому импорт здесь, а не наверху
+        from server import as_login
+        as_login.end_session(token, rate_limit.client_ip(request), request.headers.get("user-agent") or "")
         try:
             revoke_session(token)
         except HTTPException:
@@ -632,10 +649,14 @@ def auth_config() -> dict[str, Any]:
     frontend needs to render AnimeSocial links and avatars: URLs, templates,
     and a fallback avatar. Single source of truth — edit /animesocial.json
     (or set AV_ANIMESOCIAL_SITE_URL) rather than hardcoding URLs in JS."""
+    from server import as_api, as_login
     social = animesocial_config.public_view()
     return {
         "register_url": _register_url(),  # keep legacy field for old clients
         "session_ttl_days": SESSION_TTL_DAYS,
         "cookie_secure": COOKIE_SECURE,
         "social": social,
+        "as_login": as_login.enabled(),
+        # Браузер сам спрашивает у соцсети, кто в ней вошёл («Имя Фамилия, это вы?»)
+        "as_api_url": as_api.base_url(),
     }

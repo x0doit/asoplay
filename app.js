@@ -9,7 +9,7 @@
  * any attempt to do so surfaces a guest-gate.
  */
 
-import * as account from "./js/account.js?v=20261029-eddas2";
+import * as account from "./js/account.js?v=20261030-auth2";
 import { setupNavigation, setActiveSection, SheetDrag } from "./js/navigation.js?v=20261029-eddas2";
 import { getTrailerId, bindTrailer } from "./js/trailer.js?v=20261029-eddas2";
 

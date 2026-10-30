@@ -41,6 +41,7 @@ export async function setup(hooks) {
   // any view (e.g. the "supported by" banner on the anime page).
   ctx.state.social = authConfig.social;
   await refresh();
+  maybeOfferAsAccount();
 }
 
 export function getSocialConfig() { return authConfig.social; }
@@ -158,6 +159,7 @@ function _fetchJson(path, opts = {}) {
       const text = await r.text().catch(() => "");
       const err = new Error(`${r.status} ${text.slice(0, 200)}`);
       err.status = r.status;
+      err.retryAfter = Number(r.headers.get("retry-after")) || 0;
       throw err;
     }
     const ct = r.headers.get("content-type") || "";
@@ -181,6 +183,10 @@ export async function login(identity, password) {
 function _loginErrorMessage(exc) {
   if (exc?.status === 401 || exc?.status === 422) return "Неправильный логин или пароль.";
   if (exc?.status === 403) return "Аккаунт заблокирован.";
+  if (exc?.status === 429) {
+    const minutes = Math.max(1, Math.ceil((exc.retryAfter || 900) / 60));
+    return `Слишком много попыток входа. Попробуйте снова через ${minutes} ${_plural(minutes, ["минуту", "минуты", "минут"])}.`;
+  }
   return "Не удалось войти. Проверьте соединение и попробуйте снова.";
 }
 
@@ -863,9 +869,102 @@ function _openDialog(className, inner, { onClose, label } = {}) {
   return { el: wrap, close };
 }
 
+// Вход через Anime Social — полный переход на сервер (/auth/as/start), а не SPA-маршрут:
+// абсолютный адрес перехватчик ссылок пропускает
+function _asLoginUrl(next) {
+  const target = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  return new URL(`${ctx.backendUrl || ""}/auth/as/start?next=${encodeURIComponent(target)}`, location.href).href;
+}
+
+// Кто вошёл в Anime Social в этом браузере: соцсеть отвечает по своей cookie входа, а читать ответ
+// (CORS) можно только сайтам-клиентам. Пользователь соцсети, false — не вошёл, null — неизвестно.
+let _asHintPromise = null;
+function _asHint() {
+  if (!authConfig.as_login || !authConfig.as_api_url) return Promise.resolve(null);
+  if (!_asHintPromise) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3000);
+    _asHintPromise = fetch(`${authConfig.as_api_url}/auth/web/session`, { credentials: "include", signal: ctrl.signal })
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => {
+        if (!j?.ok || !j.data) return null;
+        return j.data.logged_in && j.data.user?.id ? j.data.user : false;
+      })
+      .catch(() => null)
+      .finally(() => clearTimeout(timer));
+  }
+  return _asHintPromise;
+}
+
+function _asUserName(user) {
+  return `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.alias || "Пользователь";
+}
+
+function _asUserAvatar(user) {
+  return user.avatar?.medium || user.avatar?.small || user.avatar?.original || "";
+}
+
+// «Имя Фамилия, это вы?» — гостю, который вошёл в Anime Social. «Нет» не спрашивает этот аккаунт 30 дней
+const AS_HINT_DISMISS_KEY = "av_as_hint_dismissed";
+const AS_HINT_DISMISS_DAYS = 30;
+
+function _asHintDismissed(uid) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(AS_HINT_DISMISS_KEY) || "null");
+    return !!saved && saved.uid === uid && saved.until > Date.now();
+  } catch (_) { return false; }
+}
+
+function _dismissAsHint(uid) {
+  try { localStorage.setItem(AS_HINT_DISMISS_KEY, JSON.stringify({ uid, until: Date.now() + AS_HINT_DISMISS_DAYS * 864e5 })); } catch (_) {}
+}
+
+async function maybeOfferAsAccount() {
+  if (ctx.state.user || !authConfig.as_login || location.pathname.startsWith("/login")) return;
+  const user = await _asHint();
+  if (!user || ctx.state.user || _asHintDismissed(user.id) || location.pathname.startsWith("/login")) return;
+  if (document.querySelector(".as-hint")) return;
+  const name = _asUserName(user);
+  const site = socialSiteName();
+  const card = document.createElement("section");
+  card.className = "as-hint";
+  card.setAttribute("aria-label", `Вход через ${site}`);
+  card.innerHTML = `
+    ${_avatarHtml({ name })}
+    <div class="as-hint__body">
+      <p class="as-hint__title">${esc(name)}, это вы?</p>
+      <p class="as-hint__text">Продолжить под этим аккаунтом ${esc(site)}?</p>
+      <div class="as-hint__actions">
+        <a class="ed-btn ed-btn--primary ed-btn--sm" href="${esc(_asLoginUrl(location.pathname + location.search))}" data-hint-yes>Продолжить</a>
+        <button type="button" class="ed-btn ed-btn--ghost ed-btn--sm" data-hint-no>Нет</button>
+      </div>
+    </div>`;
+  document.body.appendChild(card);
+  _upgradeAvatars(card, _asUserAvatar(user));
+  // Возврат — на страницу, открытую в момент нажатия: по сайту могли перейти после показа
+  card.querySelector("[data-hint-yes]").addEventListener("click", e => {
+    e.currentTarget.href = _asLoginUrl(location.pathname + location.search);
+  });
+  card.querySelector("[data-hint-no]").addEventListener("click", () => {
+    _dismissAsHint(user.id);
+    card.remove();
+  });
+}
+
+const AS_LOGIN_ERRORS = {
+  denied: site => `Вход отменён на странице ${site}.`,
+  expired: site => `Время на вход истекло. Нажмите «Войти через ${site}» ещё раз.`,
+  banned: site => `Аккаунт заблокирован в ${site}.`,
+  error: site => `Не удалось войти через ${site}. Попробуйте ещё раз или войдите по логину и паролю.`,
+};
+
 export function openGate(kind) {
   const copy = _gateCopy(kind);
   closeGate();
+  const here = location.pathname + location.search;
+  const loginAction = authConfig.as_login
+    ? `<a class="ed-btn ed-btn--primary" href="${esc(_asLoginUrl(here))}" autofocus>Войти через ${esc(socialSiteName())}</a>`
+    : `<a class="ed-btn ed-btn--primary" href="/login" data-dialog-close autofocus>Войти</a>`;
   const dialog = _openDialog("gate-overlay", `
     <button type="button" class="ed-iconbtn av-dialog__close gate-close" aria-label="Закрыть" title="Закрыть" data-dialog-close><i class="fas fa-xmark" aria-hidden="true"></i></button>
     <h2 class="ed-dialog__title" id="avGateTitle">${esc(copy.title)}</h2>
@@ -873,9 +972,9 @@ export function openGate(kind) {
     <ul class="gate-points">
       ${copy.points.map(p => `<li><i class="fas fa-check" aria-hidden="true"></i>${esc(p)}</li>`).join("")}
     </ul>
-    <div class="ed-dialog__actions">
+    <div class="ed-dialog__actions${authConfig.as_login ? " gate-actions--stack" : ""}">
       <a class="ed-btn ed-btn--secondary" href="${esc(registerUrl())}" target="_blank" rel="noopener">Создать аккаунт</a>
-      <a class="ed-btn ed-btn--primary" href="/login" data-dialog-close autofocus>Войти</a>
+      ${loginAction}
     </div>`, { label: "avGateTitle", onClose: () => { _gateEl = null; } });
   _gateEl = dialog;
 }
@@ -940,8 +1039,16 @@ function _gateCopy(kind) {
 // ==== views (rendered by the app router) ====
 export async function viewLogin(params) {
   ctx.setActive("login");
+  document.querySelector(".as-hint")?.remove();
   const next = params.get("next") || "/";
   const site = esc(socialSiteName());
+  const asLogin = !!authConfig.as_login;
+  const asError = AS_LOGIN_ERRORS[params.get("as")]?.(socialSiteName()) || "";
+  // Вошедшему в Anime Social — кнопка с его именем, остальным — сразу почта. Соцсеть отвечает быстро,
+  // но ждать её дольше 0,7 секунды не будем: без ответа показываем кнопку без имени
+  const asUser = asLogin ? await Promise.race([_asHint(), new Promise(r => setTimeout(() => r(null), 700))]) : null;
+  if (!location.pathname.startsWith("/login")) return;  // за время ожидания ушли на другую страницу
+  const firstView = !asLogin || (asUser === false && !asError) ? "mail" : "as";
   ctx.outlet.innerHTML = `
     <div class="auth">
       <aside class="auth__hero">
@@ -962,26 +1069,44 @@ export async function viewLogin(params) {
             <p class="auth__brand-lead">Аниме онлайн в русской озвучке</p>
           </div>
           <h2 class="auth__title">Вход</h2>
-          <p class="auth__sub">Логин и пароль те же, что в ${site}. Регистрация проходит на сайте соцсети.</p>
-          <form class="ed-form auth-form" id="avLoginForm" autocomplete="on" novalidate>
-            <div class="ed-field">
-              <label class="ed-field__label" for="avLoginInput">Логин или электронная почта</label>
-              <div class="ed-field__wrap"><input class="ed-input" type="text" name="login" id="avLoginInput" autocomplete="username" autocapitalize="off" spellcheck="false" required autofocus /></div>
-            </div>
-            <div class="ed-field">
-              <label class="ed-field__label" for="avLoginPass">Пароль</label>
-              <div class="ed-field__wrap">
-                <input class="ed-input ed-input--action" type="password" name="password" id="avLoginPass" autocomplete="current-password" required />
-                <button type="button" class="ed-field__action" id="avPassToggle" aria-controls="avLoginPass" aria-pressed="false">Показать</button>
+          ${asLogin ? `
+          <div class="auth-view" data-auth-view="as" ${firstView === "as" ? "" : "hidden"}>
+            <p class="auth__sub">${asUser ? `Вы уже вошли в ${site}: продолжите под этим аккаунтом.` : `Если вы уже вошли в ${site}, вход займёт одно нажатие.`}</p>
+            <a class="ed-btn ed-btn--primary ed-btn--lg ed-btn--block auth-as" href="${esc(_asLoginUrl(next))}">${asUser
+              ? `${_avatarHtml({ name: _asUserName(asUser) }, "auth-as__ava")}<span class="auth-as__label">Продолжить как ${esc(_asUserName(asUser))}</span>`
+              : `<i class="fas fa-right-to-bracket" aria-hidden="true"></i><span class="auth-as__label">Войти через ${site}</span>`}</a>
+            ${asError ? `<div class="ed-note ed-note--danger auth-as-error" role="alert"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><div>${esc(asError)}</div></div>` : ""}
+            <button type="button" class="auth-switch" data-auth-switch="mail">Войти через почту</button>
+          </div>` : ""}
+          <div class="auth-view" data-auth-view="mail" ${firstView === "mail" ? "" : "hidden"}>
+            <p class="auth__sub">Логин и пароль те же, что в ${site}. Регистрация проходит на сайте соцсети.</p>
+            <form class="ed-form auth-form" id="avLoginForm" autocomplete="on" novalidate>
+              <div class="ed-field">
+                <label class="ed-field__label" for="avLoginInput">Логин или электронная почта</label>
+                <div class="ed-field__wrap"><input class="ed-input" type="text" name="login" id="avLoginInput" autocomplete="username" autocapitalize="off" spellcheck="false" required ${firstView === "mail" ? "autofocus" : ""} /></div>
               </div>
-            </div>
-            <div class="ed-note ed-note--danger auth-error" id="avLoginErr" role="alert" hidden><i class="fas fa-circle-exclamation" aria-hidden="true"></i><div id="avLoginErrText"></div></div>
-            <button type="submit" class="ed-btn ed-btn--primary ed-btn--lg ed-btn--block auth-submit">Войти</button>
-          </form>
+              <div class="ed-field">
+                <label class="ed-field__label" for="avLoginPass">Пароль</label>
+                <div class="ed-field__wrap">
+                  <input class="ed-input ed-input--action" type="password" name="password" id="avLoginPass" autocomplete="current-password" required />
+                  <button type="button" class="ed-field__action" id="avPassToggle" aria-controls="avLoginPass" aria-pressed="false">Показать</button>
+                </div>
+              </div>
+              <div class="ed-note ed-note--danger auth-error" id="avLoginErr" role="alert" ${asError && !asLogin ? "" : "hidden"}><i class="fas fa-circle-exclamation" aria-hidden="true"></i><div id="avLoginErrText">${asLogin ? "" : esc(asError)}</div></div>
+              <button type="submit" class="ed-btn ed-btn--primary ed-btn--lg ed-btn--block auth-submit">Войти</button>
+            </form>
+            ${asLogin ? `<button type="button" class="auth-switch" data-auth-switch="as">Войти через ${site}</button>` : ""}
+          </div>
           <p class="auth__switch">Нет аккаунта? <a class="auth-link" href="${esc(registerUrl())}" target="_blank" rel="noopener">Создать в ${site}</a></p>
         </div>
       </div>
     </div>`;
+  if (asUser) _upgradeAvatars(ctx.outlet, _asUserAvatar(asUser));
+  ctx.outlet.querySelectorAll("[data-auth-switch]").forEach(btn => btn.addEventListener("click", () => {
+    const view = btn.dataset.authSwitch;
+    ctx.outlet.querySelectorAll("[data-auth-view]").forEach(box => { box.hidden = box.dataset.authView !== view; });
+    (view === "mail" ? document.querySelector("#avLoginInput") : document.querySelector(".auth-as"))?.focus();
+  }));
   const pass = document.querySelector("#avLoginPass");
   document.querySelector("#avPassToggle")?.addEventListener("click", (e) => {
     const show = pass.type === "password";

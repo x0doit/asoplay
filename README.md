@@ -158,6 +158,10 @@ AsoPlayer — это не отдельная библиотека, а прикл
 ├── server/
 │   ├── main.py                 FastAPI wiring, static serving, sources
 │   ├── animesocial.py          AnimeSocial DB auth bridge и sessions
+│   ├── rate_limit.py           лимит попыток входа и IP посетителя за прокси
+│   ├── as_login.py             вход через AnimeSocial (OAuth 2.0 + PKCE) и его сессии
+│   ├── as_api.py               клиент API v2 AnimeSocial
+│   ├── token_box.py            шифрование токенов соцсети в базе (AES-GCM)
 │   ├── animesocial_config.py   AnimeSocial URL/media configuration
 │   ├── account_api.py          account compatibility API
 │   ├── adblock.py              AdGuard-backed request filtering
@@ -176,7 +180,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   └── requirements.txt        Python runtime dependencies
 ├── sql/
 │   ├── aviev-schema.sql        базовая схема aviev_*
-│   └── aviev-schema-pass2.sql  списки, приватность, активность, compatibility
+│   ├── aviev-schema-pass2.sql  списки, приватность, активность, compatibility
+│   └── aviev-schema-pass3.sql  сессии входа через AnimeSocial
 ├── animesocial.json            public URL/media mapping для AnimeSocial
 ├── animesocial-db.php          формат DB-конфига AnimeSocial
 ├── vpn.template.json           шаблон xray-конфига
@@ -241,6 +246,7 @@ copy .env.example .env
 ```bash
 mysql -u root AnimeSocial < sql/aviev-schema.sql
 mysql -u root AnimeSocial < sql/aviev-schema-pass2.sql
+mysql -u root AnimeSocial < sql/aviev-schema-pass3.sql
 ```
 
 Запустить приложение:
@@ -302,6 +308,13 @@ Backend читает runtime settings из `.env`, `animesocial-db.php` и
 - `AV_COOKIE_SECURE`, `AV_COOKIE_SAMESITE`, `AV_SESSION_TTL_DAYS` — session
   cookie behavior.
 - `AV_ANIMESOCIAL_SITE_URL` — public host override для AnimeSocial.
+- `AV_AS_CLIENT_ID`, `AV_AS_CLIENT_SECRET` — ключи клиента AsoPlay в AnimeSocial
+  («Панель → Система → Сайты-клиенты»); уходят в каждом запросе к API вместе с адресом и
+  браузером человека.
+- `AV_AS_LOGIN`, `AV_TOKEN_KEY` — вход через AnimeSocial: включатель и ключ шифрования
+  токенов соцсети (32 байта в base64). `AV_AS_API_URL`, `AV_AS_REDIRECT_URI` — адреса
+  API и возврата, если они не выводятся из адреса соцсети и текущего запроса. `AV_AS_ORIGINS` —
+  дополнительные адреса сайта соцсети, которым `/auth/as/whoami` отвечает с cookie.
 - `AV_ADBLOCK_ENABLED`, `AV_ADBLOCK_FILTER_URLS`,
   `AV_ADBLOCK_CACHE_TTL_SECONDS` — player Shield filtering behavior.
 - `AV_ADBLOCK_REGEX_LIMIT`, `AV_ADBLOCK_SNIPPET_LIMIT` — parser safety limits
@@ -327,6 +340,23 @@ Production secrets должны храниться только на серве�
 Проект создает и использует только таблицы с префиксом `aviev_`. Существующие
 таблицы AnimeSocial остаются источником identity и login credentials.
 
+Вход по паролю защищён от перебора теми же лимитами, что и вход на сайте AnimeSocial:
+не больше 20 неудачных попыток с одного адреса и 8 на один логин за 15 минут, дальше
+ответ 429 с `Retry-After`. Адрес посетителя берётся из `X-Real-IP`, который выставляет
+nginx перед AsoPlay; заголовкам прокси сервер верит только у запросов с 127.0.0.1.
+
+Вход через AnimeSocial (`server/as_login.py`) — OAuth 2.0 + PKCE поверх API v2 соцсети:
+кнопка ведёт на `/auth/as/start`, соцсеть спрашивает «Войти в AsoPlay?» и возвращает код
+на `/auth/as/callback`, AsoPlay меняет его на токены и открывает свою сессию. Сессия
+устройства соцсети хранится в `aviev_as_sessions` с зашифрованными токенами и
+завершается при выходе из AsoPlay; вход на самом сайте соцсети при этом остаётся.
+Кто вошёл в соцсеть в этом браузере, страница узнаёт у соцсети (`/api/v2/auth/web/session`):
+такому человеку страница входа показывает кнопку «Продолжить как Имя Фамилия» и под ней
+«Войти через почту», остальным — сразу форму почты, а гостю на любой странице — карточку
+«Имя Фамилия, это вы?». Обратно сайт соцсети спрашивает AsoPlay через `/auth/as/whoami` и
+входит под тем же аккаунтом через `/auth/as/to-social`. Функция включается `AV_AS_LOGIN=1`, когда задан
+`AV_TOKEN_KEY`, установлен пакет `cryptography`, а движок соцсети разрешил адрес возврата.
+
 Основные таблицы проекта:
 
 - `aviev_sessions` — HTTP-only login sessions.
@@ -337,6 +367,7 @@ Production secrets должны храниться только на серве�
 - `aviev_dub_prefs` — preferred dubbing per title.
 - `aviev_account_settings` — account toggles.
 - `aviev_privacy` — public profile privacy controls.
+- `aviev_as_sessions` — AnimeSocial device sessions behind sign-in with AnimeSocial.
 - `aviev_activity` — contribution/activity graph events.
 - `aviev_title_pages` — canonical SEO title-page cache.
 - `aviev_title_refresh_queue` — title page refresh queue.
@@ -541,6 +572,10 @@ Key capabilities:
 ├── server/
 │   ├── main.py                 FastAPI app wiring, static serving, sources
 │   ├── animesocial.py          AnimeSocial DB auth bridge and sessions
+│   ├── rate_limit.py           login attempt limit and visitor IP behind the proxy
+│   ├── as_login.py             sign-in with AnimeSocial (OAuth 2.0 + PKCE) and its sessions
+│   ├── as_api.py               AnimeSocial API v2 client
+│   ├── token_box.py            encryption of social network tokens at rest (AES-GCM)
 │   ├── animesocial_config.py   AnimeSocial URL/media configuration
 │   ├── account_api.py          account compatibility API
 │   ├── adblock.py              AdGuard-backed request filtering
@@ -559,7 +594,8 @@ Key capabilities:
 │   └── requirements.txt        Python runtime dependencies
 ├── sql/
 │   ├── aviev-schema.sql        base aviev_* schema
-│   └── aviev-schema-pass2.sql  lists, privacy, activity and compatibility
+│   ├── aviev-schema-pass2.sql  lists, privacy, activity and compatibility
+│   └── aviev-schema-pass3.sql  sign-in with AnimeSocial sessions
 ├── animesocial.json            AnimeSocial public URL/media mapping
 ├── animesocial-db.php          AnimeSocial DB config format
 ├── vpn.template.json           xray config template
@@ -625,6 +661,7 @@ Apply database schema in order:
 ```bash
 mysql -u root AnimeSocial < sql/aviev-schema.sql
 mysql -u root AnimeSocial < sql/aviev-schema-pass2.sql
+mysql -u root AnimeSocial < sql/aviev-schema-pass3.sql
 ```
 
 Start the application:
@@ -686,6 +723,14 @@ Important environment groups:
 - `AV_COOKIE_SECURE`, `AV_COOKIE_SAMESITE`, `AV_SESSION_TTL_DAYS` — session
   cookie behavior.
 - `AV_ANIMESOCIAL_SITE_URL` — AnimeSocial public host override.
+- `AV_AS_CLIENT_ID`, `AV_AS_CLIENT_SECRET` — AsoPlay's client keys in AnimeSocial
+  («Панель → Система → Сайты-клиенты»); sent with every API request together with the
+  person's address and browser.
+- `AV_AS_LOGIN`, `AV_TOKEN_KEY` — sign-in with AnimeSocial: the switch and the key that
+  encrypts social network tokens (32 bytes in base64). `AV_AS_API_URL`,
+  `AV_AS_REDIRECT_URI` — API and return addresses when they cannot be derived from the
+  AnimeSocial address and the current request. `AV_AS_ORIGINS` — extra social network site
+  addresses that `/auth/as/whoami` answers with cookies.
 - `AV_ADBLOCK_ENABLED`, `AV_ADBLOCK_FILTER_URLS`,
   `AV_ADBLOCK_CACHE_TTL_SECONDS` — player Shield filtering behavior.
 - `AV_ADBLOCK_REGEX_LIMIT`, `AV_ADBLOCK_SNIPPET_LIMIT` — parser safety limits
@@ -711,6 +756,24 @@ private proxy credentials, session data or private keys.
 The application creates and owns only tables with the `aviev_` prefix. Existing
 AnimeSocial tables remain the source of identity and login credentials.
 
+Password login is protected against guessing with the same limits as the AnimeSocial
+site: at most 20 failed attempts from one address and 8 per login within 15 minutes,
+then status 429 with `Retry-After`. The visitor address comes from `X-Real-IP`, set by
+the nginx in front of AsoPlay; proxy headers are trusted only on requests from 127.0.0.1.
+
+Sign-in with AnimeSocial (`server/as_login.py`) is OAuth 2.0 + PKCE on top of the social
+network's API v2: the button leads to `/auth/as/start`, the social network asks «Войти в
+AsoPlay?» and returns a code to `/auth/as/callback`, and AsoPlay exchanges it for tokens and
+opens its own session. The social network device session is kept in `aviev_as_sessions`
+with encrypted tokens and ends when the user signs out of AsoPlay; the sign-in on the social
+network site itself stays. The page asks the social network who is signed in in this browser
+(`/api/v2/auth/web/session`): such a person sees «Продолжить как Имя Фамилия» with «Войти через
+почту» under it, everyone else sees the mail form, and a guest on any page gets a «Имя Фамилия,
+это вы?» card. In the other direction the social network site asks AsoPlay through
+`/auth/as/whoami` and signs in as the same account through `/auth/as/to-social`. The feature turns on with
+`AV_AS_LOGIN=1` once `AV_TOKEN_KEY` is set, the `cryptography` package is installed and the
+social network engine allows the return address.
+
 Core project tables:
 
 - `aviev_sessions` — HTTP-only login sessions.
@@ -721,6 +784,7 @@ Core project tables:
 - `aviev_dub_prefs` — preferred dubbing per title.
 - `aviev_account_settings` — account toggles.
 - `aviev_privacy` — public profile privacy controls.
+- `aviev_as_sessions` — AnimeSocial device sessions behind sign-in with AnimeSocial.
 - `aviev_activity` — contribution/activity graph events.
 - `aviev_title_pages` — canonical SEO title-page cache.
 - `aviev_title_refresh_queue` — title page refresh queue.

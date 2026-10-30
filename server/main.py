@@ -43,7 +43,7 @@ except ImportError:
 # FastAPI startup event below. Importing the module is cheap and side-effect
 # free.
 from server import (
-    vpn_bridge, proxies, animesocial, account_api,
+    vpn_bridge, proxies, animesocial, as_login, account_api,
     title_pages, user_lists, activity_log, profile_pages, adblock, player_proxy,
     source_health, jikan_catalog,
 )
@@ -920,6 +920,7 @@ async def _random_watchable():
 # ---------- register sibling routers ----------
 app.include_router(proxies.router)
 app.include_router(animesocial.router)
+app.include_router(as_login.router)
 app.include_router(account_api.router)
 app.include_router(user_lists.router)
 app.include_router(activity_log.router)
