@@ -13,9 +13,9 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, conint
 
+from core.classes.clock import utc_now
 from core.classes.db import connect, current_user_required
 from core.functions.activity import record_event
-from core.functions.progress import _now
 
 router = APIRouter()
 
@@ -52,7 +52,7 @@ def rating_set(
             """INSERT INTO aviev_title_ratings (user_id, mal_id, score, set_at)
                 VALUES (%s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE score=VALUES(score), set_at=VALUES(set_at)""",
-            (user["id"], mal_id, payload.score, _now()),
+            (user["id"], mal_id, payload.score, utc_now()),
         )
         # activity: оценка/перестановка оценки — 1 событие в день на тайтл
         # (dedup в record_event по (user, day, kind, mal_id)).
@@ -109,7 +109,7 @@ def dub_prefs_set(
             """INSERT INTO aviev_dub_prefs (user_id, mal_id, dub_norm, updated_at)
                 VALUES (%s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE dub_norm=VALUES(dub_norm), updated_at=VALUES(updated_at)""",
-            (user["id"], mal_id, payload.dub_norm, _now()),
+            (user["id"], mal_id, payload.dub_norm, utc_now()),
         )
         conn.commit()
     return {"ok": True}

@@ -12,7 +12,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from core.functions.progress import auto_watching_qualified, history_qualified, _now, progress_done
+from core.classes.clock import utc_now
+from core.functions.progress import auto_watching_qualified, history_qualified, progress_done
 
 
 def sync_watch_history_from_progress(
@@ -51,7 +52,7 @@ def sync_watch_history_from_progress(
     qualified = bool(cur.fetchone()) or history_qualified(episode_seconds, episode_duration)
     if not qualified:
         return
-    stamp = updated_at or _now()
+    stamp = updated_at or utc_now()
     cur.execute(
         """INSERT INTO aviev_watch_history
             (user_id, mal_id, last_episode, episode_seconds, episode_duration,
@@ -169,7 +170,7 @@ def resync_watch_history_from_latest_progress(conn, user_id: int, mal_id: int) -
     episode_num = int(latest[0] or 1)
     episode_seconds = int(latest[1] or 0)
     episode_duration = int(latest[2] or 0)
-    stamp = latest[3] or _now()
+    stamp = latest[3] or utc_now()
     cur.execute(
         """INSERT INTO aviev_watch_history
             (user_id, mal_id, last_episode, episode_seconds, episode_duration,
@@ -234,7 +235,7 @@ def adjust_auto_list_status_after_unwatch(
     else:
         target_status = None
 
-    now = _now()
+    now = utc_now()
     if target_status:
         cur.execute(
             """UPDATE aviev_user_lists

@@ -15,12 +15,13 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from core.classes.clock import utc_now
 from core.functions import rate_limit
 from core.classes.db import connect, current_user_required
 
@@ -61,10 +62,6 @@ def clean(value: str, limit: int) -> str:
     return " ".join(_CONTROL.sub(" ", value).split())[:limit]
 
 
-def _now() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
-
-
 def title_name(cur: Any, mal_id: int) -> str:
     cur.execute("SELECT title_ru, title_en FROM aviev_title_pages WHERE mal_id = %s", (mal_id,))
     row = cur.fetchone()
@@ -85,7 +82,7 @@ def report_create(body: ReportIn, user: dict[str, Any] = Depends(current_user_re
         raise HTTPException(422, "source")
     uid = int(user["id"])
     dub, text = clean(body.dub, 128), clean(body.text, TEXT_MAX)
-    now = _now()
+    now = utc_now()
     with connect() as conn:
         cur = conn.cursor()
         cur.execute(

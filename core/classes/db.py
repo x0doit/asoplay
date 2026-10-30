@@ -26,12 +26,13 @@ import logging
 import re
 import secrets
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any, Iterator
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
+from core.classes.clock import utc_now
 from core.config import animesocial, config
 from core.functions import rate_limit
 
@@ -418,13 +419,9 @@ def _is_banned(status_col_name: str | None, value: Any) -> bool:
 
 
 # ---------- session storage ----------
-def _now() -> datetime:
-    return datetime.utcnow()
-
-
 def create_session(user_id: int, request: Request) -> str:
     token = secrets.token_hex(32)  # 64 hex chars
-    now = _now()
+    now = utc_now()
     ua = (request.headers.get("user-agent") or "")[:255]
     ip = rate_limit.client_ip(request)
     with connect() as conn:
@@ -443,7 +440,7 @@ def touch_session(token: str) -> dict[str, Any] | None:
     """Resolve a session token to a user. Returns None for revoked/expired/missing."""
     if not token or len(token) != 64:
         return None
-    cutoff = _now() - timedelta(days=config.SESSION_TTL_DAYS)
+    cutoff = utc_now() - timedelta(days=config.SESSION_TTL_DAYS)
     with connect() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -466,7 +463,7 @@ def touch_session(token: str) -> dict[str, Any] | None:
             return None
         cur.execute(
             "UPDATE `aviev_sessions` SET `last_seen_at` = %s WHERE `token` = %s",
-            (_now(), token),
+            (utc_now(), token),
         )
         conn.commit()
 

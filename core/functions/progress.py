@@ -12,10 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-
-def _now() -> datetime:
-    """Сейчас по UTC без пояса — так время хранится в таблицах аккаунта."""
-    return datetime.utcnow()
+from core.classes.clock import utc_now
 
 
 def _mark_previous_episodes_done_if_needed(
@@ -66,7 +63,7 @@ def upsert_episode_progress(
     updated_at: datetime | None = None,
 ) -> None:
     """Записать позицию в серии (только вперёд: берётся большее из старого и нового)."""
-    stamp = updated_at or _now()
+    stamp = updated_at or utc_now()
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO aviev_episode_progress

@@ -14,8 +14,9 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from core.admin import auth
-from core.admin.audit import _now, audit, unix
+from core.admin.audit import audit, unix
 from core.admin.auth import AdminError, _after, _page, admin_user, ok
+from core.classes.clock import utc_now
 from core.classes.db import connect
 from core.config.config import SITE_URL
 from core.functions import site_settings, video_reports
@@ -79,7 +80,7 @@ def reports_patch(report_id: int, body: ReportPatch, admin: int = Depends(admin_
         if not found:
             raise AdminError(404, "not_found", "Такой жалобы нет")
         cur.execute("UPDATE aviev_reports SET status = %s, note = %s, updated_by = %s, updated_at = %s WHERE id = %s",
-                    (body.status, note, admin, _now(), report_id))
+                    (body.status, note, admin, utc_now(), report_id))
         # Действия называются так, как их показывает панель: report.fixed | report.rejected | report.open
         audit(cur, admin, f"report.{body.status}", f"report:{report_id}", {"from": found[0], "note": note})
         conn.commit()

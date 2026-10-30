@@ -15,9 +15,9 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from core.classes.clock import utc_now
 from core.classes.db import connect, current_user_required
 from core.functions.privacy import PRIVACY_FIELDS, read_privacy
-from core.functions.progress import _now
 
 router = APIRouter()
 
@@ -67,7 +67,7 @@ def settings_put(
     user: dict[str, Any] = Depends(current_user_required),
 ) -> dict[str, Any]:
     """PUT /account/settings — сохранить присланные поля, остальные не трогать."""
-    now = _now()
+    now = utc_now()
 
     # Собираем UPDATE динамически по тем полям, которые пользователь прислал.
     # Для INSERT (новая строка) используем дефолты: autonext=1, auto_add=1.
@@ -139,7 +139,7 @@ def privacy_put(
             f"""INSERT INTO aviev_privacy (user_id, {', '.join(PRIVACY_FIELDS)}, updated_at)
                 VALUES (%s, {', '.join(['%s'] * len(PRIVACY_FIELDS))}, %s)
                 ON DUPLICATE KEY UPDATE {', '.join(updates)}""",
-            (user["id"], *insert, _now()),
+            (user["id"], *insert, utc_now()),
         )
         conn.commit()
     if "hide_presence" in given or "show_watching" in given:

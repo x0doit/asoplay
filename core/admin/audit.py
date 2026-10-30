@@ -17,15 +17,11 @@ from fastapi import APIRouter, Depends
 
 from core.admin import auth
 from core.admin.auth import _after, _page, admin_user, ok
+from core.classes.clock import utc_now
 from core.classes.db import connect
 from core.functions import site_settings
 
 router = APIRouter()
-
-
-def _now() -> datetime:
-    """Сейчас по UTC — так время хранится в таблицах админ-API."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def unix(value: datetime | None) -> int | None:
@@ -41,7 +37,7 @@ def audit(cur: Any, user_id: int, action: str, target: str, details: dict[str, A
         text = json.dumps({"changed": sorted(details or {})}, ensure_ascii=False)[:2000]
     cur.execute(
         "INSERT INTO aviev_admin_audit (user_id, action, target, details, at) VALUES (%s, %s, %s, %s, %s)",
-        (user_id, action, target[:128], text, _now()),
+        (user_id, action, target[:128], text, utc_now()),
     )
 
 

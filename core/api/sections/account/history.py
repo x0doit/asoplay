@@ -13,8 +13,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, conint
 
+from core.classes.clock import utc_now
 from core.classes.db import connect, current_user_required
-from core.functions.progress import _now, upsert_episode_progress
+from core.functions.progress import upsert_episode_progress
 from core.functions.watch_history import sync_watch_history_from_progress
 
 router = APIRouter()
@@ -110,7 +111,7 @@ def history_upsert(
     """PUT /account/history/{mal_id} — записать точку просмотра; «Смотрю» обновится по прогрессу."""
     if mal_id != payload.mal_id:
         raise HTTPException(400, "mal_id mismatch")
-    stamp = _now()
+    stamp = utc_now()
     with connect() as conn:
         upsert_episode_progress(
             conn,

@@ -13,8 +13,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, conint
 
+from core.classes.clock import utc_now
 from core.classes.db import connect, current_user_required
-from core.functions.progress import _now, progress_rows_for_title, upsert_episode_progress
+from core.functions.progress import progress_rows_for_title, upsert_episode_progress
 from core.functions.watch_history import (
     adjust_auto_list_status_after_unwatch, history_row_for_title, resync_watch_history_from_latest_progress,
     sync_watch_history_from_progress,
@@ -68,7 +69,7 @@ def progress_upsert(
     user: dict[str, Any] = Depends(current_user_required),
 ) -> dict[str, Any]:
     """PUT /account/progress/{mal_id} — записать позицию в серии и обновить «Смотрю»."""
-    stamp = _now()
+    stamp = utc_now()
     with connect() as conn:
         upsert_episode_progress(
             conn,

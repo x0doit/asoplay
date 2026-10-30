@@ -36,7 +36,6 @@ import secrets
 import threading
 import time
 from collections import OrderedDict
-from datetime import datetime
 from typing import Any, Callable
 from urllib.parse import urlencode, urlsplit
 
@@ -44,6 +43,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from core.classes import as_api, db, token_box
+from core.classes.clock import utc_now
 from core.config import animesocial, config
 from core.functions import rate_limit
 
@@ -367,7 +367,7 @@ def _sealed(session: str, tokens: dict[str, Any]) -> tuple[bytes, int, bytes, in
 
 def _insert(session: str, uid: int, tokens: dict[str, Any]) -> None:
     access, access_exp, refresh, refresh_exp = _sealed(session, tokens)
-    now = datetime.utcnow()
+    now = utc_now()
     with db.connect() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -388,7 +388,7 @@ def _update(session: str, tokens: dict[str, Any]) -> None:
             """UPDATE `aviev_as_sessions` SET `access_token` = %s, `access_expires_at` = %s,
                 `refresh_token` = %s, `refresh_expires_at` = %s, `updated_at` = %s
                 WHERE `session_token` = %s""",
-            (access, access_exp, refresh, refresh_exp, datetime.utcnow(), session),
+            (access, access_exp, refresh, refresh_exp, utc_now(), session),
         )
         conn.commit()
 

@@ -15,8 +15,9 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from core.admin.audit import _now, audit
+from core.admin.audit import audit
 from core.admin.auth import AdminError, admin_user, ok
+from core.classes.clock import utc_now
 from core.classes.db import connect
 from core.functions import site_settings, video_reports
 
@@ -105,7 +106,7 @@ def settings_put(body: SettingsIn, admin: int = Depends(admin_user)) -> dict[str
             changes["sources"] = sources
     if not changes:
         return ok(_settings_view())
-    now = _now()
+    now = utc_now()
     with connect() as conn:
         cur = conn.cursor()
         for name, value in changes.items():

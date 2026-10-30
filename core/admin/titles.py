@@ -16,9 +16,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from core.admin import auth
-from core.admin.audit import _now, audit, unix
+from core.admin.audit import audit, unix
 from core.admin.auth import AdminError, _after, admin_user, ok
 from core.classes import http
+from core.classes.clock import utc_now
 from core.classes.db import connect
 from core.classes.jikan import catalog as jikan_catalog
 from core.config.config import SITE_URL
@@ -162,7 +163,7 @@ class TitleIn(BaseModel):
 def _save_title(mal_id: int, changes: dict[str, Any], admin: int, name: str) -> tuple[dict[str, Any], bool]:
     """Панель присылает все четыре поля; сохраняется и пишется в журнал только изменившееся. Второе значение —
     поменялось ли что-нибудь."""
-    now = _now()
+    now = utc_now()
     with connect() as conn:
         cur = conn.cursor()
         cur.execute("""SELECT hidden, pinned, adult, note, updated_by, updated_at FROM aviev_title_flags

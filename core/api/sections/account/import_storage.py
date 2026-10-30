@@ -13,8 +13,8 @@ from typing import Any
 from fastapi import APIRouter, Body, Depends, Query
 from pydantic import BaseModel, Field
 
+from core.classes.clock import utc_now
 from core.classes.db import connect, current_user_required
-from core.functions.progress import _now
 
 router = APIRouter()
 
@@ -51,7 +51,7 @@ def import_localstorage(
     Повторять безопасно: каждый вид данных отмечается в aviev_import_marks и без ?force=1 второй раз не переносится.
     При расхождении прав сервер, но недостающие строки дописываются."""
     counters = {"favorites": 0, "watch": 0, "ratings": 0, "dub_prefs": 0, "settings": 0}
-    now = _now()
+    now = utc_now()
 
     with connect() as conn:
         cur = conn.cursor()

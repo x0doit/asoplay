@@ -13,11 +13,12 @@ list_move / favorite / unfavorite / rate / complete / list_remove). Склады
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends
 
+from core.classes.clock import utc_now
 from core.classes.db import connect, current_user_required
 
 log = logging.getLogger("asoplay.activity")
@@ -76,7 +77,7 @@ def record_event(conn, user_id: int, *, kind: str, mal_id: int | None = None,
         log.debug("record_event: unknown kind=%s", kind)
         return
     stored_meta = "" if kind in DEDUP_BY_TITLE_PER_DAY else (meta or "")
-    now = datetime.utcnow()
+    now = utc_now()
     cur = conn.cursor()
     cur.execute(
         """INSERT IGNORE INTO aviev_activity
@@ -219,7 +220,7 @@ def _graph_for_user(user_id: int, days: int = DEFAULT_DAYS) -> dict[str, Any]:
     """Возвращает агрегат за последние `days` дней: грид по дням + summary +
     последние 20 событий в виде списка (c тайтлами и эпизодами, если есть)."""
     days = _clamp_days(days)
-    now = datetime.utcnow()
+    now = utc_now()
     start = (now - timedelta(days=days - 1)).date()
     with connect() as conn:
         cur = conn.cursor()

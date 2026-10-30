@@ -18,8 +18,8 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from core.admin import titles
-from core.admin.audit import _now
 from core.admin.auth import admin_user, ok
+from core.classes.clock import utc_now
 from core.classes.db import connect
 from core.config import env
 from core.functions import site_settings, source_health
@@ -45,7 +45,7 @@ def _version() -> str:
 
 def _summary() -> dict[str, Any]:
     """Обзор для первой страницы раздела в панели."""
-    now = _now()
+    now = utc_now()
     day, week, month = now - timedelta(days=1), now - timedelta(days=7), now - timedelta(days=30)
     loaded = set(loaded_sources())
     sources = []

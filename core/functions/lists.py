@@ -23,7 +23,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field, conint, constr
 
 import json as _json
 
+from core.classes.clock import utc_now
 from core.classes.db import connect, current_user_required
 from core.functions.activity import record_event
 from core.functions.progress import auto_watching_qualified, history_qualified
@@ -60,10 +61,6 @@ async def _mal_id_exists(mal_id: int) -> bool:
     if status == 404:
         return False
     return True
-
-
-def _now() -> datetime:
-    return datetime.utcnow()
 
 
 # Сколько видео посмотрели — для «Обзора» в панели Anime Social (aviev_watch_time). Плеер шлёт событие раз в
@@ -132,7 +129,7 @@ def _fetch_entry(conn, user_id: int, mal_id: int) -> dict[str, Any] | None:
 
 def _upsert_status(conn, user_id: int, mal_id: int, status: str | None,
                    source: str, title: str = "", poster_url: str = "") -> None:
-    now = _now()
+    now = utc_now()
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO aviev_user_lists
@@ -296,7 +293,7 @@ async def set_favorite(
 ) -> dict[str, Any]:
     if payload.is_favorite and not await _mal_id_exists(mal_id):
         raise HTTPException(404, "this MAL id no longer exists")
-    now = _now()
+    now = utc_now()
     with connect() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -350,7 +347,7 @@ def progress_event(
     """Плеер присылает события «продолжаю смотреть». Здесь живёт вся auto-логика
     — мы не заставляем клиента её считать. Возвращаем обновлённое состояние
     тайтла, чтобы плеер мог сразу отразить авто-переход."""
-    now = _now()
+    now = utc_now()
     applied: list[str] = []
     with connect() as conn:
         cur = conn.cursor()
@@ -512,7 +509,7 @@ def sweep_dropped_after_30_days(conn) -> int:
     `core.functions.lists.sweep_all_once()` или любой другой планировщик-ручкой.
     Manual-статусы никогда не трогает.
     """
-    cutoff = _now() - timedelta(days=30)
+    cutoff = utc_now() - timedelta(days=30)
     cur = conn.cursor()
     cur.execute(
         """SELECT user_id, mal_id FROM aviev_user_lists
@@ -529,7 +526,7 @@ def sweep_dropped_after_30_days(conn) -> int:
                 SET status='dropped', status_source='auto', updated_at=%s
                 WHERE user_id=%s AND mal_id=%s
                   AND status='watching' AND status_source='auto'""",
-            (_now(), user_id, mal_id),
+            (utc_now(), user_id, mal_id),
         )
         if cur.rowcount:
             count += 1
@@ -543,7 +540,7 @@ def sweep_dropped_after_30_days(conn) -> int:
 def manual_sweep(user: dict[str, Any] = Depends(current_user_required)) -> dict[str, Any]:
     """Диагностическая ручка — пользователь может запустить auto-dropped сам.
     Выполняется только для его записей, не для всей базы."""
-    cutoff = _now() - timedelta(days=30)
+    cutoff = utc_now() - timedelta(days=30)
     with connect() as conn:
         cur = conn.cursor()
         if not _auto_add_enabled(conn, user["id"]):
@@ -555,7 +552,7 @@ def manual_sweep(user: dict[str, Any] = Depends(current_user_required)) -> dict[
                   AND status='watching'
                   AND status_source='auto'
                   AND updated_at < %s""",
-            (_now(), user["id"], cutoff),
+            (utc_now(), user["id"], cutoff),
         )
         n = cur.rowcount
         conn.commit()

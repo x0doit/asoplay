@@ -13,8 +13,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, conint
 
+from core.classes.clock import utc_now
 from core.classes.db import connect, current_user_required
-from core.functions.progress import _now
 
 router = APIRouter()
 
@@ -64,7 +64,7 @@ def favorite_add(
     """PUT /account/favorites/{mal_id} — добавить тайтл в избранное."""
     if mal_id != payload.mal_id:
         raise HTTPException(400, "mal_id mismatch")
-    now = _now()
+    now = utc_now()
     with connect() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -86,7 +86,7 @@ def favorite_add(
 @router.delete("/favorites/{mal_id}")
 def favorite_remove(mal_id: int, user: dict[str, Any] = Depends(current_user_required)) -> dict[str, Any]:
     """DELETE /account/favorites/{mal_id} — убрать тайтл из избранного."""
-    now = _now()
+    now = utc_now()
     with connect() as conn:
         cur = conn.cursor()
         # Снимаем флаг is_favorite. Если у записи не было статуса, она становится

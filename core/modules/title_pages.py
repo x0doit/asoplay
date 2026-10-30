@@ -24,7 +24,7 @@ import json
 import logging
 import re
 import unicodedata
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 import httpx
@@ -32,6 +32,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field, conint
 
+from core.classes.clock import utc_now
 from core.classes.db import connect
 from core.classes.jikan import catalog as jikan_catalog
 from core.config import env
@@ -114,7 +115,7 @@ def _load_cached(mal_id: int) -> dict[str, Any] | None:
 
 
 def _store_title(payload: dict[str, Any]) -> dict[str, Any]:
-    now = datetime.utcnow()
+    now = utc_now()
     fresh_until = now + TTL_FRESH
     mal_id = int(payload["mal_id"])
     # Для slug'а предпочитаем латинский title — он уже без кириллицы/кандзи
@@ -505,7 +506,7 @@ def _render_missing_title(mal_id: int, slug: str) -> HTMLResponse:
 
 @router.get("/sitemap.xml")
 def sitemap() -> Response:
-    now = datetime.utcnow()
+    now = utc_now()
     with connect() as conn:
         cur = conn.cursor()
         cur.execute(
