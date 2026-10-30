@@ -1,0 +1,23 @@
+# AsoPlay на сервере: systemd запускает python -m core из папки сайта.
+# Автор: Чепела Даниил Максимович.
+#
+# Ставится как /etc/systemd/system/asoplay.service. Адрес по умолчанию 127.0.0.1:8787 (AV_BIND_HOST, AV_BIND_PORT
+# в .env); снаружи сайт открывает обратный прокси aaPanel. После правки: systemctl daemon-reload и restart asoplay.
+[Unit]
+Description=AsoPlay backend (play.animesocial.online)
+After=network-online.target mysqld.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www
+Group=www
+WorkingDirectory=/www/wwwroot/play.animesocial.online
+ExecStart=/www/wwwroot/play.animesocial.online/.venv/bin/python -B -m core
+Environment=PYTHONUNBUFFERED=1
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

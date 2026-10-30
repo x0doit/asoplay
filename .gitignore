@@ -15,11 +15,11 @@ vpn.json
 deploy/
 
 # Python
-server/__pycache__/
+__pycache__/
 *.pyc
 
 # Installed PHP dependencies; reproducible from composer.lock, included in deploy.
-server/jikan/vendor/
+core/classes/jikan/php/vendor/
 
 # Старые/внешние агентские workspace-артефакты
 .claude/

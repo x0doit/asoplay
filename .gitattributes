@@ -1,0 +1,3 @@
+# Конфиги для Linux-сервера — всегда с LF, даже когда git на Windows выгружает остальное с CRLF (core.autocrlf)
+*.service text eol=lf
+*.sh text eol=lf
