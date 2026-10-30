@@ -13,10 +13,8 @@ from __future__ import annotations
 import html
 import json
 import logging
-import os
 import re
 from html.parser import HTMLParser
-from pathlib import Path
 from urllib.parse import parse_qs, quote, urljoin, urlparse, urlsplit, urlunsplit
 
 import httpx
@@ -24,6 +22,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 
 from core.classes.adblock import engine as adblock
+from core.config import config, env
 from core.functions.player_hosts import is_disabled_player_url, vk_video_ref
 
 log = logging.getLogger("asoplay.player_proxy")
@@ -32,9 +31,8 @@ router = APIRouter(prefix="/player")
 kodik_router = APIRouter()
 
 _client: httpx.AsyncClient | None = None
-_MAX_TEXT_REWRITE = int(os.environ.get("AV_PLAYER_PROXY_MAX_TEXT_REWRITE", str(3 * 1024 * 1024)))
 _PROXY_VERSION = "20261029-player39"
-_KODIK_SKIN_CSS = Path(__file__).resolve().parents[3] / "assets" / "player" / "kodik-skin.css"
+_KODIK_SKIN_CSS = env.ROOT / "assets" / "player" / "kodik-skin.css"
 _SHIELD_LOGGER_JS = (
     '(function(){if(typeof window.__asoplayShieldLog==="function")return;'
     'var q=[],c={};try{["log","warn","error","info","debug"].forEach(function(m){'
@@ -2132,7 +2130,7 @@ def _is_playlist(content_type: str, url: str, content: bytes = b"") -> bool:
 
 def _rewrite_body(content: bytes, content_type: str, base: str, *, frame: bool = False,
                   referer: str | None = None) -> bytes:
-    if len(content) > _MAX_TEXT_REWRITE:
+    if len(content) > config.PLAYER_MAX_TEXT_REWRITE:
         return content
     charset = _charset_from_content_type(content_type)
     text = content.decode(charset, errors="ignore")

@@ -31,7 +31,6 @@ import base64
 import hashlib
 import hmac
 import logging
-import os
 import re
 import secrets
 import threading
@@ -45,7 +44,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from core.classes import as_api, db, token_box
-from core.config import animesocial
+from core.config import animesocial, config
 from core.functions import rate_limit
 
 log = logging.getLogger("asoplay.as_login")
@@ -61,7 +60,7 @@ router = APIRouter(prefix="/auth/as")
 
 
 def enabled() -> bool:
-    flag = os.environ.get("AV_AS_LOGIN", "0").strip().lower() in ("1", "true", "yes", "on")
+    flag = config.as_login_flag()
     return flag and as_api.configured() and token_box.available()
 
 
@@ -102,7 +101,7 @@ def _safe_next(value: str) -> str:
 
 
 def redirect_uri(request: Request) -> str:
-    override = os.environ.get("AV_AS_REDIRECT_URI", "").strip()
+    override = config.as_redirect_uri()
     if override:
         return override
     scheme = request.url.scheme
@@ -154,7 +153,7 @@ def as_start(request: Request, next: str = "/") -> RedirectResponse:
     query = urlencode({"client_id": as_api.client_id(), "redirect_uri": redirect_uri(request),
                        "code_challenge": challenge, "code_challenge_method": "S256", "state": state})
     resp = RedirectResponse(f"{_authorize_url()}?{query}", status_code=302)
-    resp.set_cookie(FLOW_COOKIE, state, max_age=FLOW_TTL, httponly=True, secure=db.COOKIE_SECURE,
+    resp.set_cookie(FLOW_COOKIE, state, max_age=FLOW_TTL, httponly=True, secure=config.COOKIE_SECURE,
                     samesite="lax", path="/auth/as")
     resp.headers["Cache-Control"] = "no-store"
     return resp
@@ -291,7 +290,7 @@ def _origin(url: str) -> str:
 def _social_origins() -> set[str]:
     """Адреса сайта соцсети, которым можно узнать, кто вошёл в AsoPlay в этом браузере."""
     origins = {_origin(as_api.site_url())}
-    origins.update(_origin(o) for o in os.environ.get("AV_AS_ORIGINS", "").split(",") if o.strip())
+    origins.update(_origin(o) for o in config.as_origins())
     return {o for o in origins if o}
 
 

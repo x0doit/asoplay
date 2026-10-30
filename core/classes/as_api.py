@@ -18,13 +18,12 @@ from __future__ import annotations
 
 import functools
 import logging
-import os
 import ssl
 from typing import Any
 
 import httpx
 
-from core.config import animesocial
+from core.config import animesocial, config
 
 log = logging.getLogger("asoplay.as_api")
 
@@ -42,7 +41,7 @@ class ASApiError(Exception):
 
 
 def base_url() -> str:
-    override = os.environ.get("AV_AS_API_URL", "").strip().rstrip("/")
+    override = config.as_api_url()
     return override or animesocial.site_url() + "/api/v2"
 
 
@@ -51,17 +50,13 @@ def site_url() -> str:
     return base_url().removesuffix("/api/v2")
 
 
-def _client_keys() -> tuple[str, str]:
-    return (os.environ.get("AV_AS_CLIENT_ID", "").strip(), os.environ.get("AV_AS_CLIENT_SECRET", "").strip())
-
-
 def configured() -> bool:
-    client_id, secret = _client_keys()
+    client_id, secret = config.as_client_keys()
     return bool(client_id and secret)
 
 
 def client_id() -> str:
-    return _client_keys()[0]
+    return config.as_client_keys()[0]
 
 
 @functools.lru_cache(maxsize=4)
@@ -77,7 +72,7 @@ def _tls(ca: str) -> ssl.SSLContext | bool:
 
 def call(method: str, path: str, *, token: str | None = None, body: dict[str, Any] | None = None,
          user_ip: str = "", user_agent: str = "") -> Any:
-    client, secret = _client_keys()
+    client, secret = config.as_client_keys()
     headers = {"Accept": "application/json", "User-Agent": "AsoPlay", "X-Client-Id": client, "X-Client-Secret": secret}
     if user_ip:
         headers["X-Client-User-IP"] = user_ip
@@ -86,7 +81,7 @@ def call(method: str, path: str, *, token: str | None = None, body: dict[str, An
     if token:
         headers["Authorization"] = f"Bearer {token}"
     try:
-        with httpx.Client(timeout=_TIMEOUT, verify=_tls(os.environ.get("AV_AS_CA", "").strip())) as client:
+        with httpx.Client(timeout=_TIMEOUT, verify=_tls(config.as_ca())) as client:
             resp = client.request(method, base_url() + path, json=body, headers=headers)
     except (httpx.HTTPError, OSError) as exc:
         raise ASApiError(503, "unavailable", str(exc)) from exc

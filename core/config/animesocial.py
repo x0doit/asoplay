@@ -3,7 +3,7 @@
 AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
 All rights reserved. See /COPYRIGHT for full terms.
 
-AnimeSocial link-and-assets config. Reads /animesocial.json once, applies
+AnimeSocial link-and-assets config. Reads core/config/animesocial.json once, applies
 env overrides (AV_ANIMESOCIAL_SITE_URL wins), and exposes URL builders for
 everything that references the partner social network:
 
@@ -19,19 +19,17 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from functools import lru_cache
-from pathlib import Path
 from typing import Any
+
+from core.config import config
 
 log = logging.getLogger("asoplay.animesocial_config")
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_CONFIG_FILE = _PROJECT_ROOT / "animesocial.json"
 
 
 def _load_raw() -> dict[str, Any]:
-    if not _CONFIG_FILE.is_file():
+    if not config.ANIMESOCIAL_JSON.is_file():
         log.warning("animesocial.json missing — using hard-coded fallback")
         return {
             "site_name": "AnimeSocial",
@@ -50,7 +48,7 @@ def _load_raw() -> dict[str, Any]:
             "fallbacks": {"avatar": "/img/noava.png"},
         }
     try:
-        return json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
+        return json.loads(config.ANIMESOCIAL_JSON.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         log.error("animesocial.json unreadable: %s", exc)
         return {}
@@ -62,7 +60,7 @@ def get_config() -> dict[str, Any]:
     process lifetime; restart the server to pick up file edits."""
     raw = _load_raw()
 
-    site_url = os.environ.get("AV_ANIMESOCIAL_SITE_URL")
+    site_url = config.animesocial_site_url()
     if site_url:
         raw["site_url"] = site_url
     raw["site_url"] = raw.get("site_url", "").rstrip("/")

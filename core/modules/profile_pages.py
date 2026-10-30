@@ -29,7 +29,8 @@ from core.classes.db import (
 )
 from core.api.sections.account import read_privacy
 from core.functions.activity import graph_for_user_public, fetch_recent_paged
-from core.modules.title_pages import _read_shell, _override_head, SITE_URL, SITE_NAME, AUTHOR_NAME
+from core.config.config import SITE_NAME, SITE_URL
+from core.modules.title_pages import _read_shell, _override_head
 
 log = logging.getLogger("asoplay.profile_pages")
 

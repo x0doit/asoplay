@@ -5,7 +5,7 @@ All rights reserved. See /COPYRIGHT for full terms.
 
 Bridge to the AnimeSocial database.
 
-- Reads MySQL coordinates from /animesocial-db.php (the ecosystem-wide PHP
+- Reads MySQL coordinates from core/config/db.php (the ecosystem-wide PHP
   config). Values can be overridden with AV_DB_HOST / AV_DB_USER / AV_DB_PASS /
   AV_DB_NAME / AV_DB_PORT env vars for non-OpenServer dev setups.
 - Uses the existing `Just_*` users table for authentication. The table and
@@ -23,64 +23,28 @@ import hashlib
 import hmac
 import json
 import logging
-import os
 import re
 import secrets
 from contextlib import contextmanager
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any, Iterator
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from core.config import animesocial
+from core.config import animesocial, config
 from core.functions import rate_limit
 
 log = logging.getLogger("asoplay.auth")
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_PHP_CONFIG = _PROJECT_ROOT / "animesocial-db.php"
-_SCHEMA_SQL = _PROJECT_ROOT / "sql" / "aviev-schema.sql"
-
 COOKIE_NAME = "aviev_session"
-SESSION_TTL_DAYS = int(os.environ.get("AV_SESSION_TTL_DAYS", "30") or 30)
-COOKIE_SECURE = os.environ.get("AV_COOKIE_SECURE", "0") in ("1", "true", "yes", "on")
-COOKIE_SAMESITE = os.environ.get("AV_COOKIE_SAMESITE", "lax").lower()
-LOGIN_LANDING = os.environ.get("AV_LOGIN_LANDING", "/")
 
 
 def _register_url() -> str:
     """Back-compat: AV_REGISTER_URL env wins over animesocial.json for legacy
     deployments. Otherwise pull from the single-source-of-truth config."""
-    override = os.environ.get("AV_REGISTER_URL", "").strip()
+    override = config.register_url_override()
     return override or animesocial.register_url()
-
-
-# ---------- PHP config loader ----------
-def _parse_php_defines(path: Path) -> dict[str, str]:
-    if not path.is_file():
-        return {}
-    text = path.read_text(encoding="utf-8")
-    return {
-        m.group(1): m.group(2)
-        for m in re.finditer(
-            r'define\s*\(\s*["\']([A-Z_]+)["\']\s*,\s*["\']([^"\']*)["\']\s*\)',
-            text,
-        )
-    }
-
-
-def _read_db_config() -> dict[str, Any]:
-    php = _parse_php_defines(_PHP_CONFIG)
-    return {
-        "host": os.environ.get("AV_DB_HOST") or php.get("DBHOST", "127.0.0.1"),
-        "user": os.environ.get("AV_DB_USER") or php.get("DBUSER", "root"),
-        "password": os.environ.get("AV_DB_PASS", php.get("DBPASS", "")),
-        "database": os.environ.get("AV_DB_NAME") or php.get("DBNAME", "AnimeSocial"),
-        "prefix": os.environ.get("AV_DB_PREFIX") or php.get("DBPREFIX", "Just"),
-        "port": int(os.environ.get("AV_DB_PORT", "3306") or 3306),
-    }
 
 
 # ---------- connection pool ----------
@@ -105,7 +69,7 @@ def _pymysql_module():
 def db_config() -> dict[str, Any]:
     global _cfg_cache
     if _cfg_cache is None:
-        _cfg_cache = _read_db_config()
+        _cfg_cache = config.db_settings()
     return _cfg_cache
 
 
@@ -173,7 +137,7 @@ def _introspect_schema() -> dict[str, Any]:
     if _schema_cache is not None:
         return _schema_cache
 
-    override_table = os.environ.get("AV_USER_TABLE")
+    override_table = config.user_table()
     with connect() as conn:
         cur = conn.cursor()
         cur.execute("SHOW TABLES")
@@ -208,7 +172,7 @@ def _introspect_schema() -> dict[str, Any]:
         columns = [row[0] for row in cur.fetchall()]
 
     def _pick(env_key: str, options: list[str], optional: bool = False) -> str | None:
-        forced = os.environ.get(env_key)
+        forced = config.user_column(env_key)
         if forced:
             if forced not in columns:
                 raise HTTPException(500, f"{env_key}='{forced}' absent from `{user_table}`")
@@ -256,9 +220,6 @@ def _introspect_schema() -> dict[str, Any]:
 
 
 # ---------- password verification ----------
-_VERIFIER = (os.environ.get("AV_AUTH_VERIFIER") or "auto").strip().lower()
-
-
 def _verify_password(plain: str, stored_hash: str, salt: str | None) -> bool:
     """Try the configured verifier first; in 'auto' mode, dispatch by hash shape."""
     stored = (stored_hash or "").strip()
@@ -266,7 +227,7 @@ def _verify_password(plain: str, stored_hash: str, salt: str | None) -> bool:
         return False
 
     strategies: list[str]
-    if _VERIFIER == "auto":
+    if config.AUTH_VERIFIER == "auto":
         if stored.startswith(("$2a$", "$2b$", "$2y$")):
             strategies = ["bcrypt"]
         elif stored.startswith("$argon2"):
@@ -280,7 +241,7 @@ def _verify_password(plain: str, stored_hash: str, salt: str | None) -> bool:
         else:
             strategies = ["plain"]
     else:
-        strategies = [_VERIFIER]
+        strategies = [config.AUTH_VERIFIER]
 
     for how in strategies:
         try:
@@ -446,7 +407,7 @@ def _is_banned(status_col_name: str | None, value: Any) -> bool:
     (comma-separated)."""
     if value is None or not status_col_name:
         return False
-    env = os.environ.get("AV_USER_BANNED_VALUES", "").strip()
+    env = config.user_banned_values()
     if env:
         banned_set = {v.strip().lower() for v in env.split(",") if v.strip()}
     elif status_col_name.lower() in ("banned", "blocked", "is_banned", "is_blocked"):
@@ -482,7 +443,7 @@ def touch_session(token: str) -> dict[str, Any] | None:
     """Resolve a session token to a user. Returns None for revoked/expired/missing."""
     if not token or len(token) != 64:
         return None
-    cutoff = _now() - timedelta(days=SESSION_TTL_DAYS)
+    cutoff = _now() - timedelta(days=config.SESSION_TTL_DAYS)
     with connect() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -579,10 +540,10 @@ def set_session_cookie(resp: Response, token: str) -> None:
     resp.set_cookie(
         key=COOKIE_NAME,
         value=token,
-        max_age=SESSION_TTL_DAYS * 86400,
+        max_age=config.SESSION_TTL_DAYS * 86400,
         httponly=True,
-        secure=COOKIE_SECURE,
-        samesite=COOKIE_SAMESITE,
+        secure=config.COOKIE_SECURE,
+        samesite=config.COOKIE_SAMESITE,
         path="/",
     )
 
@@ -677,15 +638,15 @@ def auth_register_redirect() -> Response:
 def auth_config() -> dict[str, Any]:
     """Public config used on every page boot. Contains everything the
     frontend needs to render AnimeSocial links and avatars: URLs, templates,
-    and a fallback avatar. Single source of truth — edit /animesocial.json
+    and a fallback avatar. Single source of truth — edit core/config/animesocial.json
     (or set AV_ANIMESOCIAL_SITE_URL) rather than hardcoding URLs in JS."""
     from core.classes import as_api
     from core.functions import social_login
     social = animesocial.public_view()
     return {
         "register_url": _register_url(),  # keep legacy field for old clients
-        "session_ttl_days": SESSION_TTL_DAYS,
-        "cookie_secure": COOKIE_SECURE,
+        "session_ttl_days": config.SESSION_TTL_DAYS,
+        "cookie_secure": config.COOKIE_SECURE,
         "social": social,
         "as_login": social_login.enabled(),
         # Браузер сам спрашивает у соцсети, кто в ней вошёл («Имя Фамилия, это вы?»)

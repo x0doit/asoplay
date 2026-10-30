@@ -207,16 +207,19 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── sources/animevost.py native AnimeVost source adapter
 │   │   └── sources/oldyummy.py native old.yummyani source adapter
 │   └── config/
-│       └── animesocial.py      AnimeSocial URL/media configuration
+│       ├── env.py              корень проекта и загрузка .env при старте
+│       ├── config.py           все настройки и переменные окружения в одном месте
+│       ├── animesocial.py      AnimeSocial URL/media configuration
+│       ├── animesocial.json    public URL/media mapping для AnimeSocial
+│       ├── db.php              формат DB-конфига AnimeSocial
+│       ├── server/             шаблон xray-конфига и unit systemd
+│       └── cache/              рабочие файлы: HTTP-кеш, adblock, xray (вне git)
 ├── sql/
 │   ├── aviev-schema.sql        базовая схема aviev_*
 │   ├── aviev-schema-pass2.sql  списки, приватность, активность, compatibility
 │   ├── aviev-schema-pass3.sql  сессии входа через AnimeSocial
 │   ├── aviev-schema-pass4.sql  настройки присутствия на AsoPlay
 │   └── aviev-schema-pass5.sql  жалобы, пометки тайтлов, настройки сайта, журнал, время просмотра
-├── animesocial.json            public URL/media mapping для AnimeSocial
-├── animesocial-db.php          формат DB-конфига AnimeSocial
-├── vpn.template.json           шаблон xray-конфига
 ├── .env.example                шаблон environment variables
 ├── COPYRIGHT                   proprietary copyright notice
 └── .gitignore                  ignored local/runtime artifacts
@@ -328,8 +331,8 @@ GET /health
 
 ## Конфигурация
 
-Backend читает runtime settings из `.env`, `animesocial-db.php` и
-`animesocial.json`.
+Backend читает runtime settings из `.env`, `core/config/db.php` и
+`core/config/animesocial.json`; все переменные собраны в `core/config/config.py`.
 
 Основные группы переменных:
 
@@ -688,16 +691,19 @@ Key capabilities:
 │   │   ├── sources/animevost.py native AnimeVost source adapter
 │   │   └── sources/oldyummy.py native old.yummyani source adapter
 │   └── config/
-│       └── animesocial.py      AnimeSocial URL/media configuration
+│       ├── env.py              project root and loading .env at start-up
+│       ├── config.py           every setting and environment variable in one place
+│       ├── animesocial.py      AnimeSocial URL/media configuration
+│       ├── animesocial.json    AnimeSocial public URL/media mapping
+│       ├── db.php              AnimeSocial DB config format
+│       ├── server/             xray config template and the systemd unit
+│       └── cache/              work files: HTTP cache, adblock, xray (not in git)
 ├── sql/
 │   ├── aviev-schema.sql        base aviev_* schema
 │   ├── aviev-schema-pass2.sql  lists, privacy, activity and compatibility
 │   ├── aviev-schema-pass3.sql  sign-in with AnimeSocial sessions
 │   ├── aviev-schema-pass4.sql  presence settings
 │   └── aviev-schema-pass5.sql  reports, title flags, site settings, audit log, watch time
-├── animesocial.json            AnimeSocial public URL/media mapping
-├── animesocial-db.php          AnimeSocial DB config format
-├── vpn.template.json           xray config template
 ├── .env.example                environment template
 ├── COPYRIGHT                   proprietary copyright notice
 └── .gitignore                  ignored local/runtime artifacts
@@ -810,8 +816,8 @@ Expected response:
 
 ## Configuration
 
-The backend reads runtime settings from `.env`, `animesocial-db.php` and
-`animesocial.json`.
+The backend reads runtime settings from `.env`, `core/config/db.php` and
+`core/config/animesocial.json`; every variable is declared in `core/config/config.py`.
 
 Important environment groups:
 

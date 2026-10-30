@@ -7,10 +7,11 @@
 vpn.txt
 vpn.json
 
-# Runtime / cache — бэкенд пересоздаёт сам
+# Рабочие файлы бэкенда — HTTP-кеш, списки adblock, конфиг и журнал xray; пересоздаются сами
+core/config/cache/
+# Так они лежали в корне до шага 3 рефакторинга (старые журналы xray ещё могут там быть)
 .cache/
 .xray-runtime.json
-.xray.log
 .xray*.log
 deploy/
 

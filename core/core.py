@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import random as _random
 import re as _re
 import time
@@ -32,12 +31,9 @@ from typing import Any
 log = logging.getLogger("asoplay")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-try:
-    from dotenv import load_dotenv
-    load_dotenv(_PROJECT_ROOT / ".env", override=False)
-except ImportError:
-    pass  # python-dotenv is optional; plain env vars still work
+from core.config import env
+
+env.load()  # до остальных импортов: настройки в core/config/config.py читают окружение при импорте
 
 # VPN must not start during import — that was the old bug. We arm it from the
 # FastAPI startup event below. Importing the module is cheap and side-effect
@@ -50,6 +46,7 @@ from core.classes.jikan import catalog as jikan_catalog
 from core.classes.sources.animevost import Animevost
 from core.classes.sources.oldyummy import OldYummy
 from core.classes.vpn import bridge as vpn_bridge
+from core.config import config
 from core.functions import (
     activity, lists, presence, realtime, site_settings, social_login, source_health, video_reports,
 )
@@ -117,29 +114,12 @@ if not SOURCES:
 
 
 # ---------- app ----------
-_DEFAULT_ORIGINS = [
-    "http://127.0.0.1:8000",
-    "http://localhost:8000",
-    "http://127.0.0.1:5500",
-    "http://localhost:5500",
-    "http://127.0.0.1:3000",
-    "http://localhost:3000",
-    "http://127.0.0.1:8787",
-    "http://localhost:8787",
-]
-_allowed = os.environ.get("AV_ALLOWED_ORIGINS", "").strip()
-if _allowed == "*":
-    ALLOWED_ORIGINS: list[str] = ["*"]
-elif _allowed:
-    ALLOWED_ORIGINS = [o.strip() for o in _allowed.split(",") if o.strip()]
-else:
-    ALLOWED_ORIGINS = _DEFAULT_ORIGINS
-log.info("CORS allowed origins: %s", ALLOWED_ORIGINS)
+log.info("CORS allowed origins: %s", config.ALLOWED_ORIGINS)
 
 app = FastAPI(title="AsoPlay Backend", version="2.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=config.ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
@@ -386,7 +366,7 @@ realtime.status_provider = lambda: {
     "vpn": vpn_bridge.is_active(),
     "site": site_settings.public_state(),
 }
-realtime.extra_origins = {o.rstrip("/") for o in ALLOWED_ORIGINS if o != "*"}
+realtime.extra_origins = {o.rstrip("/") for o in config.ALLOWED_ORIGINS if o != "*"}
 site_settings.listeners.append(lambda _what: realtime.status_changed())
 admin_api.loaded_sources = _all_sources
 
@@ -1010,8 +990,8 @@ class _StaticAssets(StaticFiles):
 
 
 _ASSET_DIRS = [
-    ("/styles.css", _PROJECT_ROOT / "styles.css"),
-    ("/app.js", _PROJECT_ROOT / "app.js"),
+    ("/styles.css", env.ROOT / "styles.css"),
+    ("/app.js", env.ROOT / "app.js"),
 ]
 
 
@@ -1036,13 +1016,13 @@ for _route, _path in _ASSET_DIRS:
     _file_route(app, _route, _path)
 
 # Serve the whole /js/ directory if present (split frontend modules live here).
-_JS_DIR = _PROJECT_ROOT / "js"
+_JS_DIR = env.ROOT / "js"
 if _JS_DIR.is_dir():
     app.mount("/js", _StaticAssets(directory=str(_JS_DIR)), name="js")
 
 # Brand assets: logos, icons. Directory is created on startup so /assets always
 # resolves (empty 404 until files are added).
-_ASSETS_DIR = _PROJECT_ROOT / "assets"
+_ASSETS_DIR = env.ROOT / "assets"
 _ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/assets", _StaticAssets(directory=str(_ASSETS_DIR)), name="assets")
 

@@ -41,7 +41,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from core.classes import as_realtime, db
 from core.config import animesocial
 from core.functions import presence, rate_limit, social_login
-from core.modules.title_pages import SITE_URL
+from core.config.config import SITE_URL
 
 log = logging.getLogger("asoplay.realtime")
 

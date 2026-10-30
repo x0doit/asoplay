@@ -18,7 +18,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import ssl
 from typing import Any, Awaitable, Callable
 
@@ -26,6 +25,7 @@ import certifi
 import websockets
 
 from core.classes import as_api
+from core.config import config
 from core.functions import social_login
 
 log = logging.getLogger("asoplay.as_realtime")
@@ -41,7 +41,7 @@ def _tls(url: str) -> ssl.SSLContext | None:
     """Сертификат соцсети — как в HTTP-запросах (as_api): certifi или AV_AS_CA."""
     if not url.startswith("wss://"):
         return None
-    ca = os.environ.get("AV_AS_CA", "").strip()
+    ca = config.as_ca()
     if ca.lower() == "system":
         return ssl.create_default_context()
     return ssl.create_default_context(cafile=ca or certifi.where())
@@ -87,7 +87,7 @@ class SocialLink:
     async def run_once(self) -> str:
         """Одно соединение от входа до обрыва. Возвращает, чем кончилось: closed | invalid_client."""
         self.url = await self._realtime_url()
-        client_id, secret = as_api._client_keys()
+        client_id, secret = config.as_client_keys()
         async with self._connect(self.url, ssl=_tls(self.url), open_timeout=OPEN_TIMEOUT,
                                  max_size=8 * 1024 * 1024) as ws:
             await ws.send(json.dumps({"type": "auth", "client_id": client_id, "client_secret": secret}))

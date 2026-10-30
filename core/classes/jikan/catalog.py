@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import HTTPException
 
+from core.config import config
 from core.functions import site_settings
 
 log = logging.getLogger("asoplay.catalog")
@@ -38,10 +39,10 @@ def _php_binary() -> str:
     global _php
     if _php:
         return _php
-    explicit = os.getenv("AV_JIKAN_PHP", "").strip()
+    explicit = config.jikan_php()
     candidates = [explicit] if explicit else []
     if not explicit and os.name == "nt":
-        root = Path(os.getenv("OSPanel", "C:/OSPanel"))
+        root = config.ospanel_dir()
         candidates += [str(root / "modules/PHP-8.4/php.exe"), str(root / "modules/PHP-8.5/php.exe")]
     if not explicit:
         candidates += [shutil.which("php") or ""]

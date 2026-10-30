@@ -31,12 +31,11 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response
 
 from core.classes.vpn import bridge as vpn_bridge
+from core.config import config
 
 log = logging.getLogger("asoplay.proxies")
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_CACHE_DIR = _PROJECT_ROOT / ".cache"
-_CACHE_DIR.mkdir(exist_ok=True)
+config.CACHE_DIR.mkdir(exist_ok=True)
 
 SHIKI_ORIGIN = "https://shikimori.io"
 SHIKI_HOST = urlparse(SHIKI_ORIGIN).hostname
@@ -169,7 +168,7 @@ async def request(method: str, url: str, **kwargs) -> httpx.Response:
 
 # ---------- disk cache ----------
 def _cache_path(key: str) -> Path:
-    return _CACHE_DIR / key[:2] / key
+    return config.CACHE_DIR / key[:2] / key
 
 
 def _cache_get(key: str, ttl: float) -> tuple[bytes, str, int] | None:

@@ -3,7 +3,7 @@
 AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
 All rights reserved. See /COPYRIGHT for full terms.
 
-VPN bridge — builds an xray runtime config from vpn.template.json + .env and
+VPN bridge — builds an xray runtime config from core/config/server/xray.template.json + .env and
 launches a dedicated xray.exe on a pair of local ports. Requests still go out
 directly; only a host that is unreachable directly is retried through the
 bridge's local HTTP proxy (see proxies.route_order and main._source_call).
@@ -30,6 +30,8 @@ import time
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from core.config import config
+
 log = logging.getLogger("asoplay.vpn")
 
 
@@ -41,21 +43,13 @@ VPN_PROXY_URL = f"http://{VPN_HOST}:{VPN_HTTP_PORT}"
 VPN_SOCKS_URL = f"socks5://{VPN_HOST}:{VPN_SOCKS_PORT}"
 _BRIDGE_PROXY_VALUES = {VPN_PROXY_URL, VPN_SOCKS_URL}
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
-VPN_TEMPLATE = _PROJECT_ROOT / "vpn.template.json"
-VPN_RUNTIME = _PROJECT_ROOT / ".xray-runtime.json"
-VPN_LOG = _PROJECT_ROOT / ".xray.log"
-
 _XRAY_CANDIDATES = [
     r"C:\Program Files\FlyFrogLLC\Happ\core\xray.exe",
     r"C:\Program Files\Mori VPN\xray.exe",
     r"C:\Program Files\v2rayN\xray.exe",
     r"C:\Program Files (x86)\v2rayN\xray.exe",
 ]
-_LEGACY_PATHS = [
-    str(Path.home() / ".asoplay" / "vpn.json"),
-    str(_PROJECT_ROOT / "vpn.txt"),
-]
+_LEGACY_PATHS = [str(path) for path in config.LEGACY_VPN_FILES]
 
 _xray_proc: subprocess.Popen | None = None
 _bridge_desired = False
@@ -65,7 +59,7 @@ _watchdog_thread: threading.Thread | None = None
 
 
 def is_enabled() -> bool:
-    return os.environ.get("AV_VPN_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
+    return config.vpn_enabled()
 
 
 def _restart_bridge_locked() -> bool:
@@ -159,15 +153,15 @@ def _vless_outbound(link: str) -> dict | None:
 
 
 def _build_config() -> dict | None:
-    link = os.environ.get("AV_VPN_URL", "").strip()
+    link = config.vpn_url()
     vless = _vless_outbound(link) if link else None
-    ss_addr = os.environ.get("SS_ADDRESS", "").strip()
-    ss_pass = os.environ.get("SS_PASSWORD", "").strip()
-    if VPN_TEMPLATE.is_file() and (vless or (ss_addr and ss_pass)):
+    ss_addr = config.ss_address()
+    ss_pass = config.ss_password()
+    if config.XRAY_TEMPLATE.is_file() and (vless or (ss_addr and ss_pass)):
         try:
-            cfg = json.loads(VPN_TEMPLATE.read_text(encoding="utf-8"))
+            cfg = json.loads(config.XRAY_TEMPLATE.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
-            log.warning("vpn.template.json is not valid JSON: %s", exc)
+            log.warning("xray.template.json is not valid JSON: %s", exc)
             return None
         if vless:
             # The proxy outbound stays first: xray sends unmatched traffic to it.
@@ -176,10 +170,10 @@ def _build_config() -> dict | None:
                      vless["settings"]["vnext"][0]["address"])
             return cfg
         try:
-            ss_port = int(os.environ.get("SS_PORT") or 0)
+            ss_port = int(config.ss_port() or 0)
         except ValueError:
             ss_port = 0
-        ss_method = os.environ.get("SS_METHOD", "chacha20-ietf-poly1305")
+        ss_method = config.ss_method()
         for outbound in cfg.get("outbounds", []):
             if outbound.get("tag") == "proxy" and outbound.get("protocol") == "shadowsocks":
                 servers = (outbound.get("settings") or {}).get("servers") or []
@@ -193,7 +187,7 @@ def _build_config() -> dict | None:
         log.info("VPN config prepared from template + .env (SS host %s)", ss_addr)
         return cfg
 
-    extra = os.environ.get("AV_VPN_CONFIG", "").strip()
+    extra = config.vpn_config_file()
     paths = [extra] if extra else []
     paths += _LEGACY_PATHS
     for candidate in paths:
@@ -211,7 +205,7 @@ def _prepare_runtime() -> Path | None:
     cfg = _build_config()
     if cfg is None:
         log.warning(
-            "VPN config not available — expected vpn.template.json + .env "
+            "VPN config not available — expected xray.template.json + .env "
             "(AV_VPN_URL or SS_ADDRESS/SS_PASSWORD) or a legacy vpn.json. "
             "Falling back to direct connection."
         )
@@ -223,8 +217,8 @@ def _prepare_runtime() -> Path | None:
             inbound["port"] = VPN_HTTP_PORT
         elif inbound.get("protocol") == "dokodemo-door":
             inbound["port"] = VPN_METRICS_PORT
-    VPN_RUNTIME.write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
-    return VPN_RUNTIME
+    config.XRAY_RUNTIME.write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
+    return config.XRAY_RUNTIME
 
 
 def _launch_xray(config_path: Path) -> subprocess.Popen | None:
@@ -233,7 +227,7 @@ def _launch_xray(config_path: Path) -> subprocess.Popen | None:
         log.warning("xray.exe not found — install Happ or v2rayN, or put xray in PATH")
         return None
     try:
-        logf = open(VPN_LOG, "ab", buffering=0)
+        logf = open(config.XRAY_LOG, "ab", buffering=0)
         creation = (
             subprocess.CREATE_NO_WINDOW
             if os.name == "nt" and hasattr(subprocess, "CREATE_NO_WINDOW")
@@ -256,7 +250,7 @@ def _launch_xray(config_path: Path) -> subprocess.Popen | None:
             log.info("xray up (pid=%s) — VPN on %s", proc.pid, VPN_PROXY_URL)
             return proc
         if proc.poll() is not None:
-            log.warning("xray exited early (code=%s) — see %s", proc.returncode, VPN_LOG)
+            log.warning("xray exited early (code=%s) — see %s", proc.returncode, config.XRAY_LOG)
             return None
         time.sleep(0.25)
     log.warning("xray started but proxy port %s did not come up", VPN_HTTP_PORT)
@@ -335,7 +329,7 @@ def start_watchdog() -> None:
     if _watchdog_thread and _watchdog_thread.is_alive():
         return
     _watchdog_stop.clear()
-    interval = max(0.25, float(os.environ.get("AV_VPN_WATCHDOG_INTERVAL", "0.5")))
+    interval = config.vpn_watchdog_interval()
 
     def _loop() -> None:
         while not _watchdog_stop.wait(interval):

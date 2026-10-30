@@ -15,15 +15,16 @@ from __future__ import annotations
 
 import base64
 import binascii
-import os
 import secrets
 from typing import Any
+
+from core.config import config
 
 _NONCE_BYTES = 12
 
 
 def _key() -> bytes | None:
-    raw = os.environ.get("AV_TOKEN_KEY", "").strip()
+    raw = config.token_key()
     if not raw:
         return None
     try:

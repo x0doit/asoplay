@@ -12,27 +12,25 @@ iframe. What we can safely do in this app:
 
 The filter files are not vendored into the proprietary repository. They are
 downloaded at runtime from AdGuard's public distribution URLs and cached under
-.cache/adblock, which is already ignored by git.
+core/config/cache/adblock, which is ignored by git.
 """
 from __future__ import annotations
 
 import asyncio
 import hashlib
 import logging
-import os
 import re
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 
+from core.config import config
+
 log = logging.getLogger("asoplay.adblock")
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
-_CACHE_DIR = _PROJECT_ROOT / ".cache" / "adblock"
 
 _DEFAULT_FILTER_URLS = (
     # AdGuard Russian filter.
@@ -141,18 +139,6 @@ _UNSUPPORTED_MODIFIERS = {
 }
 
 
-def _env_bool(name: str, default: bool) -> bool:
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    return raw.strip().lower() not in {"0", "false", "no", "off"}
-
-
-def _split_csv_env(name: str) -> tuple[str, ...]:
-    raw = os.environ.get(name, "")
-    return tuple(x.strip() for x in raw.split(",") if x.strip())
-
-
 def _host_suffixes(host: str) -> list[str]:
     host = host.lower().strip(".")
     if not host:
@@ -255,11 +241,11 @@ class _CompiledRules:
 
 class AdblockEngine:
     def __init__(self) -> None:
-        self.enabled = _env_bool("AV_ADBLOCK_ENABLED", True)
-        urls = _split_csv_env("AV_ADBLOCK_FILTER_URLS")
+        self.enabled = config.adblock_enabled()
+        urls = config.adblock_filter_urls()
         self.filter_urls = urls or _DEFAULT_FILTER_URLS
-        self.cache_ttl = max(3600, int(os.environ.get("AV_ADBLOCK_CACHE_TTL", "86400")))
-        self.allow_hosts = set(h.lower().strip(".") for h in _split_csv_env("AV_ADBLOCK_ALLOW_HOSTS"))
+        self.cache_ttl = config.adblock_cache_ttl()
+        self.allow_hosts = set(h.lower().strip(".") for h in config.adblock_allow_hosts())
         self.rules = _CompiledRules()
         self._refresh_task: asyncio.Task[None] | None = None
 
@@ -369,8 +355,8 @@ class AdblockEngine:
             )
 
     async def _get_filter_text(self, client: httpx.AsyncClient, url: str) -> str | None:
-        _CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        cache_file = _CACHE_DIR / f"{hashlib.sha256(url.encode('utf-8')).hexdigest()[:16]}.txt"
+        config.ADBLOCK_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        cache_file = config.ADBLOCK_CACHE_DIR / f"{hashlib.sha256(url.encode('utf-8')).hexdigest()[:16]}.txt"
         now = time.time()
         if cache_file.exists() and now - cache_file.stat().st_mtime < self.cache_ttl:
             return cache_file.read_text(encoding="utf-8", errors="ignore")
@@ -381,10 +367,10 @@ class AdblockEngine:
         return text
 
     async def _load_cached(self) -> None:
-        if not _CACHE_DIR.exists():
+        if not config.ADBLOCK_CACHE_DIR.exists():
             return
         texts: list[str] = []
-        for path in _CACHE_DIR.glob("*.txt"):
+        for path in config.ADBLOCK_CACHE_DIR.glob("*.txt"):
             try:
                 texts.append(path.read_text(encoding="utf-8", errors="ignore"))
             except OSError:
@@ -394,8 +380,8 @@ class AdblockEngine:
 
     def _compile(self, filter_texts: list[str]) -> _CompiledRules:
         rules = _CompiledRules(loaded_filters=len(filter_texts), updated_at=time.time())
-        regex_limit = int(os.environ.get("AV_ADBLOCK_REGEX_LIMIT", "25000"))
-        snippet_limit = int(os.environ.get("AV_ADBLOCK_SNIPPET_LIMIT", "25000"))
+        regex_limit = config.adblock_regex_limit()
+        snippet_limit = config.adblock_snippet_limit()
         for text in filter_texts:
             for raw in text.splitlines():
                 self._parse_line(raw, rules, regex_limit=regex_limit, snippet_limit=snippet_limit)

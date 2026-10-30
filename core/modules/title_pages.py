@@ -22,11 +22,9 @@ import asyncio
 import html
 import json
 import logging
-import os
 import re
 import unicodedata
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -36,17 +34,14 @@ from pydantic import BaseModel, Field, conint
 
 from core.classes.db import connect
 from core.classes.jikan import catalog as jikan_catalog
+from core.config import env
+from core.config.config import AUTHOR_NAME, AUTHOR_URL, SITE_NAME, SITE_URL
 from core.functions import site_settings
 
 log = logging.getLogger("asoplay.title_pages")
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_INDEX_HTML = _PROJECT_ROOT / "index.html"
+_INDEX_HTML = env.ROOT / "index.html"
 
-SITE_URL = os.environ.get("AV_SITE_URL", "http://127.0.0.1:8787").rstrip("/")
-SITE_NAME = os.environ.get("AV_SITE_NAME", "AsoPlay")
-AUTHOR_NAME = "Чепела Даниэль Максимович"
-AUTHOR_URL = "https://crazydev.pro/"
 TTL_FRESH = timedelta(days=7)
 TTL_STALE = timedelta(days=30)
 

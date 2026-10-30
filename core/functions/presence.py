@@ -44,7 +44,7 @@ from core.classes import as_api, db
 from core.config import animesocial
 from core.functions import rate_limit, social_login
 from core.classes.db import connect, current_user_required
-from core.modules.title_pages import SITE_URL
+from core.config.config import SITE_URL
 
 log = logging.getLogger("asoplay.presence")
 

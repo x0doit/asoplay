@@ -3,22 +3,19 @@
 
 Автор: Чепела Даниил Максимович.
 
-Адрес и порт берутся из AV_BIND_HOST и AV_BIND_PORT (по умолчанию 127.0.0.1:8787). Их читаем после импорта
-приложения: оно само подгружает .env, и значения оттуда тоже действуют.
+Адрес и порт берутся из AV_BIND_HOST и AV_BIND_PORT (по умолчанию 127.0.0.1:8787).
 """
-import os
-
 import uvicorn
 
-from core.core import app
+# Сначала сборка приложения: core.py первым делом подгружает .env, а настройки в config читают окружение при импорте
+from core import core
+from core.config import config
 
 
 def main() -> None:
     """Поднять uvicorn с приложением AsoPlay."""
-    host = os.environ.get("AV_BIND_HOST", "127.0.0.1")
-    port = int(os.environ.get("AV_BIND_PORT", "8787"))
     # Кадры вкладок — короткий JSON; ping-кадр раз в 25 секунд замечает оборванное соединение
-    uvicorn.run(app, host=host, port=port, log_level="info",
+    uvicorn.run(core.app, host=config.bind_host(), port=config.bind_port(), log_level="info",
                 ws_max_size=64 * 1024, ws_ping_interval=25, ws_ping_timeout=20)
 
 

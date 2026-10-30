@@ -26,13 +26,11 @@ import hashlib
 import hmac
 import json
 import logging
-import os
 import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -44,7 +42,8 @@ from core.classes.jikan import catalog as jikan_catalog
 from core.functions import site_settings, source_health, video_reports
 from core.modules import title_pages
 from core.classes.db import connect
-from core.modules.title_pages import SITE_URL
+from core.config import config, env
+from core.config.config import SITE_URL
 
 log = logging.getLogger("asoplay.admin")
 
@@ -80,12 +79,8 @@ def ok(data: Any) -> dict[str, Any]:
     return {"ok": True, "data": data}
 
 
-def _secret() -> bytes:
-    return os.environ.get("AV_ADMIN_SECRET", "").strip().encode("utf-8")
-
-
 def enabled() -> bool:
-    return bool(_secret())
+    return bool(config.admin_secret())
 
 
 def sign(secret: bytes, ts: str, method: str, path_with_query: str, admin_user: str, body: bytes) -> str:
@@ -119,7 +114,7 @@ async def admin_user(request: Request) -> int:
     host = request.client.host if request.client else ""
     if host not in _LOOPBACK or request.headers.get("x-forwarded-for") or request.headers.get("x-real-ip"):
         raise AdminError(404, "not_found", "Не найдено")
-    secret = _secret()
+    secret = config.admin_secret()
     if not secret:
         raise AdminError(503, "not_configured", "AV_ADMIN_SECRET не задан в .env AsoPlay")
     ts, _, given = request.headers.get("x-asoplay-admin", "").partition(".")
@@ -541,7 +536,7 @@ loaded_sources: Any = lambda: []
 def _version() -> str:
     """Версия сборки — та же, что в адресах файлов сайта (index.html, app.js?v=…)."""
     try:
-        text = (Path(__file__).resolve().parents[2] / "index.html").read_text(encoding="utf-8")
+        text = (env.ROOT / "index.html").read_text(encoding="utf-8")
     except OSError:
         return "unknown"
     found = re.search(r"app\.js\?v=([\w.-]+)", text)
