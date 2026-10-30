@@ -1,10 +1,10 @@
 -- AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
 -- All rights reserved. See /COPYRIGHT for full terms.
 --
--- Pass-3 migration: вход через Anime Social. Idempotent — safe to run on top of pass-2.
+-- Вход через Anime Social. Idempotent — safe to run again, after the earlier migrations.
 --
 -- Apply with:
---     mysql -u root AnimeSocial < sql/aviev-schema-pass3.sql
+--     mysql -u root AnimeSocial < core/migrations/2026-10-30_as_sessions.sql
 
 SET NAMES utf8mb4;
 SET time_zone = '+00:00';
@@ -12,7 +12,7 @@ SET time_zone = '+00:00';
 --
 -- aviev_as_sessions — сессия устройства Anime Social, выданная при входе через соцсеть.
 -- Одна строка на сессию AsoPlay (aviev_sessions.token): выход из AsoPlay завершает и её.
--- Токены зашифрованы (server/token_box.py, ключ AV_TOKEN_KEY из .env), сроки — Unix-секунды.
+-- Токены зашифрованы (core/classes/token_box.py, ключ AV_TOKEN_KEY из .env), сроки — Unix-секунды.
 --
 CREATE TABLE IF NOT EXISTS `aviev_as_sessions` (
     `session_token`       CHAR(64)        NOT NULL,

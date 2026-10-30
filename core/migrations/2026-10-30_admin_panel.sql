@@ -1,11 +1,11 @@
 -- AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
 -- All rights reserved. See /COPYRIGHT for full terms.
 --
--- Pass-5 migration: раздел «AsoPlay» в /cpanel Anime Social — жалобы «Не работает», пометки тайтлов,
--- настройки сайта и журнал действий администраторов (server/admin_api.py). Idempotent — safe to run on top of pass-4.
+-- Раздел «AsoPlay» в /cpanel Anime Social — жалобы «Не работает», пометки тайтлов,
+-- настройки сайта и журнал действий администраторов (core/admin/router.py). Idempotent — safe to run again, after the earlier migrations.
 --
 -- Apply with:
---     mysql -u root AnimeSocial < sql/aviev-schema-pass5.sql
+--     mysql -u root AnimeSocial < core/migrations/2026-10-30_admin_panel.sql
 
 SET NAMES utf8mb4;
 SET time_zone = '+00:00';
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS `aviev_admin_audit` (
 
 --
 -- aviev_watch_time — сколько секунд видео посмотрели вошедшие за каждый час (UTC), для «Обзора» в панели.
--- Считает server/user_lists.py по событиям плеера: сколько продвинулось видео между соседними событиями.
+-- Считает core/functions/lists.py по событиям плеера: сколько продвинулось видео между соседними событиями.
 --
 CREATE TABLE IF NOT EXISTS `aviev_watch_time` (
     `hour`        DATETIME        NOT NULL,

@@ -5,7 +5,7 @@
 -- existing AnimeSocial tables (prefix `Just*`) are intentionally untouched.
 --
 -- Apply with:
---     mysql -u root AnimeSocial < sql/aviev-schema.sql
+--     mysql -u root AnimeSocial < core/migrations/0000_schema.sql
 -- The script is idempotent (CREATE TABLE IF NOT EXISTS everywhere), so running
 -- it on a freshly-bootstrapped database or on one that already has partial
 -- tables is safe.

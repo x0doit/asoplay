@@ -7,7 +7,7 @@
  *
  * Config for AnimeSocial database (hosted on OpenServer Panel, MySQL 8).
  * Existing social-network tables use the prefix `Just`. The anime-site project
- * creates its own tables ONLY with the prefix `aviev` — see /sql/aviev-schema.sql.
+ * creates its own tables ONLY with the prefix `aviev` — see core/migrations/0000_schema.sql.
  */
 define ("DBHOST", "MySQL-8.0");
 define ("DBNAME", "AnimeSocial");

@@ -1,11 +1,11 @@
 -- AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
 -- All rights reserved. See /COPYRIGHT for full terms.
 --
--- Pass-4 migration: присутствие на AsoPlay — «онлайн на AsoPlay» в Anime Social и друзья.
--- Idempotent — safe to run on top of pass-3.
+-- Присутствие на AsoPlay — «онлайн на AsoPlay» в Anime Social и друзья.
+-- Idempotent — safe to run again, after the earlier migrations.
 --
 -- Apply with:
---     mysql -u root AnimeSocial < sql/aviev-schema-pass4.sql
+--     mysql -u root AnimeSocial < core/migrations/2026-10-30_presence.sql
 
 SET NAMES utf8mb4;
 

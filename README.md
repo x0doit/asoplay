@@ -206,20 +206,20 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── vpn/bridge.py       optional xray runtime bridge
 │   │   ├── sources/animevost.py native AnimeVost source adapter
 │   │   └── sources/oldyummy.py native old.yummyani source adapter
-│   └── config/
-│       ├── env.py              корень проекта и загрузка .env при старте
-│       ├── config.py           все настройки и переменные окружения в одном месте
-│       ├── animesocial.py      AnimeSocial URL/media configuration
-│       ├── animesocial.json    public URL/media mapping для AnimeSocial
-│       ├── db.php              формат DB-конфига AnimeSocial
-│       ├── server/             шаблон xray-конфига и unit systemd
-│       └── cache/              рабочие файлы: HTTP-кеш, adblock, xray (вне git)
-├── sql/
-│   ├── aviev-schema.sql        базовая схема aviev_*
-│   ├── aviev-schema-pass2.sql  списки, приватность, активность, compatibility
-│   ├── aviev-schema-pass3.sql  сессии входа через AnimeSocial
-│   ├── aviev-schema-pass4.sql  настройки присутствия на AsoPlay
-│   └── aviev-schema-pass5.sql  жалобы, пометки тайтлов, настройки сайта, журнал, время просмотра
+│   ├── config/
+│   │   ├── env.py              корень проекта и загрузка .env при старте
+│   │   ├── config.py           все настройки и переменные окружения в одном месте
+│   │   ├── animesocial.py      AnimeSocial URL/media configuration
+│   │   ├── animesocial.json    public URL/media mapping для AnimeSocial
+│   │   ├── db.php              формат DB-конфига AnimeSocial
+│   │   ├── server/             шаблон xray-конфига и unit systemd
+│   │   └── cache/              рабочие файлы: HTTP-кеш, adblock, xray (вне git)
+│   └── migrations/
+│       ├── 0000_schema.sql                       базовая схема aviev_*
+│       ├── 2026-04-30_lists_privacy_activity.sql списки, приватность, активность, compatibility
+│       ├── 2026-10-30_admin_panel.sql            жалобы, пометки тайтлов, настройки сайта, журнал, время просмотра
+│       ├── 2026-10-30_as_sessions.sql            сессии входа через AnimeSocial
+│       └── 2026-10-30_presence.sql               настройки присутствия на AsoPlay
 ├── .env.example                шаблон environment variables
 ├── COPYRIGHT                   proprietary copyright notice
 └── .gitignore                  ignored local/runtime artifacts
@@ -279,11 +279,11 @@ copy .env.example .env
 Применить database schema строго по порядку:
 
 ```bash
-mysql -u root AnimeSocial < sql/aviev-schema.sql
-mysql -u root AnimeSocial < sql/aviev-schema-pass2.sql
-mysql -u root AnimeSocial < sql/aviev-schema-pass3.sql
-mysql -u root AnimeSocial < sql/aviev-schema-pass4.sql
-mysql -u root AnimeSocial < sql/aviev-schema-pass5.sql
+mysql -u root AnimeSocial < core/migrations/0000_schema.sql
+mysql -u root AnimeSocial < core/migrations/2026-04-30_lists_privacy_activity.sql
+mysql -u root AnimeSocial < core/migrations/2026-10-30_admin_panel.sql
+mysql -u root AnimeSocial < core/migrations/2026-10-30_as_sessions.sql
+mysql -u root AnimeSocial < core/migrations/2026-10-30_presence.sql
 ```
 
 Запустить приложение:
@@ -690,20 +690,20 @@ Key capabilities:
 │   │   ├── vpn/bridge.py       optional xray runtime bridge
 │   │   ├── sources/animevost.py native AnimeVost source adapter
 │   │   └── sources/oldyummy.py native old.yummyani source adapter
-│   └── config/
-│       ├── env.py              project root and loading .env at start-up
-│       ├── config.py           every setting and environment variable in one place
-│       ├── animesocial.py      AnimeSocial URL/media configuration
-│       ├── animesocial.json    AnimeSocial public URL/media mapping
-│       ├── db.php              AnimeSocial DB config format
-│       ├── server/             xray config template and the systemd unit
-│       └── cache/              work files: HTTP cache, adblock, xray (not in git)
-├── sql/
-│   ├── aviev-schema.sql        base aviev_* schema
-│   ├── aviev-schema-pass2.sql  lists, privacy, activity and compatibility
-│   ├── aviev-schema-pass3.sql  sign-in with AnimeSocial sessions
-│   ├── aviev-schema-pass4.sql  presence settings
-│   └── aviev-schema-pass5.sql  reports, title flags, site settings, audit log, watch time
+│   ├── config/
+│   │   ├── env.py              project root and loading .env at start-up
+│   │   ├── config.py           every setting and environment variable in one place
+│   │   ├── animesocial.py      AnimeSocial URL/media configuration
+│   │   ├── animesocial.json    AnimeSocial public URL/media mapping
+│   │   ├── db.php              AnimeSocial DB config format
+│   │   ├── server/             xray config template and the systemd unit
+│   │   └── cache/              work files: HTTP cache, adblock, xray (not in git)
+│   └── migrations/
+│       ├── 0000_schema.sql                       base aviev_* schema
+│       ├── 2026-04-30_lists_privacy_activity.sql lists, privacy, activity and compatibility
+│       ├── 2026-10-30_admin_panel.sql            reports, title flags, site settings, audit log, watch time
+│       ├── 2026-10-30_as_sessions.sql            sign-in with AnimeSocial sessions
+│       └── 2026-10-30_presence.sql               presence settings
 ├── .env.example                environment template
 ├── COPYRIGHT                   proprietary copyright notice
 └── .gitignore                  ignored local/runtime artifacts
@@ -764,11 +764,11 @@ copy .env.example .env
 Apply database schema in order:
 
 ```bash
-mysql -u root AnimeSocial < sql/aviev-schema.sql
-mysql -u root AnimeSocial < sql/aviev-schema-pass2.sql
-mysql -u root AnimeSocial < sql/aviev-schema-pass3.sql
-mysql -u root AnimeSocial < sql/aviev-schema-pass4.sql
-mysql -u root AnimeSocial < sql/aviev-schema-pass5.sql
+mysql -u root AnimeSocial < core/migrations/0000_schema.sql
+mysql -u root AnimeSocial < core/migrations/2026-04-30_lists_privacy_activity.sql
+mysql -u root AnimeSocial < core/migrations/2026-10-30_admin_panel.sql
+mysql -u root AnimeSocial < core/migrations/2026-10-30_as_sessions.sql
+mysql -u root AnimeSocial < core/migrations/2026-10-30_presence.sql
 ```
 
 Start the application:

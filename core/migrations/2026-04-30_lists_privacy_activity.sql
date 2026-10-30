@@ -1,13 +1,10 @@
 -- AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
 -- All rights reserved. See /COPYRIGHT for full terms.
 --
--- Pass-2 migration. Idempotent — safe to run on top of pass-1 schema.
+-- Lists, privacy, activity and compatibility. Idempotent — safe to run again, after 0000_schema.sql.
 --
 -- Apply with:
---     mysql -u root AnimeSocial < sql/aviev-schema-pass2.sql
--- or via the runnable helper:
---     python .claude/backups/_dump_aviev.py   (for a backup first, if you like)
---     python -m sql.apply_pass2              (if you wire one)
+--     mysql -u root AnimeSocial < core/migrations/2026-04-30_lists_privacy_activity.sql
 
 SET NAMES utf8mb4;
 SET time_zone = '+00:00';
@@ -67,7 +64,7 @@ CREATE TABLE IF NOT EXISTS `aviev_activity` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Keep pass-1 watch history compatible with the player/list auto-rules.
+-- Keep the watch history of 0000_schema.sql compatible with the player/list auto-rules.
 -- Older dev databases may have been created before this column existed.
 --
 SET @has_history_total := (
