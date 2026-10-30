@@ -175,8 +175,9 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   ├── __main__.py             запуск uvicorn (адрес и порт — AV_BIND_HOST, AV_BIND_PORT)
 │   ├── core.py                 FastAPI wiring, static serving, sources
 │   ├── requirements.txt        Python runtime dependencies
-│   ├── api/sections/
-│   │   └── account.py          account compatibility API
+│   ├── api/sections/           разделы API сайта
+│   │   └── account/            /account/…: вход __init__.py подключает части в порядке маршрутов —
+│   │                           favorites, history, progress, ratings, settings, import_storage
 │   ├── admin/                  админ-API для раздела «AsoPlay» в /cpanel AnimeSocial (HMAC)
 │   │   ├── router.py           вход: подключает части в порядке маршрутов
 │   │   ├── auth.py             подпись, повторы, ошибки, обёртка ответов, страницы
@@ -192,6 +193,9 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── site_settings.py    что решила панель: пометки тайтлов, плашка, функции, источники
 │   │   ├── video_reports.py    жалобы «Не работает» из плеера
 │   │   ├── lists.py            list/status/favorite domain и auto-rules
+│   │   ├── progress.py         позиции в сериях, «досмотрено», пороги «Смотрю»
+│   │   ├── watch_history.py    история «Смотрю» и авто-статус после «не смотрел»
+│   │   ├── privacy.py          флаги приватности и их чтение
 │   │   ├── activity.py         contribution/activity event log
 │   │   ├── rate_limit.py       лимит попыток входа и IP посетителя за прокси
 │   │   ├── source_health.py    source failure/cooldown state
@@ -661,8 +665,9 @@ Key capabilities:
 │   ├── __main__.py             uvicorn start (address and port: AV_BIND_HOST, AV_BIND_PORT)
 │   ├── core.py                 FastAPI app wiring, static serving, sources
 │   ├── requirements.txt        Python runtime dependencies
-│   ├── api/sections/
-│   │   └── account.py          account compatibility API
+│   ├── api/sections/           site API sections
+│   │   └── account/            /account/…: the __init__.py entry includes the parts in route order —
+│   │                           favorites, history, progress, ratings, settings, import_storage
 │   ├── admin/                  admin API for the «AsoPlay» section in AnimeSocial /cpanel (HMAC)
 │   │   ├── router.py           entry: includes the parts in route order
 │   │   ├── auth.py             signature, replays, errors, response envelope, pages
@@ -678,6 +683,9 @@ Key capabilities:
 │   │   ├── site_settings.py    what the panel decided: title flags, notice, features, sources
 │   │   ├── video_reports.py    «Не работает» reports from the player
 │   │   ├── lists.py            list/status/favorite domain and auto-rules
+│   │   ├── progress.py         episode positions, «watched», «Watching» thresholds
+│   │   ├── watch_history.py    the «Watching» history and auto status after «not watched»
+│   │   ├── privacy.py          privacy flags and reading them
 │   │   ├── activity.py         contribution/activity event log
 │   │   ├── rate_limit.py       login attempt limit and visitor IP behind the proxy
 │   │   ├── source_health.py    source failure/cooldown state

@@ -33,6 +33,7 @@ import json as _json
 
 from core.classes.db import connect, current_user_required
 from core.functions.activity import record_event
+from core.functions.progress import auto_watching_qualified, history_qualified
 from core.classes.jikan import catalog as jikan_catalog
 
 log = logging.getLogger("asoplay.user_lists")
@@ -88,14 +89,6 @@ def _watched_seconds(user_id: int, mal_id: int, episode: int, position: int,
     if step <= 0 or wall <= 0 or wall > 300 or step > wall * 2 + 10:
         return 0
     return int(step)
-
-
-def _history_qualified(seconds: int, duration: int) -> bool:
-    return seconds >= 300 or (duration > 0 and seconds >= duration * 0.92)
-
-
-def _auto_watching_qualified(seconds: int, duration: int) -> bool:
-    return seconds >= 600 or (duration > 0 and seconds >= duration * 0.92)
 
 
 # ---------- helpers ----------
@@ -403,7 +396,7 @@ def progress_event(
         # watch_history = фид «Продолжить просмотр». Туда попадает реальный
         # просмотр от 5 минут или честно завершённая короткая серия; «просто
         # открыл страницу» не учитывается.
-        if _history_qualified(event.seconds, event.duration):
+        if history_qualified(event.seconds, event.duration):
             cur.execute(
                 """INSERT INTO aviev_watch_history
                     (user_id, mal_id, last_episode, episode_seconds, episode_duration,
@@ -439,7 +432,7 @@ def progress_event(
                 LIMIT 1""",
             (user["id"], event.mal_id),
         )
-        has_watching_signal = bool(cur.fetchone()) or _auto_watching_qualified(
+        has_watching_signal = bool(cur.fetchone()) or auto_watching_qualified(
             event.seconds,
             event.duration,
         )

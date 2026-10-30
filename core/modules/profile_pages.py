@@ -27,7 +27,7 @@ from fastapi.responses import HTMLResponse, Response
 from core.classes.db import (
     connect, current_user_optional, resolve_handle, _serialize_user,
 )
-from core.api.sections.account import read_privacy
+from core.functions.privacy import read_privacy
 from core.functions.activity import graph_for_user_public, fetch_recent_paged
 from core.config.config import SITE_NAME, SITE_URL
 from core.modules.title_pages import _read_shell, _override_head
