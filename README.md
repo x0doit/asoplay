@@ -177,8 +177,10 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   ├── requirements.txt        Python runtime dependencies
 │   ├── api/sections/
 │   │   └── account.py          account compatibility API
-│   ├── admin/
-│   │   └── router.py           админ-API для раздела «AsoPlay» в /cpanel AnimeSocial (HMAC)
+│   ├── admin/                  админ-API для раздела «AsoPlay» в /cpanel AnimeSocial (HMAC)
+│   │   ├── router.py           вход: подключает части в порядке маршрутов
+│   │   ├── auth.py             подпись, повторы, ошибки, обёртка ответов, страницы
+│   │   └── reports.py, audit.py, settings.py, titles.py, summary.py   разделы панели
 │   ├── modules/
 │   │   ├── title_pages.py      canonical anime pages, sitemap, robots
 │   │   ├── profile_pages.py    public profile API и SSR shell
@@ -661,8 +663,10 @@ Key capabilities:
 │   ├── requirements.txt        Python runtime dependencies
 │   ├── api/sections/
 │   │   └── account.py          account compatibility API
-│   ├── admin/
-│   │   └── router.py           admin API for the «AsoPlay» section in AnimeSocial /cpanel (HMAC)
+│   ├── admin/                  admin API for the «AsoPlay» section in AnimeSocial /cpanel (HMAC)
+│   │   ├── router.py           entry: includes the parts in route order
+│   │   ├── auth.py             signature, replays, errors, response envelope, pages
+│   │   └── reports.py, audit.py, settings.py, titles.py, summary.py   panel sections
 │   ├── modules/
 │   │   ├── title_pages.py      canonical anime pages, sitemap, robots
 │   │   ├── profile_pages.py    public profile API and SSR shell

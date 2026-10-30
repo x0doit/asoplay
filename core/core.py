@@ -38,7 +38,7 @@ env.load()  # до остальных импортов: настройки в co
 # VPN must not start during import — that was the old bug. We arm it from the
 # FastAPI startup event below. Importing the module is cheap and side-effect
 # free.
-from core.admin import router as admin_api
+from core.admin import auth as admin_auth, router as admin_router, summary as admin_summary
 from core.api.sections import account
 from core.classes import db, http
 from core.classes.adblock import engine as adblock
@@ -162,7 +162,7 @@ async def _startup() -> None:
     else:
         log.info("VPN bridge not active — falling back to direct outbound")
     vpn_bridge.start_watchdog()
-    admin_api.STARTED_AT = time.time()
+    admin_summary.STARTED_AT = time.time()
     await asyncio.to_thread(site_settings.state.load)
     await http.startup()
     await adblock.startup()
@@ -368,7 +368,7 @@ realtime.status_provider = lambda: {
 }
 realtime.extra_origins = {o.rstrip("/") for o in config.ALLOWED_ORIGINS if o != "*"}
 site_settings.listeners.append(lambda _what: realtime.status_changed())
-admin_api.loaded_sources = _all_sources
+admin_summary.loaded_sources = _all_sources
 
 
 @app.get("/health")
@@ -943,8 +943,8 @@ app.include_router(player_proxy.router)
 app.include_router(player_proxy.kodik_router)
 app.include_router(title_pages.router)
 app.include_router(video_reports.router)
-app.include_router(admin_api.router)
-app.add_exception_handler(admin_api.AdminError, admin_api.error_response)
+app.include_router(admin_router.router)
+app.add_exception_handler(admin_auth.AdminError, admin_auth.error_response)
 
 
 # Панели Anime Social ошибки — в обёртке API v2 и по-русски, остальным — как обычно у FastAPI
@@ -953,7 +953,7 @@ async def _validation_error(request: Request, exc: RequestValidationError):
     if request.url.path.startswith("/api/admin/"):
         field = ".".join(str(part) for part in (exc.errors() or [{}])[0].get("loc", ()) if part != "body")
         message = f"Неверное поле: {field}" if field else "Неверное тело запроса"
-        return admin_api.error_response(request, admin_api.AdminError(422, "validation_failed", message))
+        return admin_auth.error_response(request, admin_auth.AdminError(422, "validation_failed", message))
     return await request_validation_exception_handler(request, exc)
 
 
@@ -962,7 +962,7 @@ async def _http_error(request: Request, exc: StarletteHTTPException):
     if request.url.path.startswith("/api/admin/"):
         code, message = {404: ("not_found", "Нет такого метода"),
                          405: ("method_not_allowed", "Метод не поддерживается")}.get(exc.status_code, ("error", "Ошибка AsoPlay"))
-        return admin_api.error_response(request, admin_api.AdminError(exc.status_code, code, message))
+        return admin_auth.error_response(request, admin_auth.AdminError(exc.status_code, code, message))
     return await http_exception_handler(request, exc)
 
 
@@ -970,7 +970,7 @@ async def _http_error(request: Request, exc: StarletteHTTPException):
 async def _server_error(request: Request, exc: Exception):
     # Сам сбой всё равно попадёт в журнал сервера: обработчик только отвечает
     if request.url.path.startswith("/api/admin/"):
-        return admin_api.error_response(request, admin_api.AdminError(500, "internal_error", "Внутренняя ошибка AsoPlay"))
+        return admin_auth.error_response(request, admin_auth.AdminError(500, "internal_error", "Внутренняя ошибка AsoPlay"))
     return PlainTextResponse("Internal Server Error", status_code=500)
 
 
