@@ -39,7 +39,7 @@ env.load()  # до остальных импортов: настройки в co
 # FastAPI startup event below. Importing the module is cheap and side-effect
 # free.
 from core.admin import auth as admin_auth, router as admin_router, summary as admin_summary
-from core.api.sections import account
+from core.api.sections import account, lists
 from core.classes import db, http
 from core.classes.adblock import engine as adblock
 from core.classes.jikan import catalog as jikan_catalog
@@ -48,7 +48,7 @@ from core.classes.sources.oldyummy import OldYummy
 from core.classes.vpn import bridge as vpn_bridge
 from core.config import config
 from core.functions import (
-    activity, lists, presence, realtime, site_settings, social_login, source_health, video_reports,
+    activity, presence, realtime, site_settings, social_login, source_health, video_reports,
 )
 from core.functions.player_hosts import (
     VK_SCORE, iframe_preference_score, is_disabled_player_url, vk_video_ref,
