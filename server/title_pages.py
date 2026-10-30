@@ -18,6 +18,7 @@ stores the slim subset it needs for SEO. A TTL keeps the cache from drifting.
 """
 from __future__ import annotations
 
+import asyncio
 import html
 import json
 import logging
@@ -34,7 +35,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from pydantic import BaseModel, Field, conint
 
 from server.animesocial import connect
-from server import jikan_catalog
+from server import jikan_catalog, site_settings
 
 log = logging.getLogger("asoplay.title_pages")
 
@@ -454,7 +455,29 @@ async def canonical_title(stub: str):
     if incoming_slug != canonical_slug:
         return RedirectResponse(_canonical_path(mal_id, canonical_slug), status_code=301)
 
-    return _render_title_page(info)
+    page = _render_title_page(info)
+    if site_settings.hidden(mal_id):
+        # Скрыт из панели Anime Social по жалобе правообладателя: страница остаётся (SPA покажет, что видео
+        # недоступно), но для поисковиков — 451 и noindex
+        page.status_code = 451
+        page.headers["X-Robots-Tag"] = "noindex"
+        page.headers["Cache-Control"] = "no-cache"
+    return page
+
+
+def forget(mal_id: int) -> None:
+    """Сбросить страницу тайтла: следующий заход заново возьмёт его из каталога (кнопка «Сбросить кеш» в панели)."""
+    with connect() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM aviev_title_pages WHERE mal_id = %s", (mal_id,))
+        conn.commit()
+
+
+async def lookup(mal_id: int) -> dict[str, Any] | None:
+    """Тайтл из кеша страниц, а нет его там — из каталога (заодно в кеш). None — такого тайтла в MAL нет;
+    каталог недоступен — HTTPException 503."""
+    info = await asyncio.to_thread(_load_cached, mal_id)
+    return info if info is not None else await _fetch_and_store(mal_id)
 
 
 def _render_missing_title(mal_id: int, slug: str) -> HTMLResponse:
@@ -502,7 +525,7 @@ def sitemap() -> Response:
         xml.append(
             f"<url><loc>{html.escape(SITE_URL + path)}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>"
         )
-    for mal_id, slug, cached_at in rows:
+    for mal_id, slug, cached_at in (r for r in rows if not site_settings.hidden(int(r[0]))):
         loc = html.escape(_canonical_url(int(mal_id), slug))
         lastmod = (cached_at or now).strftime("%Y-%m-%d")
         xml.append(

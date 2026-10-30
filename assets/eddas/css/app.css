@@ -46,6 +46,18 @@ a {
 	a:hover { color: var(--brand-hover); }
 }
 
+/* «онлайн на AsoPlay» в профиле и у друзей: ссылка цветом строки, с подчёркиванием */
+a.presence-client {
+	color: inherit;
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+/* «в сети и на AsoPlay»: часть про сайт-клиент — фиолетовым, как половина точки */
+.presence-also {
+	color: var(--online-client);
+}
+
 h1, h2, h3, h4, h5, h6 {
 	margin: 0;
 	color: var(--text-strong);
@@ -121,9 +133,29 @@ img {
 	display: none !important;
 }
 
-/* Имя — блочная строка: многоточие работает только так */
+/* Имя — блочная строка: многоточие работает только так (во флекс-контейнере текст обрезается посреди буквы).
+   Имя в .ed-user__text рядом со значком подтверждения — флекс: обрезается имя, значок остаётся видимым */
 .ed-user__name {
 	display: block;
+}
+
+.ed-user__name:has(> .ed-user__text) {
+	display: inline-flex;
+}
+
+.ed-user__name:not(:has(> .ed-user__text)) > i {
+	margin-left: 4px;
+}
+
+.ed-user__text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.ed-user__verify,
+.ed-user__elite {
+	flex-shrink: 0;
 }
 
 .visually-hidden {

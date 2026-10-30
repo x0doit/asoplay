@@ -165,10 +165,10 @@ export const SheetDrag = {
   },
 };
 
-// Rows wider than their column (seasons, tabs, the activity graph, home rows on a phone) scroll sideways.
-// A finger swipes them; a mouse gets the same: the wheel moves the row while it has room to move, and the row
-// can be dragged. A drag that ends on a link does not open it.
-const STRIPS = ".seasons-bar, .tabs-scroll, .gh-scroll, .home-grid";
+// Rows wider than their column (seasons, tabs, the activity graph, home rows on a phone, friends on a title)
+// scroll sideways. A finger swipes them; a mouse gets the same: the wheel moves the row while it has room to
+// move, and the row can be dragged. A drag that ends on a link does not open it.
+const STRIPS = ".seasons-bar, .tabs-scroll, .gh-scroll, .home-grid, .title-friends__list";
 
 function scrollableStrip(target) {
   const strip = target?.closest?.(STRIPS);

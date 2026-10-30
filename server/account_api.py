@@ -900,23 +900,23 @@ def settings_put(
 
 
 # ---------- privacy ----------
+# hide_presence — не показывать, что человек на AsoPlay (друзьям здесь и в Anime Social),
+# show_watching — показывать друзьям, что он смотрит (server/presence.py). Всё по умолчанию выключено.
+PRIVACY_FIELDS = ("hide_lists", "hide_activity", "hide_presence", "show_watching")
+
+
+# Присланное поле меняется, отсутствующее остаётся как было: страница, открытая до появления
+# новых настроек, не сбросит их своим запросом.
 class PrivacyIn(BaseModel):
-    hide_lists: bool = False
-    hide_activity: bool = False
+    hide_lists: bool | None = None
+    hide_activity: bool | None = None
+    hide_presence: bool | None = None
+    show_watching: bool | None = None
 
 
 @router.get("/privacy")
 def privacy_get(user: dict[str, Any] = Depends(current_user_required)) -> dict[str, bool]:
-    with connect() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT hide_lists, hide_activity FROM aviev_privacy WHERE user_id=%s",
-            (user["id"],),
-        )
-        row = cur.fetchone()
-    if not row:
-        return {"hide_lists": False, "hide_activity": False}
-    return {"hide_lists": bool(row[0]), "hide_activity": bool(row[1])}
+    return read_privacy(user["id"])
 
 
 @router.put("/privacy")
@@ -924,22 +924,23 @@ def privacy_put(
     payload: PrivacyIn,
     user: dict[str, Any] = Depends(current_user_required),
 ) -> dict[str, bool]:
+    given = {f: getattr(payload, f) for f in PRIVACY_FIELDS if getattr(payload, f) is not None}
+    insert = [1 if given.get(f) else 0 for f in PRIVACY_FIELDS]
+    updates = [f"{f}=VALUES({f})" for f in given] + ["updated_at=VALUES(updated_at)"]
     with connect() as conn:
         cur = conn.cursor()
         cur.execute(
-            """INSERT INTO aviev_privacy (user_id, hide_lists, hide_activity, updated_at)
-                VALUES (%s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                    hide_lists=VALUES(hide_lists),
-                    hide_activity=VALUES(hide_activity),
-                    updated_at=VALUES(updated_at)""",
-            (
-                user["id"], 1 if payload.hide_lists else 0,
-                1 if payload.hide_activity else 0, _now(),
-            ),
+            f"""INSERT INTO aviev_privacy (user_id, {', '.join(PRIVACY_FIELDS)}, updated_at)
+                VALUES (%s, {', '.join(['%s'] * len(PRIVACY_FIELDS))}, %s)
+                ON DUPLICATE KEY UPDATE {', '.join(updates)}""",
+            (user["id"], *insert, _now()),
         )
         conn.commit()
-    return {"hide_lists": payload.hide_lists, "hide_activity": payload.hide_activity}
+    if "hide_presence" in given or "show_watching" in given:
+        # Друзья на сайте сразу увидят «вышел» или перестанут видеть, что он смотрит
+        from server import realtime
+        realtime.privacy_changed(int(user["id"]))
+    return read_privacy(user["id"])
 
 
 def read_privacy(user_id: int) -> dict[str, bool]:
@@ -947,13 +948,11 @@ def read_privacy(user_id: int) -> dict[str, bool]:
     with connect() as conn:
         cur = conn.cursor()
         cur.execute(
-            "SELECT hide_lists, hide_activity FROM aviev_privacy WHERE user_id=%s",
+            f"SELECT {', '.join(PRIVACY_FIELDS)} FROM aviev_privacy WHERE user_id=%s",
             (user_id,),
         )
         row = cur.fetchone()
-    if not row:
-        return {"hide_lists": False, "hide_activity": False}
-    return {"hide_lists": bool(row[0]), "hide_activity": bool(row[1])}
+    return {f: bool(row[i]) if row else False for i, f in enumerate(PRIVACY_FIELDS)}
 
 
 # ---------- one-time localStorage import ----------

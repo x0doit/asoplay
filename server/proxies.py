@@ -434,6 +434,15 @@ async def shiki_search(
         status = 503
     if status != 200:
         return await _yummy_search(q, limit, page)
+    from server import site_settings
+    if site_settings.state.flags.hidden:
+        # Скрытые из панели Anime Social тайтлы (жалоба правообладателя) не находятся и поиском
+        try:
+            items = json.loads(content.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            items = None
+        if isinstance(items, list):
+            content = json.dumps(site_settings.visible(items, "id"), ensure_ascii=False).encode("utf-8")
     return Response(content=content, media_type=ct)
 
 
@@ -450,10 +459,11 @@ async def _yummy_search(q: str, limit: int, page: int):
         raise HTTPException(502, "search reserve invalid response") from exc
     if status != 200 or not isinstance(items, list):
         raise HTTPException(502, "search providers unavailable")
+    from server import site_settings
     result = []
     for item in items:
         mal_id = (item.get("remote_ids") or {}).get("myanimelist_id")
-        if not str(mal_id or "").isdigit() or int(mal_id) <= 0:
+        if not str(mal_id or "").isdigit() or int(mal_id) <= 0 or site_settings.hidden(int(mal_id)):
             continue
         poster = item.get("poster") or {}
         image = poster.get("big") or poster.get("medium") or ""
@@ -557,3 +567,23 @@ async def shutdown() -> None:
     _vpn_client = None
     _vpn_client_proxy = None
     _vpn_preferred_until.clear()
+
+
+def cache_drop(key: str) -> bool:
+    """Удалить запись дискового кеша. True — она была."""
+    path = _cache_path(key)
+    found = False
+    for item in (path, path.with_suffix(".meta")):
+        try:
+            item.unlink()
+            found = True
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            log.warning("cache drop failed: %s", exc)
+    return found
+
+
+def forget_shiki_title(mal_id: int) -> bool:
+    """Карточка тайтла с Shikimori (кнопка «Сбросить кеш» в панели Anime Social)."""
+    return cache_drop(_cache_key("GET", f"{SHIKI_ORIGIN}/api/animes/{mal_id}"))

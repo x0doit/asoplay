@@ -10,6 +10,11 @@ All rights reserved. See /COPYRIGHT for full terms.
   GET /auth/as/callback          ← code (или error=access_denied) → обмен на токены,
                                    сессия AsoPlay, возврат на next
 
+Кто уже вошёл в AsoPlay по почте, тем же входом связывает с соцсетью свою сессию; если в
+соцсети открыт другой аккаунт, вход отклоняется (?as=other), а не подменяет человека.
+Форма почты тоже входит через соцсеть (password_login → POST /auth/login): пароль проверяет она,
+и сессия соцсети появляется у всех, а не только у вошедших кнопкой.
+
 code_verifier не покидает сервер: он лежит в памяти процесса до 10 минут под ключом
 state, а state ещё и в cookie этого браузера — чужой код в чужой браузер не
 подставить. Сессия устройства Anime Social после обмена хранится в
@@ -118,10 +123,28 @@ def _finish(location: str) -> RedirectResponse:
     return resp
 
 
+def _with_as(path: str, outcome: str) -> str:
+    """next с отметкой ?as=… — чем кончился вход; страница покажет сообщение."""
+    return f"{path}{'&' if '?' in path else '?'}as={outcome}"
+
+
+def _session_user(session: str) -> dict[str, Any] | None:
+    if not session:
+        return None
+    try:
+        return animesocial.touch_session(session)
+    except Exception:  # noqa: BLE001 — база недоступна: дальше вход всё равно не откроется
+        return None
+
+
 @router.get("/start")
 def as_start(request: Request, next: str = "/") -> RedirectResponse:
     if not enabled():
         raise HTTPException(404, "not found")
+    from server import site_settings
+    if not site_settings.feature("as_login"):
+        # Вход через Anime Social выключили в панели: обратно, с объяснением на странице
+        return RedirectResponse(_with_as(_safe_next(next), "disabled"), status_code=302)
     state = secrets.token_urlsafe(32)
     verifier = secrets.token_urlsafe(48)
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).rstrip(b"=").decode("ascii")
@@ -143,14 +166,51 @@ def as_callback(request: Request, code: str = "", state: str = "", error: str = 
     flow = _flows.take(state) if state and flow_state and hmac.compare_digest(state, flow_state) else None
     if flow is None:
         return _finish("/login?as=expired")
+    # Уже вошедший в AsoPlay (по почте) связывает с соцсетью ту же сессию — например, со страницы
+    # «Друзья»; неудача возвращает его туда же, а не на страницу входа
+    current = request.cookies.get(animesocial.COOKIE_NAME) or ""
+    signed_in = _session_user(current)
+
+    def fail(outcome: str) -> RedirectResponse:
+        return _finish(_with_as(flow["next"], outcome) if signed_in else f"/login?as={outcome}")
+
     if error or not code:
-        return _finish("/login?as=denied" if error == "access_denied" else "/login?as=error")
+        return fail("denied" if error == "access_denied" else "error")
     user_ip, user_agent = rate_limit.client_ip(request), request.headers.get("user-agent") or ""
     try:
         result = as_api.exchange_code(code, flow["verifier"], user_ip, user_agent)
     except as_api.ASApiError as exc:
         log.warning("Anime Social code exchange failed: %s %s", exc.status, exc.code)
+        return fail("error")
+    parsed = _auth_result(result)
+    if parsed is None:
+        return fail("error")
+    tokens, uid, user = parsed
+    if user.get("banned"):
+        _logout_quietly(str(tokens["access_token"]), user_ip, user_agent)
+        return fail("banned")
+    if signed_in:
+        if int(signed_in["id"]) != uid:
+            # В соцсети открыт другой аккаунт: молча менять того, кто вошёл в AsoPlay, нельзя
+            _logout_quietly(str(tokens["access_token"]), user_ip, user_agent)
+            return fail("other")
+        try:
+            _link(current, uid, tokens, user_ip, user_agent)
+        except Exception:  # noqa: BLE001 — как и при входе: связи нет, хвосты убираем
+            log.exception("Could not link the session to Anime Social")
+            _logout_quietly(str(tokens["access_token"]), user_ip, user_agent)
+            return fail("error")
+        return _finish(flow["next"])
+    session = _open_session(uid, tokens, request, user_ip, user_agent)
+    if session is None:
         return _finish("/login?as=error")
+    resp = _finish(flow["next"])
+    animesocial.set_session_cookie(resp, session)
+    return resp
+
+
+def _auth_result(result: Any) -> tuple[dict[str, Any], int, dict[str, Any]] | None:
+    """Ответ входа соцсети {tokens, user} → (токены, id, пользователь); испорченный ответ — None."""
     tokens = result.get("tokens") if isinstance(result, dict) else None
     user = result.get("user") if isinstance(result, dict) else None
     try:
@@ -158,14 +218,17 @@ def as_callback(request: Request, code: str = "", state: str = "", error: str = 
     except (TypeError, ValueError):
         uid = 0
     if not uid or not isinstance(tokens, dict) or not tokens.get("access_token") or not tokens.get("refresh_token"):
-        return _finish("/login?as=error")
-    if user.get("banned"):
-        _logout_quietly(str(tokens["access_token"]), user_ip, user_agent)
-        return _finish("/login?as=banned")
+        return None
+    return tokens, uid, user
+
+
+def _open_session(uid: int, tokens: dict[str, Any], request: Request, user_ip: str, user_agent: str) -> str | None:
+    """Сессия AsoPlay с привязанной сессией соцсети. Не вышло — None, сессия соцсети отозвана."""
     session = None
     try:
         session = animesocial.create_session(uid, request)
         _insert(session, uid, tokens)
+        return session
     except Exception:  # noqa: BLE001 — база недоступна или нет таблицы: вход не открываем, хвосты убираем
         log.exception("Could not open a session after sign-in with Anime Social")
         _logout_quietly(str(tokens["access_token"]), user_ip, user_agent)
@@ -174,10 +237,47 @@ def as_callback(request: Request, code: str = "", state: str = "", error: str = 
                 animesocial.revoke_session(session)
             except Exception:  # noqa: BLE001
                 log.exception("Could not revoke the half-open session")
-        return _finish("/login?as=error")
-    resp = _finish(flow["next"])
-    animesocial.set_session_cookie(resp, session)
-    return resp
+        return None
+
+
+# ---------- вход по почте и паролю через соцсеть ----------
+def password_login(email: str, password: str, request: Request) -> tuple[str, dict[str, Any]] | None:
+    """Форма почты AsoPlay. Пароль проверяет соцсеть (POST /auth/login с ключами клиента), и у человека
+    появляется сессия AsoPlay в соцсети, как после входа кнопкой: «онлайн на AsoPlay», уведомления о
+    сериях и события просмотра работают и для него. Возвращает (сессия, пользователь как в /auth/me);
+    None — неверная почта или пароль. Блокировку называет только тому, кто знает пароль (403), лимиты
+    соцсети — 429 с её Retry-After, соцсеть не отвечает — 503."""
+    user_ip, user_agent = rate_limit.client_ip(request), request.headers.get("user-agent") or ""
+    try:
+        result = as_api.password_login(email, password, user_ip, user_agent)
+    except as_api.ASApiError as exc:
+        if exc.code in ("invalid_credentials", "validation_failed"):
+            return None
+        if exc.code == "rate_limited":
+            raise HTTPException(429, "too many login attempts",
+                                headers={"Retry-After": str(exc.retry_after or 900)}) from exc
+        if exc.code == "invalid_client":
+            log.error("Anime Social rejected the client keys (AV_AS_CLIENT_ID / AV_AS_CLIENT_SECRET)")
+        else:
+            log.warning("Anime Social password login failed: %s %s", exc.status, exc.code)
+        raise HTTPException(503, "Anime Social is unavailable") from exc
+    parsed = _auth_result(result)
+    if parsed is None:
+        raise HTTPException(503, "Anime Social is unavailable")
+    tokens, uid, user = parsed
+    if user.get("banned"):
+        _logout_quietly(str(tokens["access_token"]), user_ip, user_agent)
+        raise HTTPException(403, "account is blocked")
+    session = _open_session(uid, tokens, request, user_ip, user_agent)
+    profile = _session_user(session) if session else None
+    if session and not profile:
+        # Аккаунта соцсети нет в базе AsoPlay: такой вход не открываем
+        log.error("Anime Social account %s is missing from the AsoPlay database", uid)
+        end_session(session, user_ip, user_agent)
+        animesocial.revoke_session(session)
+    if not profile:
+        raise HTTPException(503, "Anime Social is unavailable")
+    return session, profile
 
 
 # ---------- «Имя Фамилия, это вы?» на сайте Anime Social ----------
@@ -343,6 +443,27 @@ def access_token(session: str, user_ip: str = "", user_agent: str = "") -> str |
             return None
         _update(session, tokens)
         return str(tokens["access_token"])
+
+
+def forget_if_dead(session: str, exc: as_api.ASApiError) -> bool:
+    """Ответ соцсети на запрос токеном сессии: если её сессия больше не работает (человек завершил
+    «AsoPlay» в настройках соцсети, сменил пароль), связь удаляется. True — удалена."""
+    if exc.code not in _DEAD_SESSION:
+        return False
+    try:
+        _delete(session)
+    except Exception:  # noqa: BLE001
+        log.exception("Could not drop a dead Anime Social session")
+    return True
+
+
+def _link(session: str, uid: int, tokens: dict[str, Any], user_ip: str = "", user_agent: str = "") -> None:
+    """Связь сессии AsoPlay с новой сессией соцсети; прежняя сессия соцсети, если была, отзывается."""
+    previous = access_token(session, user_ip, user_agent)
+    if previous:
+        _logout_quietly(previous, user_ip, user_agent)
+    _delete(session)
+    _insert(session, uid, tokens)
 
 
 def _logout_quietly(token: str, user_ip: str = "", user_agent: str = "") -> None:

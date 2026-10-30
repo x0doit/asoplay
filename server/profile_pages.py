@@ -115,7 +115,8 @@ def profile_summary(
             "id", "handle", "profile_path", "name", "avatar", "avatar_small",
         )},
         "is_owner": is_owner,
-        "privacy": privacy,
+        # Посторонним — только то, что меняет страницу профиля
+        "privacy": {k: privacy[k] for k in ("hide_lists", "hide_activity")},
         "counts": None,
         "activity": None,
     }

@@ -43,9 +43,9 @@ except ImportError:
 # FastAPI startup event below. Importing the module is cheap and side-effect
 # free.
 from server import (
-    vpn_bridge, proxies, animesocial, as_login, account_api,
+    vpn_bridge, proxies, animesocial, as_login, account_api, presence, realtime,
     title_pages, user_lists, activity_log, profile_pages, adblock, player_proxy,
-    source_health, jikan_catalog,
+    source_health, jikan_catalog, admin_api, site_settings, video_reports,
 )
 from server.player_sources import (
     VK_SCORE, iframe_preference_score, is_disabled_player_url, vk_video_ref,
@@ -55,9 +55,12 @@ from server.player_sources import (
 import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 # Sources live next to main.py; when running as `uvicorn server.main:app` the
 # package layout picks them up. Both import styles are tried for resilience.
@@ -181,13 +184,19 @@ async def _startup() -> None:
     else:
         log.info("VPN bridge not active — falling back to direct outbound")
     vpn_bridge.start_watchdog()
+    admin_api.STARTED_AT = time.time()
+    await asyncio.to_thread(site_settings.state.load)
     await proxies.startup()
     await adblock.startup()
     await player_proxy.startup()
+    await presence.startup()
+    await realtime.startup()
 
 
 @app.on_event("shutdown")
 async def _shutdown() -> None:
+    await realtime.shutdown()
+    await presence.shutdown()
     await player_proxy.shutdown()
     await adblock.shutdown()
     await proxies.shutdown()
@@ -365,9 +374,28 @@ async def _source_call(source: str, op: str, run, timeout: float):
 
 
 # ---------- status endpoints ----------
+def _player_sources() -> list[str]:
+    """Источники для плеера: включённые в панели Anime Social, в её порядке, без тех, что сейчас остывают."""
+    ready = set(source_health.available_sources(_all_sources()))
+    return [s for s in site_settings.source_order() if s in ready]
+
+
+# Вкладкам по живому соединению (/ws): то же, что им нужно из /health, без запроса в базу, и то, что
+# решили в панели Anime Social (плашка, скрытые и 18+ тайтлы, способы входа) — правка видна сразу
+realtime.status_provider = lambda: {
+    "ok": True,
+    "sources": _player_sources(),
+    "vpn": vpn_bridge.is_active(),
+    "site": site_settings.public_state(),
+}
+realtime.extra_origins = {o.rstrip("/") for o in ALLOWED_ORIGINS if o != "*"}
+site_settings.listeners.append(lambda _what: realtime.status_changed())
+admin_api.loaded_sources = _all_sources
+
+
 @app.get("/health")
 def health():
-    active_sources = source_health.available_sources(_all_sources())
+    active_sources = _player_sources()
     return {
         "ok": True,
         "sources": active_sources,
@@ -376,6 +404,7 @@ def health():
         "db": animesocial.health(),
         "adblock": adblock.status(),
         "source_health": source_health.snapshot(_all_sources()),
+        "site": site_settings.public_state(),
     }
 
 
@@ -422,6 +451,11 @@ async def search(
     year: int | None = None,
     mal_id: int | None = None,
 ):
+    if mal_id and site_settings.hidden(mal_id):
+        # Скрыт из панели Anime Social по жалобе правообладателя — видео не ищем
+        raise HTTPException(451, "unavailable")
+    if not site_settings.source_enabled(source):
+        return []
     if source in NATIVE_SOURCES:
         try:
             results = await _source_call(
@@ -885,7 +919,7 @@ async def _random_watchable():
                 continue
             a = items[0]
             mal_id = (a.get("remote_ids") or {}).get("myanimelist_id")
-            if not mal_id:
+            if not str(mal_id or "").isdigit() or site_settings.hidden(int(mal_id)):
                 continue
             type_alias = (a.get("type") or {}).get("alias", "")
             if type_alias in ("music", "cm", "pv"):
@@ -922,12 +956,44 @@ app.include_router(proxies.router)
 app.include_router(animesocial.router)
 app.include_router(as_login.router)
 app.include_router(account_api.router)
+app.include_router(presence.router)
+app.include_router(realtime.router)
 app.include_router(user_lists.router)
 app.include_router(activity_log.router)
 app.include_router(profile_pages.router)
 app.include_router(player_proxy.router)
 app.include_router(player_proxy.kodik_router)
 app.include_router(title_pages.router)
+app.include_router(video_reports.router)
+app.include_router(admin_api.router)
+app.add_exception_handler(admin_api.AdminError, admin_api.error_response)
+
+
+# Панели Anime Social ошибки — в обёртке API v2 и по-русски, остальным — как обычно у FastAPI
+@app.exception_handler(RequestValidationError)
+async def _validation_error(request: Request, exc: RequestValidationError):
+    if request.url.path.startswith("/api/admin/"):
+        field = ".".join(str(part) for part in (exc.errors() or [{}])[0].get("loc", ()) if part != "body")
+        message = f"Неверное поле: {field}" if field else "Неверное тело запроса"
+        return admin_api.error_response(request, admin_api.AdminError(422, "validation_failed", message))
+    return await request_validation_exception_handler(request, exc)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def _http_error(request: Request, exc: StarletteHTTPException):
+    if request.url.path.startswith("/api/admin/"):
+        code, message = {404: ("not_found", "Нет такого метода"),
+                         405: ("method_not_allowed", "Метод не поддерживается")}.get(exc.status_code, ("error", "Ошибка AsoPlay"))
+        return admin_api.error_response(request, admin_api.AdminError(exc.status_code, code, message))
+    return await http_exception_handler(request, exc)
+
+
+@app.exception_handler(Exception)
+async def _server_error(request: Request, exc: Exception):
+    # Сам сбой всё равно попадёт в журнал сервера: обработчик только отвечает
+    if request.url.path.startswith("/api/admin/"):
+        return admin_api.error_response(request, admin_api.AdminError(500, "internal_error", "Внутренняя ошибка AsoPlay"))
+    return PlainTextResponse("Internal Server Error", status_code=500)
 
 
 # ---------- static assets + SPA shell ----------
@@ -990,4 +1056,6 @@ title_pages.register_shell_routes(app)
 if __name__ == "__main__":
     host = os.environ.get("AV_BIND_HOST", "127.0.0.1")
     port = int(os.environ.get("AV_BIND_PORT", "8787"))
-    uvicorn.run(app, host=host, port=port, log_level="info")
+    # Кадры вкладок — короткий JSON; ping-кадр раз в 25 секунд замечает оборванное соединение
+    uvicorn.run(app, host=host, port=port, log_level="info",
+                ws_max_size=64 * 1024, ws_ping_interval=25, ws_ping_timeout=20)

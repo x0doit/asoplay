@@ -17,6 +17,8 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import HTTPException
 
+from server import site_settings
+
 log = logging.getLogger("asoplay.catalog")
 _BRIDGE = Path(__file__).with_name("jikan") / "bridge.php"
 _VERSION = "embedded-jikan-5-v1"
@@ -219,7 +221,9 @@ async def catalog(path: str, params: dict | None = None) -> dict:
     if path == "random/anime":
         # Random MAL entry from a ranked pool; never assume sequential IDs exist.
         pool = await _native("top/anime", {"page": random.randint(1, 20), "filter": "bypopularity"})
-        candidate = random.choice(pool["data"])
+        candidate = random.choice(site_settings.visible(pool["data"]) or pool["data"])
+        if site_settings.hidden(candidate.get("mal_id")):
+            raise HTTPException(503, "No suitable random title; retry")
         result = await catalog(f"anime/{candidate['mal_id']}/full")
         if p.get("sfw") == "true" and not _safe(result["data"]):
             raise HTTPException(503, "No suitable random title; retry")
@@ -233,7 +237,8 @@ async def catalog(path: str, params: dict | None = None) -> dict:
         kind = p.get("filter") or p.get("type")
         rows = [x for x in rows if not x.get("continuing")
                 and (not kind or (x.get("type") or "").lower() == kind)
-                and (p.get("sfw") != "true" or _safe(x))]
+                and (p.get("sfw") != "true" or _safe(x))
+                and not site_settings.hidden(x.get("mal_id"))]
         rows.sort(key=lambda x: (-(x.get("members") or 0), x["mal_id"]))
         offset = (page - 1) * limit
         result = _page(rows[offset:offset + limit], page, limit, len(rows) > offset + limit)
@@ -241,11 +246,15 @@ async def catalog(path: str, params: dict | None = None) -> dict:
         return result
     # MAL pages contain 50 rows (100 for episodes). Filter BEFORE slicing so adjacent
     # AsoPlay pages neither lose nor repeat titles when SFW removes a MAL row.
+    # Titles hidden from the AnimeSocial panel (copyright) leave title lists the same way;
+    # episode rows also carry mal_id (the episode number), so they are not filtered.
     native_params = {k: v for k, v in p.items() if k != "sfw"}
+    titles = path in ("anime", "top/anime")
     offset, rows, native_page = (page - 1) * limit, [], 1
     while True:
         result = await _native(path, dict(native_params, page=native_page))
-        rows.extend(x for x in result["data"] if p.get("sfw") != "true" or _safe(x))
+        rows.extend(x for x in result["data"] if (p.get("sfw") != "true" or _safe(x))
+                    and not (titles and site_settings.hidden(x.get("mal_id"))))
         more = result["has_next_page"]
         if len(rows) > offset + limit or not more:
             return _page(rows[offset:offset + limit], page, limit, len(rows) > offset + limit or more)
@@ -262,3 +271,19 @@ async def fetch(path: str, params: dict | None = None, *, timeout: float = 25) -
             raise
         return b'{"data":null}', "application/json", 404
     return json.dumps(data, ensure_ascii=False).encode(), "application/json", 200
+
+
+async def search_titles(q: str, limit: int = 10) -> list[dict]:
+    """Поиск по каталогу без фильтров сайта — для панели Anime Social: там ищут и скрытые тайтлы."""
+    p = _validate("anime", {"q": q})
+    return (await _native("anime", {"q": p["q"], "page": 1}))["data"][:limit]
+
+
+def forget_title(mal_id: int) -> int:
+    """Удалить с диска кеш карточки тайтла, его персонажей, рекомендаций и списка серий (кнопка «Сбросить кеш»
+    в панели Anime Social). Сколько записей было."""
+    from server import proxies
+    keys = [proxies._cache_key("PARSE", f"{_VERSION}/anime/{mal_id}/{part}", {})
+            for part in ("full", "characters", "recommendations")]
+    keys += [proxies._cache_key("PARSE", f"{_VERSION}/anime/{mal_id}/episodes", {"page": n}) for n in range(1, 21)]
+    return sum(proxies.cache_drop(key) for key in keys)

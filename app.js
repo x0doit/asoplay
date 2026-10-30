@@ -9,8 +9,10 @@
  * any attempt to do so surfaces a guest-gate.
  */
 
-import * as account from "./js/account.js?v=20261030-auth2";
-import { setupNavigation, setActiveSection, SheetDrag } from "./js/navigation.js?v=20261029-eddas2";
+import * as account from "./js/account.js?v=20261030-online1";
+import { setupNavigation, setActiveSection, SheetDrag } from "./js/navigation.js?v=20261030-live1";
+import * as realtime from "./js/realtime.js?v=20261030-live1";
+import * as site from "./js/site.js?v=20261030-admin1";
 import { getTrailerId, bindTrailer } from "./js/trailer.js?v=20261029-eddas2";
 
 // Mark iframe embeds early enough for compact app-like layout rules.
@@ -379,16 +381,24 @@ const api = {
       const seen = new Set();
       return (j.data?.Page?.media || [])
         .filter(m => m.idMal && m.bannerImage && !seen.has(m.idMal) && (seen.add(m.idMal), true))
-        .map(m => ({
-          mal_id: m.idMal,
-          title: m.title.english || m.title.romaji,
-          cover: m.coverImage.extraLarge || m.coverImage.large,
-          banner: m.bannerImage,
-          score: m.averageScore ? (m.averageScore / 10).toFixed(1) : null,
-          episodes: m.episodes, type: m.format, year: m.seasonYear,
-          genres: (m.genres || []).slice(0, 4),
-          description: (m.description || "").replace(/<[^>]+>/g, "").replace(/&[a-z]+;/g, " ").trim(),
-        }));
+        .map(heroSlide);
+    } catch { return []; }
+  },
+  // Закреплённые в панели Anime Social — первыми в карусели, в её порядке. Широкого баннера у AniList
+  // бывает нет — тогда фоном обложка
+  pinnedRich: async ids => {
+    if (!ids.length) return [];
+    try {
+      const j = await fetchJson(ANILIST(), {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          query: `query ($ids:[Int]){ Page(perPage:10){ media(type:ANIME, idMal_in:$ids){
+            idMal title{romaji english native} coverImage{large extraLarge} bannerImage averageScore episodes format seasonYear genres description(asHtml:false)
+          }}}`, variables: { ids: ids.slice(0, 10) },
+        }),
+      });
+      const byId = new Map((j.data?.Page?.media || []).filter(m => m.idMal).map(m => [m.idMal, m]));
+      return ids.map(id => byId.get(id)).filter(Boolean).map(m => ({ ...heroSlide(m), pinned: true }));
     } catch { return []; }
   },
   trending: (lim = 18) => loadCatalogPage({ status: "airing", order_by: "popularity", limit: lim }).then(d => d.data),
@@ -421,7 +431,7 @@ const api = {
   async pingBackend() {
     try {
       const j = await fetchJson(`${BACKEND}/health`, { timeout: 1500 });
-      return { ok: !!j.ok, sources: j.sources || [], vpn: !!j.vpn };
+      return { ok: !!j.ok, sources: j.sources || [], vpn: !!j.vpn, site: j.site };
     } catch { return { ok: false, sources: [], vpn: false }; }
   },
   backendSearch: (q, s, yr, mal) => fetchJson(`${BACKEND}/src/search?q=${encodeURIComponent(q)}&source=${s}${yr ? `&year=${yr}` : ""}${mal ? `&mal_id=${mal}` : ""}`, { timeout: 12000 }),
@@ -586,6 +596,22 @@ function renderSkeletons(el, n = 12) {
 
 // ---------- hero carousel ----------
 let heroTimer = null;
+function heroSlide(m) {
+  return {
+    mal_id: m.idMal,
+    title: m.title.english || m.title.romaji,
+    cover: m.coverImage.extraLarge || m.coverImage.large,
+    banner: m.bannerImage || m.coverImage.extraLarge || m.coverImage.large,
+    score: m.averageScore ? (m.averageScore / 10).toFixed(1) : null,
+    episodes: m.episodes, type: m.format, year: m.seasonYear,
+    genres: (m.genres || []).slice(0, 4),
+    description: (m.description || "").replace(/<[^>]+>/g, "").replace(/&[a-z]+;/g, " ").trim(),
+  };
+}
+// Закреплённый — «Рекомендуем», остальные — место в тренде среди незакреплённых
+function heroBadge(slides, slide) {
+  return slide.pinned ? "Рекомендуем" : `${slides.filter(s => !s.pinned).indexOf(slide) + 1}-е место в тренде`;
+}
 async function renderHeroCarousel(container) {
   container.innerHTML = `
     <section class="ed-panel hero-carousel" id="avHero" role="region" aria-roledescription="карусель" aria-label="Аниме в тренде">
@@ -600,7 +626,16 @@ async function renderHeroCarousel(container) {
       </div>
     </section>`;
 
-  const slides = await api.trendingRich(8).catch(() => []);
+  const pinnedIds = site.pinned();
+  const [pinnedSlides, trending] = await Promise.all([
+    api.pinnedRich(pinnedIds).catch(() => []),
+    api.trendingRich(8).catch(() => []),
+  ]);
+  const taken = new Set(pinnedSlides.map(s => s.mal_id));
+  // Скрытые по жалобе правообладателя и 18+ в карусель не попадают
+  const slides = [...pinnedSlides, ...trending.filter(s => !taken.has(s.mal_id))]
+    .filter(s => !site.isHidden(s.mal_id) && !site.isAdult(s.mal_id))
+    .slice(0, 10);
   if (!container.isConnected) return;
   if (!slides.length) { container.innerHTML = ""; return; }
   const hero = $("#avHero", container);
@@ -616,7 +651,7 @@ async function renderHeroCarousel(container) {
     el.innerHTML = `
       <div class="hero-bg"><img src="${esc(imgUrl(s.banner))}" alt="" loading="${i === 0 ? "eager" : "lazy"}" fetchpriority="${i === 0 ? "high" : "low"}" decoding="async" /></div>
       <div class="hero-content">
-        <span class="ed-status ed-status--brand hero-badge">${i + 1}-е место в тренде</span>
+        <span class="ed-status ed-status--brand hero-badge">${esc(heroBadge(slides, s))}</span>
         <h2 class="hero-title" title="${esc(s.title)}">${esc(s.title)}</h2>
         <div class="title-stats hero-stats">
           ${s.score ? `<span class="title-score"><i class="fas fa-star" aria-hidden="true"></i>${s.score}</span>` : ""}
@@ -712,7 +747,7 @@ async function renderHeroCarousel(container) {
     }
     slides.forEach((s, i) => {
       const { el } = rendered.get(s.mal_id);
-      $(".hero-badge", el).textContent = `${i + 1}-е место в тренде`;
+      $(".hero-badge", el).textContent = heroBadge(slides, s);
     });
     const activeIndex = slides.indexOf(activeSlide);
     go(activeIndex >= 0 ? activeIndex : Math.min(idx, slides.length - 1));
@@ -1252,8 +1287,11 @@ async function viewAnime(malId) {
   ]).filter(Boolean);
   const player = new Player({ malId, titles: initialTitles, anime: a });
   player._shellCleanup = shellCleanup;
+  // С чем страница открылась — чтобы правка в панели Anime Social (скрыть, 18+) перестроила её сразу
+  player._siteFlags = { hidden: site.isHidden(malId), adult: site.isAdult(malId) };
   state.current = player;
   player.init();
+  account.renderTitleFriends(malId, () => !player.destroyed);
 
   shikiP.then(shiki => {
     if (!shiki || player.destroyed) return;
@@ -1339,6 +1377,7 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
             ${a.type ? `<span>${esc(typeRu)}</span>` : ""}
             ${a.year ? `<span>${a.year}</span>` : ""}
             ${statusChip}
+            ${site.isAdult(a.mal_id) ? `<span class="ed-status ed-status--danger title-adult" title="Только для взрослых">18+</span>` : ""}
           </div>
           <h1 class="title-name" id="avHeroTitle">${esc(titleMain)}</h1>
           <p class="title-original" id="avHeroSub">${esc([titleOrig, a.title_japanese].filter(Boolean).join(", "))}</p>
@@ -1389,6 +1428,8 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
       </div>
     </section>
 
+    <section class="ed-panel title-friends" id="avTitleFriends" aria-labelledby="avTitleFriendsHead" hidden></section>
+
     <div class="ed-note av-support" role="note">
       <i class="fas fa-handshake" aria-hidden="true"></i>
       <div>AsoPlay работает при поддержке <a href="${esc(social.site_url || "https://animesocial.online")}" target="_blank" rel="noopener">${esc(social.site_name || "AnimeSocial")}</a> — первой социальной сети для анимешников.</div>
@@ -1420,6 +1461,7 @@ function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis })
               <button class="ed-btn ed-btn--ghost ed-btn--sm sp-nav" id="avPrevEp" type="button"><i class="fas fa-backward-step" aria-hidden="true"></i><span>Предыдущая</span></button>
               <button class="ed-btn ed-btn--ghost ed-btn--sm sp-nav" id="avNextEp" type="button"><span>Следующая</span><i class="fas fa-forward-step" aria-hidden="true"></i></button>
             </div>
+            <button class="ed-btn ed-btn--ghost ed-btn--sm sp-report" id="avReportBtn" type="button" title="Сообщить модераторам, что видео не работает"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><span>Не работает</span></button>
             <label class="ed-switch sp-auto"><span>Автопереключение серий</span><input type="checkbox" role="switch" id="avAutoNext" /></label>
           </div>
 
@@ -1773,6 +1815,7 @@ function renderCharacters(chars) {
 }
 function renderRecommendations(recs) {
   const box = $("#avRecs"); if (!box) return;
+  recs = (recs || []).filter(r => !site.isHidden(r.entry?.mal_id));
   if (!recs?.length) {
     box.innerHTML = errorPage({ title: "Похожих тайтлов пока нет", message: "Рекомендации появятся, когда их добавят пользователи MyAnimeList.", icon: "fas fa-shapes" });
     return;
@@ -1793,6 +1836,14 @@ function renderRecommendations(recs) {
 }
 
 // ---------- player ----------
+// Порядок, в котором плеер перебирает источники: из панели Anime Social, а пока он не пришёл — прежний
+const DEFAULT_SOURCE_ORDER = ["yummy_anime", "oldyummy", "animego", "yummy_anime_org",
+                              "dreamcast", "anilibria", "anilibme", "sameband"];
+function sourcePriority() {
+  const order = site.sourceOrder();
+  return order.length ? order : DEFAULT_SOURCE_ORDER;
+}
+
 // Player frames served from our own origin run sandboxed with no storage, so
 // the page keeps the volume (and the volume keys a third-party player saves)
 // and hands them to every new frame in its URL fragment.
@@ -1961,6 +2012,9 @@ class Player {
   }
   async init() {
     this.status("Ищем аниме…");
+    this._bindReport();
+    // Скрыт в панели Anime Social по жалобе правообладателя: страница есть, видео нет
+    if (site.isHidden(this.malId)) { this.renderTakedown(); return; }
     if (!state.backendAvailable) { this.renderUnavailable("Бэкенд не запущен"); return; }
     if (this._isNonAnime()) {
       // Late titles must not start a search behind this banner.
@@ -1974,6 +2028,9 @@ class Player {
       this.renderComingSoon(releaseAt);
       return;
     }
+    // 18+ — видео ищем только после «Мне есть 18» (запоминается в этом браузере)
+    if (site.isAdult(this.malId) && !site.adultConfirmed() && !(await this._adultGate())) return;
+    if (this.destroyed) return;
     await this.discoverWithFallback();
     if (this.destroyed) return;
     if (this._adoptAnyReadySource() || this._renderFoundSource()) return;
@@ -2104,8 +2161,7 @@ class Player {
   }
 
   _backendSourcePriority() {
-    return ["yummy_anime", "oldyummy", "animego", "yummy_anime_org",
-            "dreamcast", "anilibria", "anilibme", "sameband"];
+    return sourcePriority();
   }
 
   _activateSourceForEpisode(src, episodes, index) {
@@ -2341,6 +2397,10 @@ class Player {
 
   _recordProgressPoint(epNum, seconds, duration, { renderOnAnyChange = false, forceEvent = false } = {}) {
     if (!epNum || seconds <= 0) return;
+    // Сюда сходятся сигналы всех плееров: по ним «смотрит» в присутствии на AsoPlay
+    const firstSignal = !this._lastPlaybackAt;
+    this._lastPlaybackAt = Date.now();
+    if (firstSignal) realtime.refreshWatching();
     const title = this.anime._ru || this.anime.title_english || this.anime.title || "";
     const poster = this.anime.images?.jpg?.large_image_url || this.anime.images?.jpg?.image_url || "";
     const total = this.anime?.episodes || this.episodes.length || 0;
@@ -2802,6 +2862,67 @@ class Player {
     this._countdownInt = setInterval(tick, 1000);
   }
 
+  renderTakedown() {
+    const ov = $("#avPlayerOverlay");
+    if (!ov) return;
+    ov.innerHTML = `
+      <div class="unavail">
+        <div class="unavail-icon"><i class="fas fa-ban" aria-hidden="true"></i></div>
+        <div class="unavail-title">Видео недоступно</div>
+        <div class="unavail-sub">Его убрали по требованию правообладателя. Описание, списки и оценки остаются.</div>
+      </div>`;
+    ov.classList.remove("hide");
+    const list = $("#avEpisodesList");
+    if (list) list.innerHTML = errorPage({ title: "Серий нет", message: "Видео этого тайтла недоступно по требованию правообладателя.", icon: "fas fa-ban" });
+  }
+
+  _adultGate() {
+    const ov = $("#avPlayerOverlay");
+    if (!ov) return Promise.resolve(false);
+    ov.innerHTML = `
+      <div class="unavail adult-gate">
+        <div class="unavail-icon adult-gate__mark" aria-hidden="true">18+</div>
+        <div class="unavail-title">Только для взрослых</div>
+        <div class="unavail-sub">В этом тайтле есть сцены для зрителей старше 18 лет.</div>
+        <div class="unavail-links">
+          <button type="button" class="ed-btn ed-btn--primary" data-adult-yes>Мне есть 18</button>
+          <a class="ed-btn ed-btn--secondary" href="/">На главную</a>
+        </div>
+      </div>`;
+    ov.classList.remove("hide");
+    return new Promise(resolve => {
+      ov.querySelector("[data-adult-yes]").addEventListener("click", () => {
+        site.confirmAdult();
+        ov.innerHTML = `<span class="ed-spinner spinner" aria-hidden="true"></span><div id="avPlayerStatus"></div>`;
+        this.status("Ищем аниме…");
+        resolve(true);
+      }, { once: true });
+    });
+  }
+
+  // «Не работает» — с первой секунды: жалоба нужнее всего, когда видео так и не нашлось. У скрытого тайтла
+  // жаловаться не на что
+  _bindReport() {
+    const report = $("#avReportBtn");
+    if (!report || report._bound) return;
+    report._bound = true;
+    report.hidden = site.isHidden(this.malId);
+    report.addEventListener("click", () => account.openVideoReport(this._reportContext()));
+  }
+
+  // Что сейчас в плеере — с жалобой «Не работает» уходит модераторам
+  _reportContext() {
+    const ep = this.episodes?.[this.currentEp];
+    const dub = this.currentDubs?.[this.currentDubIdx];
+    return {
+      malId: this.malId,
+      episode: Number(ep?.num) || null,
+      dub: dub?.label || "",
+      source: dub?._src || this._activeSource || "",
+      player: this._frameHost || "",
+    };
+  }
+
   renderUnavailable(msg, sub = "") {
     const ruTitle = this.anime._ru || "";
     const enTitle = this.anime.title_english || this.anime.title || "";
@@ -2910,8 +3031,7 @@ class Player {
   }
 
   async discoverWithFallback() {
-    const priority = ["yummy_anime", "oldyummy", "animego", "yummy_anime_org",
-                      "dreamcast", "anilibria", "anilibme", "sameband"];
+    const priority = sourcePriority();
     const available = new Set(state.backendSources || []);
     const pool = priority.filter(s => available.has(s));
     if (!pool.length) return;
@@ -2964,9 +3084,7 @@ class Player {
     if (this._activeSource && this.sources[`backend:${this._activeSource}`]?.episodes?.length) {
       return this._renderFoundSource();
     }
-    const priority = ["yummy_anime", "oldyummy", "animego", "yummy_anime_org",
-                      "dreamcast", "anilibria", "anilibme", "sameband"];
-    for (const s of priority) {
+    for (const s of sourcePriority()) {
       if (this.sources[`backend:${s}`]?.episodes?.length) {
         this._activeSource = s;
         return this._renderFoundSource();
@@ -3433,6 +3551,8 @@ async function router() {
   routeVersion++;
   state.current?.destroy?.();
   state.current = null;
+  // Ушли со страницы плеера — друзья сразу видят, что больше не смотрит
+  realtime.refreshWatching();
   clearInterval(heroTimer);
   window.scrollTo({ top: 0, behavior: "instant" });
   account.closeGate();
@@ -3462,6 +3582,7 @@ async function router() {
   if (m) return account.viewMyLists(m[1]);
   if (path === "/my/settings")          return account.viewMySettings();
   if (path === "/my/settings/privacy")  return account.viewMySettings("privacy");
+  if (path === "/my/friends")           return account.viewMyFriends();
 
   // Публичный профиль: /@handle (alias или profile{id})
   m = path.match(/^\/@([a-zA-Z0-9_.-]+)\/?$/);
@@ -3493,13 +3614,18 @@ function _migrateHashOnBoot() {
   }
 }
 
-// ---------- backend ping ----------
-async function refreshBackend() {
-  const { ok, sources, vpn } = await api.pingBackend();
+// ---------- backend status ----------
+function applyBackendStatus({ ok, sources, vpn, site: panel }) {
   state.backendAvailable = ok;
   state.useProxy = ok;
   state.proxyImages = ok && vpn;
-  state.backendSources = sources;
+  state.backendSources = sources || [];
+  // Плашка, скрытые и 18+ тайтлы, способы входа и порядок источников — из панели Anime Social
+  site.apply(panel);
+}
+
+async function refreshBackend() {
+  applyBackendStatus(await api.pingBackend());
 }
 
 // ---------- events ----------
@@ -3560,5 +3686,28 @@ bind();
     enrichWithShiki,
   });
   router();
-  setInterval(refreshBackend, 30000);
+  // Дальше состояние сервера приходит по живому соединению, а не опросом /health раз в 30 секунд
+  document.addEventListener("av:status", (e) => applyBackendStatus(e.detail));
+  // Соединение не поднимается третью попытку подряд — один раз спрашиваем /health, жив ли сервер
+  document.addEventListener("av:link", (e) => { if (!e.detail.up && e.detail.failures === 3) refreshBackend(); });
+  realtime.start({ backendUrl: BACKEND, watching: presenceWatching });
+  // Тайтл, который сейчас открыт, скрыли или пометили 18+ в панели Anime Social — страница перестраивается сразу
+  document.addEventListener("av:site", (e) => {
+    const p = state.current;
+    if (!(p instanceof Player) || p.destroyed) return;
+    const { changed } = e.detail;
+    const now = { hidden: site.isHidden(p.malId), adult: site.isAdult(p.malId) };
+    const was = p._siteFlags || now;
+    p._siteFlags = now;
+    if ((changed.has("hidden") && now.hidden !== was.hidden) || (changed.has("adult") && now.adult !== was.adult)) router();
+  });
 })();
+
+// Что сейчас играет — для «смотрит» друзьям. Полторы минуты без сигнала плеера (пауза) — уже не смотрит
+function presenceWatching() {
+  const p = state.current;
+  if (!state.user || !(p instanceof Player) || p.destroyed || Date.now() - (p._lastPlaybackAt || 0) > 90_000) return null;
+  // Название — как в шапке страницы: Shikimori заменяет там английское на русское
+  const shown = document.querySelector("#avHeroTitle")?.textContent.trim();
+  return { mal_id: p.malId, title: shown || p.anime?.title_english || p.anime?.title || "" };
+}

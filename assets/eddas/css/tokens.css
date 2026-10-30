@@ -154,6 +154,8 @@
 	--bubble-btn-text: #4c637b;
 	--date-pill: rgba(27, 37, 50, 0.72);
 	--online: #17854f;
+	/* «в сети» на сайте-клиенте (AsoPlay): фиолетовые точка и подпись */
+	--online-client: #7c3aed;
 	--success: #1f7a4d;
 	--success-fill: #1f7a4d;
 	--danger: #c0392b;
@@ -211,6 +213,7 @@
 	--bubble-btn-text: #f4f7fa;
 	--date-pill: rgba(52, 71, 92, 0.85);
 	--online: #3fc482;
+	--online-client: #a78bfa;
 	--success: #5fd49a;
 	--success-fill: #1f7a4d;
 	--danger: #ff8a7a;
@@ -267,6 +270,7 @@
 		--bubble-btn-text: #f4f7fa;
 		--date-pill: rgba(52, 71, 92, 0.85);
 		--online: #3fc482;
+		--online-client: #a78bfa;
 		--success: #5fd49a;
 		--success-fill: #1f7a4d;
 		--danger: #ff8a7a;

@@ -8,7 +8,7 @@ publishing any persistent operational state.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import time
 from typing import Iterable
 
@@ -16,6 +16,8 @@ from typing import Iterable
 FAIL_THRESHOLD = 3
 COOLDOWN_SECONDS = 60.0
 MAX_ERROR_LENGTH = 180
+# Окно для «Обзора» в панели Anime Social: доля ошибок и задержка за последние сутки, по часам
+WINDOW_HOURS = 24
 
 
 @dataclass
@@ -29,6 +31,14 @@ class SourceState:
     last_error_at: float = 0.0
     last_error: str = ""
     latency_ms: int | None = None
+    # номер часа → [успехи, ошибки, сумма задержек успехов в мс]
+    hours: dict[int, list[int]] = field(default_factory=dict)
+
+    def _hour(self) -> list[int]:
+        now = int(time.time() // 3600)
+        for old in [h for h in self.hours if h <= now - WINDOW_HOURS]:
+            del self.hours[old]
+        return self.hours.setdefault(now, [0, 0, 0])
 
 
 _STATES: dict[str, SourceState] = {}
@@ -57,12 +67,16 @@ def mark_success(source: str, latency_ms: int | None = None) -> None:
     state.cooldown_until = 0.0
     state.last_ok_at = time.time()
     state.latency_ms = latency_ms
+    hour = state._hour()
+    hour[0] += 1
+    hour[2] += max(0, latency_ms or 0)
 
 
 def mark_failure(source: str, error: object) -> None:
     state = _state(source)
     state.failures += 1
     state.consecutive_failures += 1
+    state._hour()[1] += 1
     state.last_error_at = time.time()
     msg = str(error or "").replace("\n", " ").strip()
     state.last_error = msg[:MAX_ERROR_LENGTH]
@@ -93,3 +107,18 @@ def snapshot(sources: Iterable[str] | None = None) -> dict[str, dict[str, object
             "latency_ms": state.latency_ms,
         }
     return out
+
+
+def window(source: str) -> dict[str, object]:
+    """За последние WINDOW_HOURS часов: сколько было запросов, доля ошибок и средняя задержка успешных."""
+    state = _state(source)
+    state._hour()
+    ok = sum(h[0] for h in state.hours.values())
+    failed = sum(h[1] for h in state.hours.values())
+    latency = sum(h[2] for h in state.hours.values())
+    total = ok + failed
+    return {
+        "requests_24h": total,
+        "fail_rate_24h": round(failed / total, 3) if total else None,
+        "latency_ms": round(latency / ok) if ok else None,
+    }

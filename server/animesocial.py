@@ -535,6 +535,15 @@ def revoke_session(token: str) -> None:
         conn.commit()
 
 
+def revoke_user_sessions(user_id: int) -> None:
+    """Страницу заблокировали в Anime Social: все сессии человека в AsoPlay и их связи с соцсетью — закрыть."""
+    with connect() as conn:
+        cur = conn.cursor()
+        cur.execute("UPDATE `aviev_sessions` SET `revoked` = 1 WHERE `user_id` = %s", (user_id,))
+        cur.execute("DELETE FROM `aviev_as_sessions` WHERE `user_id` = %s", (user_id,))
+        conn.commit()
+
+
 # ---------- FastAPI dependencies ----------
 def current_user_optional(
     request: Request,
@@ -590,6 +599,10 @@ _login_by_identity = rate_limit.SlidingWindow(8, LOGIN_WINDOW)
 
 @router.post("/login")
 def auth_login(payload: LoginIn, request: Request, response: Response) -> dict[str, Any]:
+    from server import site_settings
+    if not site_settings.feature("password_login"):
+        # Вход по почте выключили в панели Anime Social
+        raise HTTPException(403, "password_login_disabled")
     identity = payload.login.strip()
     ip = rate_limit.client_ip(request)
     identity_key = identity.lower()
@@ -598,6 +611,20 @@ def auth_login(payload: LoginIn, request: Request, response: Response) -> dict[s
         raise HTTPException(429, "too many login attempts", headers={"Retry-After": str(wait)})
     if not identity or not payload.password:
         raise HTTPException(401, "invalid credentials")
+    # as_login сам импортирует этот модуль, поэтому импорт здесь, а не наверху
+    from server import as_login
+    if as_login.enabled():
+        # Пароль проверяет соцсеть, и вошедший по почте получает ту же сессию AsoPlay в соцсети,
+        # что и вошедший кнопкой; вход только по почте — как на сайте соцсети
+        signed = as_login.password_login(identity, payload.password, request)
+        if signed is None:
+            _login_by_ip.hit(ip)
+            _login_by_identity.hit(identity_key)
+            raise HTTPException(401, "invalid credentials")
+        _login_by_identity.reset(identity_key)
+        token, user = signed
+        set_session_cookie(response, token)
+        return {"ok": True, "user": user}
     row = _lookup_user(identity)
     # Блокировку называем только тому, кто знает пароль: иначе форма выдаёт, что аккаунт есть
     if not row or not _verify_password(payload.password, row["hash_col"], row.get("salt_col")):
@@ -622,8 +649,10 @@ def auth_logout(
 ) -> dict[str, Any]:
     if token:
         # as_login сам импортирует этот модуль, поэтому импорт здесь, а не наверху
-        from server import as_login
+        from server import as_login, realtime
         as_login.end_session(token, rate_limit.client_ip(request), request.headers.get("user-agent") or "")
+        # Вкладки этой сессии переподключаются гостями
+        realtime.drop_session(token)
         try:
             revoke_session(token)
         except HTTPException:

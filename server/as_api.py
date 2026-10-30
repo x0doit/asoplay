@@ -16,8 +16,10 @@ AsoPlay — доверенный сайт-клиент (socialnetwork.local/docs
 """
 from __future__ import annotations
 
+import functools
 import logging
 import os
+import ssl
 from typing import Any
 
 import httpx
@@ -30,11 +32,13 @@ _TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 
 
 class ASApiError(Exception):
-    def __init__(self, status: int, code: str, message: str = ""):
+    def __init__(self, status: int, code: str, message: str = "", retry_after: int = 0):
         super().__init__(f"{status} {code}: {message}")
         self.status = status
         self.code = code
         self.message = message
+        # Через сколько секунд повторять — Retry-After соцсети при rate_limited и maintenance
+        self.retry_after = retry_after
 
 
 def base_url() -> str:
@@ -60,6 +64,17 @@ def client_id() -> str:
     return _client_keys()[0]
 
 
+@functools.lru_cache(maxsize=4)
+def _tls(ca: str) -> ssl.SSLContext | bool:
+    """Сертификат соцсети сверяется с набором certifi; AV_AS_CA — свой файл CA или system — хранилище
+    системы (ему доверяет самоподписанный сертификат локального движка в OSPanel)."""
+    if not ca:
+        return True
+    if ca.lower() == "system":
+        return ssl.create_default_context()
+    return ssl.create_default_context(cafile=ca)
+
+
 def call(method: str, path: str, *, token: str | None = None, body: dict[str, Any] | None = None,
          user_ip: str = "", user_agent: str = "") -> Any:
     client, secret = _client_keys()
@@ -71,9 +86,9 @@ def call(method: str, path: str, *, token: str | None = None, body: dict[str, An
     if token:
         headers["Authorization"] = f"Bearer {token}"
     try:
-        with httpx.Client(timeout=_TIMEOUT) as client:
+        with httpx.Client(timeout=_TIMEOUT, verify=_tls(os.environ.get("AV_AS_CA", "").strip())) as client:
             resp = client.request(method, base_url() + path, json=body, headers=headers)
-    except httpx.HTTPError as exc:
+    except (httpx.HTTPError, OSError) as exc:
         raise ASApiError(503, "unavailable", str(exc)) from exc
     try:
         payload = resp.json()
@@ -83,7 +98,16 @@ def call(method: str, path: str, *, token: str | None = None, body: dict[str, An
         return payload.get("data")
     error = payload.get("error") if isinstance(payload, dict) else None
     error = error if isinstance(error, dict) else {}
-    raise ASApiError(resp.status_code, str(error.get("code") or "error"), str(error.get("message") or ""))
+    try:
+        retry_after = max(0, int(resp.headers.get("retry-after") or 0))
+    except ValueError:
+        retry_after = 0
+    raise ASApiError(resp.status_code, str(error.get("code") or "error"), str(error.get("message") or ""), retry_after)
+
+
+def password_login(email: str, password: str, user_ip: str = "", user_agent: str = "") -> dict[str, Any]:
+    """Почта и пароль → {tokens, user}; сессия выдаётся AsoPlay, как после входа через сайт соцсети."""
+    return call("POST", "/auth/login", body={"login": email, "password": password}, user_ip=user_ip, user_agent=user_agent)
 
 
 def exchange_code(code: str, verifier: str, user_ip: str = "", user_agent: str = "") -> dict[str, Any]:

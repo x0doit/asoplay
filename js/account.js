@@ -11,7 +11,9 @@
  */
 
 import { calendarMonth, dayDate, groupActivity } from "./profile-activity.js?v=20261027-profile6";
-import { activeSection, applyTheme, getTheme, syncThemeLabels, themeLabel, SheetDrag } from "./navigation.js?v=20261029-eddas2";
+import { activeSection, applyTheme, getTheme, syncThemeLabels, themeLabel, SheetDrag } from "./navigation.js?v=20261030-live1";
+import * as realtime from "./realtime.js?v=20261030-live1";
+import * as siteState from "./site.js?v=20261030-admin1";
 
 let ctx = null;
 let authConfig = {
@@ -40,11 +42,25 @@ export async function setup(hooks) {
   // Expose the social config on shared state so app.js can read it from
   // any view (e.g. the "supported by" banner on the anime page).
   ctx.state.social = authConfig.social;
+  // Способы входа выключили или включили в панели Anime Social — страница входа сразу показывает новые
+  document.addEventListener("av:site", (e) => {
+    if (!e.detail.changed.has("login")) return;
+    if (location.pathname.startsWith("/login")) viewLogin(new URLSearchParams(location.search));
+    if (!_socialLogin()) document.querySelector(".as-hint")?.remove();
+  });
   await refresh();
   maybeOfferAsAccount();
 }
 
+// Вход через Anime Social: AsoPlay подключён к соцсети и вход не выключен в её панели
+function _socialLogin() {
+  return !!authConfig.as_login && siteState.login().social;
+}
+
 export function getSocialConfig() { return authConfig.social; }
+
+// Вход закрыли в другой вкладке или страницу заблокировали в соцсети: шапка и разделы — как у гостя
+document.addEventListener("av:session-ended", () => { if (ctx?.state.user) refresh(); });
 
 function _historyQualifiedProgress(seconds, duration) {
   const sec = Number(seconds || 0);
@@ -76,6 +92,9 @@ function _rememberGuestDub(malId, key) {
   try { localStorage.setItem(GUEST_DUBS_KEY, JSON.stringify(pairs.slice(-GUEST_DUBS_LIMIT))); } catch (_) {}
 }
 
+// hide_presence и show_watching — присутствие на AsoPlay (server/presence.py)
+const PRIVACY_DEFAULTS = { hide_lists: false, hide_activity: false, hide_presence: false, show_watching: false };
+
 export async function refresh() {
   try {
     const r = await _fetchJson("/auth/me", { credentials: "include" });
@@ -106,7 +125,7 @@ async function _hydratePersonal() {
     _fetchJson("/account/ratings").catch(() => ({})),
     _fetchJson("/account/dub-prefs").catch(() => ({})),
     _fetchJson("/account/settings").catch(() => ({ autonext: true, auto_add_lists: true })),
-    _fetchJson("/account/privacy").catch(() => ({ hide_lists: false, hide_activity: false })),
+    _fetchJson("/account/privacy").catch(() => ({ ...PRIVACY_DEFAULTS })),
   ]);
   const [lists, history, ratings, dubPrefs, settings, privacy] = out;
 
@@ -144,7 +163,7 @@ async function _hydratePersonal() {
   ctx.state.dubPrefs = dubPrefs || {};
   ctx.state.autoNext = (settings && settings.autonext) !== false;
   ctx.state.autoAddLists = settings ? !!settings.auto_add_lists : true;
-  ctx.state.privacy = privacy || { hide_lists: false, hide_activity: false };
+  ctx.state.privacy = { ...PRIVACY_DEFAULTS, ...(privacy || {}) };
 }
 
 function _fetchJson(path, opts = {}) {
@@ -176,13 +195,18 @@ export async function login(identity, password) {
   ctx.state.user = r.user;
   await _hydratePersonal();
   renderHeader();
+  // Соединение открывалось гостем — теперь от имени человека: присутствие и события друзей
+  realtime.restart();
   setTimeout(() => { maybeOfferLocalImport(); }, 300);
   return r.user;
 }
 
 function _loginErrorMessage(exc) {
-  if (exc?.status === 401 || exc?.status === 422) return "Неправильный логин или пароль.";
+  // С соцсетью вход только по почте — как на её сайте
+  if (exc?.status === 401 || exc?.status === 422) return authConfig.as_login ? "Неправильная почта или пароль." : "Неправильный логин или пароль.";
+  if (exc?.status === 403 && /password_login_disabled/.test(exc.message)) return "Вход по почте сейчас выключен.";
   if (exc?.status === 403) return "Аккаунт заблокирован.";
+  if (exc?.status === 503) return `${socialSiteName()} не отвечает. Попробуйте войти чуть позже.`;
   if (exc?.status === 429) {
     const minutes = Math.max(1, Math.ceil((exc.retryAfter || 900) / 60));
     return `Слишком много попыток входа. Попробуйте снова через ${minutes} ${_plural(minutes, ["минуту", "минуты", "минут"])}.`;
@@ -289,6 +313,8 @@ function _showImportPrompt(blob, total, flagKey) {
 
 export async function logout() {
   try { await _fetchJson("/auth/logout", { method: "POST" }); } catch (_) {}
+  // Живое соединение было от имени человека — переподключаемся гостем
+  realtime.restart();
   _clearProgressQueues();
   ctx.state.user = null;
   ctx.state.favorites = {};
@@ -374,6 +400,8 @@ export function renderHeader() {
 
   const name = user.name || user.login || user.email || "Аккаунт";
   const profile = _profilePath(user);
+  // Друзья приходят из Anime Social — без входа через соцсеть разделу неоткуда их взять
+  const friends = !!authConfig.as_login;
   slot.innerHTML = `
     <div class="app-header__action">
       <button type="button" class="app-user" id="avAccountBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="avAccountDrop" aria-label="Меню профиля">
@@ -387,6 +415,7 @@ export function renderHeader() {
         <a class="ed-menu__item" role="menuitem" href="/my/continue"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i>Продолжить просмотр</a>
         <a class="ed-menu__item" role="menuitem" href="/my/lists"><i class="fas fa-list" aria-hidden="true"></i>Списки</a>
         <a class="ed-menu__item" role="menuitem" href="/my/favorites"><i class="fas fa-star" aria-hidden="true"></i>Избранное</a>
+        ${friends ? `<a class="ed-menu__item" role="menuitem" href="/my/friends"><i class="fas fa-user-group" aria-hidden="true"></i>Друзья</a>` : ""}
         <a class="ed-menu__item" role="menuitem" href="/my/settings"><i class="fas fa-gear" aria-hidden="true"></i>Настройки</a>
         <button type="button" class="ed-menu__item" role="menuitem" data-theme-cycle><i class="fas fa-circle-half-stroke" aria-hidden="true"></i>Тема<span class="app-menu__value" data-theme-label></span></button>
         <div class="ed-menu__divider" role="separator"></div>
@@ -402,12 +431,14 @@ export function renderHeader() {
       <a class="app-nav__item" data-nav="my-continue" href="/my/continue"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i><span>Продолжить</span></a>
       <a class="app-nav__item" data-nav="my-lists" href="/my/lists"><i class="fas fa-list" aria-hidden="true"></i><span>Списки</span></a>
       <a class="app-nav__item" data-nav="my-favorites" href="/my/favorites"><i class="fas fa-star" aria-hidden="true"></i><span>Избранное</span></a>
+      ${friends ? `<a class="app-nav__item" data-nav="my-friends" href="/my/friends"><i class="fas fa-user-group" aria-hidden="true"></i><span>Друзья</span></a>` : ""}
       <a class="app-nav__item" data-nav="profile" href="${esc(profile)}"><i class="fas fa-user" aria-hidden="true"></i><span>Мой профиль</span></a>`;
   }
   if (sheetPersonal) sheetPersonal.innerHTML = `
     <div class="ed-menu__divider" role="separator"></div>
     <a class="ed-menu__item" data-nav="my-continue" href="/my/continue"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i>Продолжить просмотр</a>
     <a class="ed-menu__item" data-nav="my-favorites" href="/my/favorites"><i class="fas fa-star" aria-hidden="true"></i>Избранное</a>
+    ${friends ? `<a class="ed-menu__item" data-nav="my-friends" href="/my/friends"><i class="fas fa-user-group" aria-hidden="true"></i>Друзья</a>` : ""}
     <a class="ed-menu__item" data-nav="profile" href="${esc(profile)}"><i class="fas fa-user" aria-hidden="true"></i>Мой профиль</a>
     <a class="ed-menu__item" data-nav="my-settings" href="/my/settings"><i class="fas fa-gear" aria-hidden="true"></i>Настройки</a>
     <button type="button" class="ed-menu__item" data-logout><i class="fas fa-right-from-bracket" aria-hidden="true"></i>Выйти</button>`;
@@ -920,7 +951,7 @@ function _dismissAsHint(uid) {
 }
 
 async function maybeOfferAsAccount() {
-  if (ctx.state.user || !authConfig.as_login || location.pathname.startsWith("/login")) return;
+  if (ctx.state.user || !_socialLogin() || location.pathname.startsWith("/login")) return;
   const user = await _asHint();
   if (!user || ctx.state.user || _asHintDismissed(user.id) || location.pathname.startsWith("/login")) return;
   if (document.querySelector(".as-hint")) return;
@@ -956,13 +987,18 @@ const AS_LOGIN_ERRORS = {
   expired: site => `Время на вход истекло. Нажмите «Войти через ${site}» ещё раз.`,
   banned: site => `Аккаунт заблокирован в ${site}.`,
   error: site => `Не удалось войти через ${site}. Попробуйте ещё раз или войдите по логину и паролю.`,
+  // Вошедший в AsoPlay связывал аккаунт, а в соцсети открыт чужой
+  other: site => `В ${site} сейчас открыт другой аккаунт. Войдите там под своим и повторите.`,
+  // Вход через соцсеть выключили в её панели, пока человек нажимал кнопку
+  disabled: site => `Вход через ${site} сейчас выключен. Войдите по почте и паролю.`,
 };
 
 export function openGate(kind) {
   const copy = _gateCopy(kind);
   closeGate();
   const here = location.pathname + location.search;
-  const loginAction = authConfig.as_login
+  const social = _socialLogin();
+  const loginAction = social
     ? `<a class="ed-btn ed-btn--primary" href="${esc(_asLoginUrl(here))}" autofocus>Войти через ${esc(socialSiteName())}</a>`
     : `<a class="ed-btn ed-btn--primary" href="/login" data-dialog-close autofocus>Войти</a>`;
   const dialog = _openDialog("gate-overlay", `
@@ -972,7 +1008,7 @@ export function openGate(kind) {
     <ul class="gate-points">
       ${copy.points.map(p => `<li><i class="fas fa-check" aria-hidden="true"></i>${esc(p)}</li>`).join("")}
     </ul>
-    <div class="ed-dialog__actions${authConfig.as_login ? " gate-actions--stack" : ""}">
+    <div class="ed-dialog__actions${social ? " gate-actions--stack" : ""}">
       <a class="ed-btn ed-btn--secondary" href="${esc(registerUrl())}" target="_blank" rel="noopener">Создать аккаунт</a>
       ${loginAction}
     </div>`, { label: "avGateTitle", onClose: () => { _gateEl = null; } });
@@ -1027,6 +1063,16 @@ function _gateCopy(kind) {
       body: "Чтобы отслеживать, что вы сейчас смотрите, и не терять место в серии — авторизуйтесь. Вся персональная история живёт в аккаунте.",
       points: ["Актуальный список сериалов", "Кнопка «Продолжить смотреть»"],
     },
+    friends: {
+      title: "Друзья — для вошедших",
+      body: `Друзья приходят из ${esc(socialSiteName())}: после входа здесь видно, кто из них сейчас на AsoPlay, кто в сети и что смотрит.`,
+      points: ["Кто на AsoPlay и что смотрит", `Кто в сети в ${socialSiteName()}`, "Друзья на странице тайтла"],
+    },
+    report: {
+      title: "Жалобы — для вошедших",
+      body: "Сообщить, что видео не работает, можно после входа — как и жалобы на сайте соцсети: так модераторы разберутся быстрее и без спама.",
+      points: ["Модераторы видят серию, озвучку и источник", "Одна кнопка прямо в плеере"],
+    },
     progress: {
       title: "Сохранение позиции — для вошедших",
       body: "Мы не храним позицию в серии для гостей — это было бы обманом: на другом устройстве она бы всё равно не работала. Войдите, чтобы сохранение было настоящим.",
@@ -1036,6 +1082,73 @@ function _gateCopy(kind) {
   return presets[kind] || presets.favorites;
 }
 
+// ==== «Не работает» в плеере ====
+// Окно — как жалоба на сайте Anime Social (design/EDDAS/report/box.tpl): причина, комментарий, «Отправить жалобу».
+// С жалобой уходит то, что сейчас в плеере: серия, озвучка, источник и хост плеера — модераторы в разделе
+// «AsoPlay» панели видят, что именно не работает.
+let _reportKinds = null;
+
+function _loadReportKinds() {
+  if (!_reportKinds) {
+    _reportKinds = _fetchJson("/reports/kinds").catch(() => {
+      _reportKinds = null;
+      return { kinds: [{ code: "no_video", title: "Видео не запускается" }, { code: "other", title: "Другое" }], text_max: 300 };
+    });
+  }
+  return _reportKinds;
+}
+
+export async function openVideoReport(report) {
+  if (!ctx.state.user) { openGate("report"); return; }
+  const { kinds, text_max: textMax = 300 } = await _loadReportKinds();
+  const shown = [report.episode ? `${report.episode} серия` : "", report.dub, report.sourceName].filter(Boolean).join(" · ");
+  const dialog = _openDialog("report-overlay", `
+    <button type="button" class="ed-iconbtn av-dialog__close" aria-label="Закрыть" title="Закрыть" data-dialog-close><i class="fas fa-xmark" aria-hidden="true"></i></button>
+    <h2 class="ed-dialog__title" id="avReportTitle">Что не так с видео?</h2>
+    <div class="report-box">
+      <p class="report-box__hint">Модераторы проверят и починят. Вместе с жалобой уйдёт, что сейчас в плеере${shown ? `: ${esc(shown)}` : ""}.</p>
+      <div class="report-box__reasons" role="radiogroup" aria-label="Что не так">
+        ${kinds.map((k, i) => `<label class="ed-check report-box__reason"><input type="radio" name="report_reason" value="${esc(k.code)}"${i === 0 ? " checked" : ""}><span class="ed-check__text">${esc(k.title)}</span></label>`).join("")}
+      </div>
+      <div class="ed-field report-box__field">
+        <label class="ed-field__label" for="avReportText">Комментарий</label>
+        <textarea class="ed-textarea" id="avReportText" rows="3" maxlength="${Number(textMax) || 300}" placeholder="Необязательно: что именно не так"></textarea>
+        <div class="ed-field__note is-error" id="avReportNote" role="alert"></div>
+      </div>
+    </div>
+    <div class="ed-dialog__actions">
+      <button type="button" class="ed-btn ed-btn--ghost" data-dialog-close>Отмена</button>
+      <button type="button" class="ed-btn ed-btn--primary" id="avReportSend">Отправить жалобу</button>
+    </div>`, { label: "avReportTitle" });
+  const wrap = dialog.el;
+  const send = wrap.querySelector("#avReportSend");
+  const note = wrap.querySelector("#avReportNote");
+  send.addEventListener("click", async () => {
+    send.disabled = true;
+    note.textContent = "";
+    try {
+      await _fetchJson("/reports", { method: "POST", body: {
+        mal_id: report.malId, episode: report.episode || null, dub: report.dub || "", source: report.source || "",
+        player: report.player || "", kind: wrap.querySelector('input[name="report_reason"]:checked')?.value || "other",
+        text: wrap.querySelector("#avReportText").value,
+      } });
+    } catch (exc) {
+      send.disabled = false;
+      if (exc.status === 401) { dialog.close(); openGate("report"); return; }
+      note.textContent = exc.status === 429
+        ? "Слишком много жалоб за час. Попробуйте позже."
+        : "Не удалось отправить жалобу. Попробуйте ещё раз.";
+      return;
+    }
+    const panel = wrap.querySelector(".av-dialog__panel");
+    panel.innerHTML = `
+      <h2 class="ed-dialog__title" id="avReportTitle">Жалоба отправлена</h2>
+      <p class="ed-dialog__text">Спасибо! Модераторы посмотрят, что с видео. Пока можно выбрать другую озвучку — у неё бывает другой источник.</p>
+      <div class="ed-dialog__actions"><button type="button" class="ed-btn ed-btn--primary" data-dialog-close>Готово</button></div>`;
+    panel.querySelector("[data-dialog-close]")?.focus({ preventScroll: true });
+  });
+}
+
 // ==== views (rendered by the app router) ====
 export async function viewLogin(params) {
   ctx.setActive("login");
@@ -1043,12 +1156,15 @@ export async function viewLogin(params) {
   const next = params.get("next") || "/";
   const site = esc(socialSiteName());
   const asLogin = !!authConfig.as_login;
+  // Какие способы входа включены в панели Anime Social: кнопка соцсети, форма почты или оба
+  const social = _socialLogin();
+  const password = siteState.login().password;
   const asError = AS_LOGIN_ERRORS[params.get("as")]?.(socialSiteName()) || "";
   // Вошедшему в Anime Social — кнопка с его именем, остальным — сразу почта. Соцсеть отвечает быстро,
   // но ждать её дольше 0,7 секунды не будем: без ответа показываем кнопку без имени
-  const asUser = asLogin ? await Promise.race([_asHint(), new Promise(r => setTimeout(() => r(null), 700))]) : null;
+  const asUser = social ? await Promise.race([_asHint(), new Promise(r => setTimeout(() => r(null), 700))]) : null;
   if (!location.pathname.startsWith("/login")) return;  // за время ожидания ушли на другую страницу
-  const firstView = !asLogin || (asUser === false && !asError) ? "mail" : "as";
+  const firstView = !social ? "mail" : !password ? "as" : (asUser === false && !asError) ? "mail" : "as";
   ctx.outlet.innerHTML = `
     <div class="auth">
       <aside class="auth__hero">
@@ -1069,21 +1185,23 @@ export async function viewLogin(params) {
             <p class="auth__brand-lead">Аниме онлайн в русской озвучке</p>
           </div>
           <h2 class="auth__title">Вход</h2>
-          ${asLogin ? `
+          ${!social && !password ? `<div class="ed-note ed-note--warning" role="status"><i class="fas fa-lock" aria-hidden="true"></i><div>Вход сейчас выключен. Попробуйте чуть позже.</div></div>` : ""}
+          ${social ? `
           <div class="auth-view" data-auth-view="as" ${firstView === "as" ? "" : "hidden"}>
             <p class="auth__sub">${asUser ? `Вы уже вошли в ${site}: продолжите под этим аккаунтом.` : `Если вы уже вошли в ${site}, вход займёт одно нажатие.`}</p>
             <a class="ed-btn ed-btn--primary ed-btn--lg ed-btn--block auth-as" href="${esc(_asLoginUrl(next))}">${asUser
               ? `${_avatarHtml({ name: _asUserName(asUser) }, "auth-as__ava")}<span class="auth-as__label">Продолжить как ${esc(_asUserName(asUser))}</span>`
               : `<i class="fas fa-right-to-bracket" aria-hidden="true"></i><span class="auth-as__label">Войти через ${site}</span>`}</a>
             ${asError ? `<div class="ed-note ed-note--danger auth-as-error" role="alert"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><div>${esc(asError)}</div></div>` : ""}
-            <button type="button" class="auth-switch" data-auth-switch="mail">Войти через почту</button>
+            ${password ? `<button type="button" class="auth-switch" data-auth-switch="mail">Войти через почту</button>` : ""}
           </div>` : ""}
+          ${password ? `
           <div class="auth-view" data-auth-view="mail" ${firstView === "mail" ? "" : "hidden"}>
-            <p class="auth__sub">Логин и пароль те же, что в ${site}. Регистрация проходит на сайте соцсети.</p>
+            <p class="auth__sub">${asLogin ? "Почта" : "Логин"} и пароль те же, что в ${site}. Регистрация проходит на сайте соцсети.</p>
             <form class="ed-form auth-form" id="avLoginForm" autocomplete="on" novalidate>
               <div class="ed-field">
-                <label class="ed-field__label" for="avLoginInput">Логин или электронная почта</label>
-                <div class="ed-field__wrap"><input class="ed-input" type="text" name="login" id="avLoginInput" autocomplete="username" autocapitalize="off" spellcheck="false" required ${firstView === "mail" ? "autofocus" : ""} /></div>
+                <label class="ed-field__label" for="avLoginInput">${asLogin ? "Электронная почта" : "Логин или электронная почта"}</label>
+                <div class="ed-field__wrap"><input class="ed-input" type="${asLogin ? "email" : "text"}" name="login" id="avLoginInput" autocomplete="username" autocapitalize="off" spellcheck="false" required ${firstView === "mail" ? "autofocus" : ""} /></div>
               </div>
               <div class="ed-field">
                 <label class="ed-field__label" for="avLoginPass">Пароль</label>
@@ -1092,11 +1210,11 @@ export async function viewLogin(params) {
                   <button type="button" class="ed-field__action" id="avPassToggle" aria-controls="avLoginPass" aria-pressed="false">Показать</button>
                 </div>
               </div>
-              <div class="ed-note ed-note--danger auth-error" id="avLoginErr" role="alert" ${asError && !asLogin ? "" : "hidden"}><i class="fas fa-circle-exclamation" aria-hidden="true"></i><div id="avLoginErrText">${asLogin ? "" : esc(asError)}</div></div>
+              <div class="ed-note ed-note--danger auth-error" id="avLoginErr" role="alert" ${asError && !social ? "" : "hidden"}><i class="fas fa-circle-exclamation" aria-hidden="true"></i><div id="avLoginErrText">${social ? "" : esc(asError)}</div></div>
               <button type="submit" class="ed-btn ed-btn--primary ed-btn--lg ed-btn--block auth-submit">Войти</button>
             </form>
-            ${asLogin ? `<button type="button" class="auth-switch" data-auth-switch="as">Войти через ${site}</button>` : ""}
-          </div>
+            ${social ? `<button type="button" class="auth-switch" data-auth-switch="as">Войти через ${site}</button>` : ""}
+          </div>` : ""}
           <p class="auth__switch">Нет аккаунта? <a class="auth-link" href="${esc(registerUrl())}" target="_blank" rel="noopener">Создать в ${site}</a></p>
         </div>
       </div>
@@ -1576,7 +1694,7 @@ export async function viewMySettings(tab) {
   ctx.setActive("my-settings");
   if (!ctx.state.user) { openGate("settings"); ctx.nav("/login?next=/my/settings"); return; }
   const s = ctx.state.user;
-  const privacy = ctx.state.privacy || { hide_lists: false, hide_activity: false };
+  const privacy = { ...PRIVACY_DEFAULTS, ...(ctx.state.privacy || {}) };
   const autoLists = ctx.state.autoAddLists !== false;
   const activeTab = tab === "privacy" ? "privacy" : "general";
   const tabLink = (key, href, label) => `<a class="ed-tabs__item${activeTab === key ? " is-active" : ""}" href="${href}"${activeTab === key ? ' aria-current="page"' : ""}>${label}</a>`;
@@ -1636,6 +1754,20 @@ export async function viewMySettings(tab) {
             </div>
           </div>
         </section>
+        ${authConfig.as_login ? `
+        <section class="ed-panel" aria-labelledby="avSetPresence">
+          <div class="ed-panel__head"><span id="avSetPresence">Присутствие</span></div>
+          <div class="ed-panel__body settings-body">
+            <div class="settings-option">
+              <label class="ed-switch"><span>Показывать, что я на AsoPlay</span><input type="checkbox" role="switch" id="avShowPresenceToggle" ${privacy.hide_presence ? "" : "checked"} /></label>
+              <p class="settings-help">Друзья увидят «онлайн на AsoPlay» здесь и в ${esc(socialSiteName())}. В ${esc(socialSiteName())} отметка видна, если вы вошли в AsoPlay через ${esc(socialSiteName())}.</p>
+            </div>
+            <div class="settings-option">
+              <label class="ed-switch"><span>Показывать, что я смотрю</span><input type="checkbox" role="switch" id="avShowWatchingToggle" ${privacy.show_watching && !privacy.hide_presence ? "checked" : ""}${privacy.hide_presence ? " disabled" : ""} /></label>
+              <p class="settings-help">Рядом с отметкой появится тайтл, который сейчас играет у вас в плеере, со ссылкой на него.</p>
+            </div>
+          </div>
+        </section>` : ""}
       `}
     </div>`;
 
@@ -1659,7 +1791,678 @@ export async function viewMySettings(tab) {
   } else {
     document.querySelector("#avHideListsToggle")?.addEventListener("change", e => store.setPrivacy({ hide_lists: e.target.checked }));
     document.querySelector("#avHideActivityToggle")?.addEventListener("change", e => store.setPrivacy({ hide_activity: e.target.checked }));
+    // Без отметки «на AsoPlay» показывать, что смотрю, не к чему: переключатель выключен и недоступен,
+    // а сохранённый выбор вернётся вместе с отметкой
+    const watching = document.querySelector("#avShowWatchingToggle");
+    document.querySelector("#avShowPresenceToggle")?.addEventListener("change", e => {
+      store.setPrivacy({ hide_presence: !e.target.checked });
+      if (!watching) return;
+      watching.disabled = !e.target.checked;
+      watching.checked = e.target.checked && !!ctx.state.privacy?.show_watching;
+    });
+    watching?.addEventListener("change", e => store.setPrivacy({ show_watching: e.target.checked }));
   }
+}
+
+// ==== друзья ====
+// Как страница «Друзья» в Anime Social (design/EDDAS/friends): вкладки и поиск в карточке, у друга — «Написать»
+// и меню «⋯», сбоку — что друзья смотрят сейчас. Список и присутствие в соцсети приходят из Anime Social по её
+// сессии (server/presence.py), кто на AsoPlay и что смотрит — с этого сервера. Дальше строки меняются по событиям
+// живого соединения (av:presence, js/realtime.js); статусы в соцсети обновляются, когда вкладка снова на экране.
+const FRIENDS_STALE = 60_000;
+const TITLE_FRIENDS_MAX = 30;
+const TITLE_FRIEND_STATUS = {
+  watching: "Смотрит", completed: "Просмотрено", planned: "В планах", postponed: "Отложено", dropped: "Брошено",
+};
+const TITLE_STATUS_ORDER = { watching: 0, completed: 1, postponed: 2, planned: 3, dropped: 4 };
+const AGO_UNITS = [
+  [31_570_560, ["год", "года", "лет"]],
+  [2_630_880, ["месяц", "месяца", "месяцев"]],
+  [604_800, ["неделю", "недели", "недель"]],
+  [86_400, ["день", "дня", "дней"]],
+  [3_600, ["час", "часа", "часов"]],
+  [60, ["минуту", "минуты", "минут"]],
+];
+// Почему соцсеть не пропустила сообщение (server/presence.py, send_message)
+const WRITE_REFUSALS = {
+  privacy: "Этот человек ограничил, кто может ему писать.",
+  friends: "Этот человек принимает сообщения только от друзей.",
+  blacklist: "Вы не можете написать этому человеку.",
+  blacklisted: "Вы не можете написать этому человеку.",
+  blocked: "Страница этого человека заблокирована.",
+  banned: "Страница этого человека заблокирована.",
+  peer_banned: "Страница этого человека заблокирована.",
+  not_found: "Такой страницы больше нет.",
+};
+
+// Как «был в сети 5 минут назад» на сайте соцсети
+function _ago(unixSeconds) {
+  const diff = Math.max(0, Math.floor(Date.now() / 1000) - unixSeconds);
+  for (const [len, forms] of AGO_UNITS) {
+    if (diff >= len) { const n = Math.floor(diff / len); return `${n} ${_plural(n, forms)} назад`; }
+  }
+  return "только что";
+}
+
+const _friendOnline = f => !!(f.on_asoplay || f.social);
+
+// Где человек в сети — как presence_kind у Anime Social: on — в соцсети (сайт или приложение), client — только на
+// AsoPlay, both — и там и там, off — нигде
+function _presenceKind(f) {
+  return f.on_asoplay ? (f.social ? "both" : "client") : (f.social ? "on" : "off");
+}
+
+// Точка «в сети» цветами Anime Social: зелёная, фиолетовая или из двух половин — с её же подсказками
+const PRESENCE_DOTS = {
+  on: ["", "в сети"],
+  client: [" is-client", "онлайн на AsoPlay"],
+  both: [" is-both", "в сети и на AsoPlay"],
+};
+
+function _presenceDot(f) {
+  const dot = PRESENCE_DOTS[_presenceKind(f)];
+  return dot ? `<span class="ed-ava__dot${dot[0]}" title="${dot[1]}"></span>` : "";
+}
+
+// Как на сервере (presence._rank): смотрят, на AsoPlay, в сети в соцсети, остальные — кто был позже
+function _friendOrder(a, b) {
+  const rank = f => (f.watching ? 0 : f.on_asoplay ? 1 : f.social ? 2 : 3);
+  return rank(a) - rank(b)
+    || (rank(a) === 3 ? (b.last_seen || 0) - (a.last_seen || 0) : 0)
+    || a.name.localeCompare(b.name, "ru");
+}
+
+// Друг зашёл в соцсеть или вышел оттуда (событие соцсети через соединение сервер–сервер)
+function _applySocialPresence(items, ev) {
+  const f = items.find(x => x.id === ev?.user_id);
+  if (!f) return false;
+  f.social = ev.online_where === "site" || ev.online_where === "mobile" ? ev.online_where : null;
+  if (Number.isInteger(ev.last_seen)) f.last_seen = ev.last_seen;
+  items.sort(_friendOrder);
+  return true;
+}
+
+// Событие о друге → его строка. Ушёл с AsoPlay — «был в сети только что»
+function _applyFriendPresence(items, ev) {
+  const f = items.find(x => x.id === ev?.user?.id);
+  if (!f) return false;
+  const was = f.on_asoplay;
+  f.on_asoplay = !!ev.on_asoplay;
+  f.watching = f.on_asoplay ? (ev.watching || null) : null;
+  if (was && !f.on_asoplay) f.last_seen = Math.floor(Date.now() / 1000);
+  items.sort(_friendOrder);
+  return true;
+}
+
+// Буква лежит под фото: фото не загрузилось — видна буква
+function _avaInner(f) {
+  const letter = Array.from((f.name || "А").trim())[0]?.toUpperCase() || "А";
+  const img = f.avatar ? `<img src="${esc(f.avatar)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" />` : "";
+  return `<span class="ed-ava__initials">${esc(letter)}</span>${img}`;
+}
+
+function _friendAva(f) {
+  return `<span class="ed-ava friend-ava">${_avaInner(f)}${_presenceDot(f)}</span>`;
+}
+
+// Подпись под именем — словами Anime Social (user_presence_html): «в сети», «онлайн на AsoPlay», «смотрит «…» на
+// AsoPlay», «в сети и на AsoPlay», «в сети, смотрит «…» на AsoPlay». Строка только про AsoPlay — фиолетовая (is-client),
+// у «и там и там» фиолетовая лишь часть про AsoPlay (.presence-also). У тех, кто не в сети, соцсеть пишет город, а его
+// в кратких данных пользователя нет — пишем, когда человек был в сети
+function _friendMeta(f) {
+  const watch = f.watching
+    ? `смотрит <a class="presence-client" href="${esc(f.watching.path)}">«${esc(f.watching.title)}»</a> на AsoPlay` : "";
+  const kind = _presenceKind(f);
+  if (kind === "both") return `в сети<span class="presence-also">${watch ? `, ${watch}` : " и на AsoPlay"}</span>`;
+  if (kind === "client") return watch || "онлайн на AsoPlay";
+  if (kind === "on") return f.social === "mobile" ? "в сети с телефона" : "в сети";
+  if (f.last_seen) return esc(`${f.sex === 1 ? "был" : "была"} в сети ${_ago(f.last_seen)}`);
+  return "не в сети";
+}
+
+function _friendItem(f) {
+  const site = socialSiteName();
+  const verify = f.verified ? `<i class="fas fa-circle-check ed-user__verify" title="Подтверждённая страница" aria-label="Подтверждённая страница"></i>` : "";
+  const elite = f.elite ? `<i class="fas fa-gem ed-user__elite" title="Элита" aria-label="Элита"></i>` : "";
+  return `
+    <div class="ed-user friends__item" data-user-id="${f.id}">
+      <a class="ed-ava ed-ava--lg friends__ava" href="${esc(f.profile_path)}" tabindex="-1" aria-hidden="true">${_avaInner(f)}${_presenceDot(f)}</a>
+      <div class="ed-user__info">
+        <a class="ed-user__name" href="${esc(f.profile_path)}"><span class="ed-user__text">${esc(f.name)}</span>${verify}${elite}</a>
+        <div class="ed-user__meta${_presenceKind(f) === "client" ? " is-client" : ""}">${_friendMeta(f)}</div>
+      </div>
+      <div class="friends__actions">
+        <button type="button" class="ed-btn ed-btn--secondary ed-btn--sm" data-friend-write="${f.id}" aria-label="Написать ${esc(f.name)}"><i class="fas fa-comment" aria-hidden="true"></i><span class="friends__label">Написать</span></button>
+        <div class="friends__menu-wrap">
+          <button type="button" class="ed-iconbtn" data-friend-menu aria-label="Действия" aria-haspopup="menu" aria-expanded="false"><i class="fas fa-ellipsis-h" aria-hidden="true"></i></button>
+          <div class="ed-menu friends__menu" role="menu" hidden>
+            <a class="ed-menu__item" role="menuitem" href="${esc(f.profile_path)}"><i class="fas fa-user" aria-hidden="true"></i>Профиль на AsoPlay</a>
+            <a class="ed-menu__item" role="menuitem" href="${esc(f.social_url)}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>Страница в ${esc(site)}</a>
+            <div class="ed-menu__divider" role="separator"></div>
+            <button type="button" class="ed-menu__item is-danger" role="menuitem" data-friend-remove="${f.id}"><i class="fas fa-user-minus" aria-hidden="true"></i>Удалить из друзей</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// «Смотрят сейчас» сбоку: тайтлы, которые друзья смотрят прямо сейчас, с постером и тем, кто смотрит
+function _friendsWatchPanel(items) {
+  const byTitle = new Map();
+  for (const f of items) {
+    if (!f.watching) continue;
+    if (!byTitle.has(f.watching.mal_id)) byTitle.set(f.watching.mal_id, { ...f.watching, who: [] });
+    byTitle.get(f.watching.mal_id).who.push(f.name.split(/\s+/)[0]);
+  }
+  const titles = [...byTitle.values()].sort((a, b) => b.who.length - a.who.length || a.title.localeCompare(b.title, "ru"));
+  const who = (names) => names.length <= 2 ? names.join(" и ") : `${names.slice(0, 2).join(", ")} и ещё ${names.length - 2}`;
+  return `
+    <section class="ed-panel friends-watch" aria-labelledby="avFriendsWatchHead">
+      <div class="ed-panel__head"><span id="avFriendsWatchHead">Смотрят сейчас</span>${titles.length ? `<span class="friends__count">${titles.length}</span>` : ""}</div>
+      <div class="ed-panel__body">
+        ${titles.length ? `<ul class="friends-watch__list">${titles.map(t => `
+          <li><a class="friends-watch__item" href="${esc(t.path)}">
+            <span class="friends-watch__poster">${t.poster ? `<img src="${esc(ctx.imgUrl(t.poster))}" alt="" loading="lazy" onerror="this.remove()" />` : ""}<i class="fas fa-film" aria-hidden="true"></i></span>
+            <span class="friends-watch__text"><span class="friends-watch__title">${esc(t.title)}</span><span class="friends-watch__who">${esc(who(t.who))}</span></span>
+          </a></li>`).join("")}</ul>`
+        : `<p class="friends-watch__empty">Сейчас никто из друзей не смотрит. Как только кто-то включит серию, тайтл появится здесь.</p>`}
+      </div>
+    </section>`;
+}
+
+// «Написать» — окно сообщения, как на сайте соцсети; сообщение уходит в переписку Anime Social
+function _openWriteDialog(f) {
+  const site = socialSiteName();
+  const dialog = _openDialog("write-dialog", `
+    <button type="button" class="ed-iconbtn av-dialog__close" aria-label="Закрыть" title="Закрыть" data-dialog-close><i class="fas fa-xmark" aria-hidden="true"></i></button>
+    <h2 class="ed-dialog__title" id="avWriteTitle">Новое сообщение</h2>
+    <div class="ed-user write-dialog__to">
+      <span class="ed-ava">${_avaInner(f)}</span>
+      <div class="ed-user__info"><div class="ed-user__name"><span class="ed-user__text">${esc(f.name)}</span></div><div class="ed-user__meta">Сообщение придёт в переписку ${esc(site)}</div></div>
+    </div>
+    <form class="write-dialog__form" novalidate>
+      <textarea class="ed-textarea write-dialog__text" maxlength="4000" rows="4" placeholder="Напишите сообщение…" aria-label="Текст сообщения" autofocus></textarea>
+      <div class="ed-note ed-note--danger write-dialog__error" role="alert" hidden><i class="fas fa-circle-exclamation" aria-hidden="true"></i><div></div></div>
+      <div class="ed-dialog__actions">
+        <button type="button" class="ed-btn ed-btn--secondary" data-dialog-close>Отмена</button>
+        <button type="submit" class="ed-btn ed-btn--primary" disabled>Отправить</button>
+      </div>
+    </form>`, { label: "avWriteTitle" });
+  const form = dialog.el.querySelector(".write-dialog__form");
+  const text = form.querySelector("textarea");
+  const send = form.querySelector('[type="submit"]');
+  const error = form.querySelector(".write-dialog__error");
+  text.addEventListener("input", () => { send.disabled = !text.value.trim(); });
+  // Ctrl+Enter — отправить, как в переписке соцсети
+  text.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) form.requestSubmit(); });
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!text.value.trim() || send.disabled) return;
+    send.disabled = true;
+    error.hidden = true;
+    try {
+      const r = await _fetchJson(`/account/messages/${f.id}`, { method: "POST", body: { text: text.value } });
+      form.outerHTML = `
+        <div class="ed-note write-dialog__sent" role="status"><i class="fas fa-circle-check" aria-hidden="true"></i><div>Сообщение отправлено.</div></div>
+        <div class="ed-dialog__actions">
+          <a class="ed-btn ed-btn--secondary" href="${esc(r.dialog_url)}" target="_blank" rel="noopener">Открыть переписку</a>
+          <button type="button" class="ed-btn ed-btn--primary" data-dialog-close autofocus>Готово</button>
+        </div>`;
+      dialog.el.querySelector("[data-dialog-close][autofocus]")?.focus();
+    } catch (exc) {
+      let reason = `Не удалось отправить. ${site} не отвечает — попробуйте чуть позже.`;
+      if (exc.status === 403) reason = WRITE_REFUSALS[(exc.message.match(/"detail":"([a-z_]+)"/) || [])[1]] || "Этому человеку сейчас нельзя написать.";
+      else if (exc.status === 429) reason = "Слишком много сообщений подряд. Подождите немного и отправьте снова.";
+      else if (exc.status === 409) reason = `Связь с ${site} потеряна: войдите через ${site} ещё раз.`;
+      error.querySelector("div").textContent = reason;
+      error.hidden = false;
+      send.disabled = false;
+    }
+  });
+}
+
+// Отказы соцсети в действиях с дружбой (server/presence.py, _social_call; detail — код соцсети)
+const FRIEND_REFUSALS = {
+  blacklisted: "Нельзя: кто-то из вас в чёрном списке у другого.",
+  already_friends: "Вы уже друзья.",
+  already_sent: "Заявка уже отправлена.",
+  incoming_request: "Этот человек уже прислал вам заявку — примите её во вкладке «Заявки».",
+  not_found: "Заявка уже неактуальна.",
+};
+const MUTUAL_FORMS = ["общий друг", "общих друга", "общих друзей"];
+
+function _friendActionError(exc) {
+  const site = socialSiteName();
+  const code = (String(exc?.message || "").match(/"detail":"([a-z_ ]+)"/) || [])[1] || "";
+  if (exc?.status === 429) return "Сегодня больше нельзя отправлять заявки: не больше 50 в сутки, как на сайте.";
+  if (exc?.status === 409 && code.startsWith("not linked")) return `Связь с ${site} потеряна: войдите через ${site} ещё раз.`;
+  return FRIEND_REFUSALS[code] || `${site} не ответил. Попробуйте ещё раз.`;
+}
+
+// Строка заявки: входящая — «Принять» и «Отклонить», исходящая — «Отменить заявку»
+function _requestItem(u, kind) {
+  const verify = u.verified ? `<i class="fas fa-circle-check ed-user__verify" title="Подтверждённая страница" aria-label="Подтверждённая страница"></i>` : "";
+  const meta = u.location || (kind === "incoming" ? "хочет добавить вас в друзья" : "заявка отправлена");
+  const actions = kind === "incoming"
+    ? `<button type="button" class="ed-btn ed-btn--primary ed-btn--sm" data-friend-accept="${u.id}">Принять</button>
+       <button type="button" class="ed-btn ed-btn--ghost ed-btn--sm" data-friend-decline="${u.id}">Отклонить</button>`
+    : `<button type="button" class="ed-btn ed-btn--ghost ed-btn--sm" data-friend-cancel="${u.id}">Отменить заявку</button>`;
+  return `
+    <div class="ed-user friends__item friends__item--wrap" data-user-id="${u.id}">
+      <a class="ed-ava ed-ava--lg friends__ava" href="${esc(u.profile_path)}" tabindex="-1" aria-hidden="true">${_avaInner(u)}</a>
+      <div class="ed-user__info">
+        <a class="ed-user__name" href="${esc(u.profile_path)}"><span class="ed-user__text">${esc(u.name)}</span>${verify}</a>
+        <div class="ed-user__meta">${esc(meta)}</div>
+      </div>
+      <div class="friends__actions">${actions}</div>
+    </div>`;
+}
+
+// «Возможные друзья» сбоку — как на странице друзей соцсети
+function _friendsSuggestPanel(items) {
+  if (!items?.length) return "";
+  return `
+    <section class="ed-panel ed-panel--flush" aria-labelledby="avFriendsSuggestHead">
+      <div class="ed-panel__head"><span id="avFriendsSuggestHead">Возможные друзья</span></div>
+      <div class="ed-panel__body">
+        ${items.map(u => {
+          const meta = u.mutual ? `${u.mutual} ${_plural(u.mutual, MUTUAL_FORMS)}` : (u.location || "");
+          return `
+          <div class="ed-user ed-user--compact friends-suggest" data-user-id="${u.id}">
+            <a class="ed-ava friends-suggest__ava" href="${esc(u.profile_path)}" tabindex="-1" aria-hidden="true">${_avaInner(u)}</a>
+            <div class="ed-user__info">
+              <a class="ed-user__name" href="${esc(u.profile_path)}"><span class="ed-user__text">${esc(u.name)}</span></a>
+              <div class="friends-suggest__meta">${esc(meta)}</div>
+            </div>
+            ${u.sent ? `<span class="friends-suggest__sent">Заявка отправлена</span>`
+              : `<button type="button" class="ed-iconbtn ed-iconbtn--tonal" data-friend-add="${u.id}" aria-label="Добавить ${esc(u.name)} в друзья" title="Добавить в друзья"><i class="fas fa-user-plus" aria-hidden="true"></i></button>`}
+          </div>`;
+        }).join("")}
+      </div>
+    </section>`;
+}
+
+export async function viewMyFriends() {
+  ctx.setActive("my-friends");
+  if (!ctx.state.user) { openGate("friends"); ctx.nav("/login?next=/my/friends"); return; }
+  const site = socialSiteName();
+  const outcome = new URLSearchParams(location.search).get("as");
+  const notice = AS_LOGIN_ERRORS[outcome]?.(site) || "";
+  // Сообщение о входе показываем один раз: после обновления страницы его не должно быть
+  if (outcome) history.replaceState(null, "", "/my/friends");
+  const searchUrl = `${socialSiteUrl()}/search`;
+  ctx.outlet.innerHTML = `
+    <div class="page friends-page">
+      <div class="page__main">
+        ${_pageHead("Друзья", "",
+          `<a class="ed-btn ed-btn--secondary" href="${esc(searchUrl)}" target="_blank" rel="noopener"><i class="fas fa-user-plus" aria-hidden="true"></i>Найти друзей</a>`)}
+        ${notice ? `<div class="ed-note ed-note--danger" role="alert"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><div>${esc(notice)}</div></div>` : ""}
+        <section class="ed-panel friends" id="avFriends">${ctx.loadingBlock("Загружаем друзей…")}</section>
+      </div>
+      <aside class="page__side page__side--sticky" id="avFriendsSide"></aside>
+    </div>`;
+  const box = ctx.outlet.querySelector("#avFriends");
+  const side = ctx.outlet.querySelector("#avFriendsSide");
+  let data = null;
+  // Заявки грузятся, когда открывают их вкладку; после изменений дружбы — заново
+  const pending = { incoming: null, outgoing: null };
+  let suggestions = null;
+  let filter = "all";
+  let query = "";
+  let loadedAt = 0;
+  let linked = true;
+  let noticeTimer = 0;
+
+  const empty = (icon, title, text, action = "") => `
+    <div class="ed-empty friends__empty">
+      <div class="ed-empty__icon"><i class="${icon}" aria-hidden="true"></i></div>
+      <div class="ed-empty__title">${esc(title)}</div>
+      <div class="ed-empty__text">${esc(text)}</div>
+      ${action ? `<div class="ed-empty__action">${action}</div>` : ""}
+    </div>`;
+
+  // Ошибка действия — заметкой в карточке, сама скрывается
+  const showNotice = (text) => {
+    const el = box.querySelector(".friends__notice");
+    if (!el) return;
+    el.querySelector("div").textContent = text;
+    el.hidden = false;
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => { el.hidden = true; }, 6000);
+  };
+
+  // Карточка с вкладками и поиском строится один раз: поиск не теряет фокус, когда меняются строки
+  const frame = () => {
+    box.innerHTML = `
+      <nav class="ed-tabs ed-tabs--line friends__tabs" aria-label="Списки друзей">
+        <button type="button" class="ed-tabs__item" data-filter="all">Все<span class="friends__count" data-count="all"></span></button>
+        <button type="button" class="ed-tabs__item" data-filter="online">В сети<span class="friends__count" data-count="online"></span></button>
+        <button type="button" class="ed-tabs__item" data-filter="incoming">Заявки<span class="ed-tabs__count" data-count="incoming" hidden></span></button>
+        <button type="button" class="ed-tabs__item" data-filter="outgoing">Исходящие<span class="friends__count" data-count="outgoing"></span></button>
+      </nav>
+      <div class="ed-search friends__search" role="search">
+        <i class="ed-search__icon fas fa-search" aria-hidden="true"></i>
+        <input class="ed-search__input" type="search" placeholder="Поиск среди друзей" aria-label="Поиск среди друзей" autocomplete="off" />
+      </div>
+      <div class="ed-note ed-note--danger friends__notice" role="alert" hidden><i class="fas fa-circle-exclamation" aria-hidden="true"></i><div></div></div>
+      <div class="friends__list"></div>
+      <div class="friends__nothing"></div>`;
+    box.querySelector(".ed-search__input").addEventListener("input", (e) => { query = e.target.value; paint(); });
+  };
+
+  const loadPending = async (kind) => {
+    try {
+      pending[kind] = await _fetchJson(`/account/friends/requests?type=${kind}`);
+    } catch (exc) {
+      pending[kind] = { items: [], total: data?.requests?.[kind] || 0, failed: true };
+    }
+    if (data) data.requests = { ...data.requests, [kind]: pending[kind].total ?? pending[kind].items.length };
+    if (box.isConnected && data) paint();
+  };
+
+  const loadSuggestions = async () => {
+    try {
+      suggestions = (await _fetchJson("/account/friends/suggestions")).items || [];
+    } catch (_) {
+      suggestions = [];
+    }
+    if (box.isConnected && data) paint();
+  };
+
+  const paint = () => {
+    const items = data.items;
+    const online = items.filter(_friendOnline);
+    const counts = data.requests || { incoming: 0, outgoing: 0 };
+    const q = query.trim().toLocaleLowerCase("ru");
+    const match = (f) => !q || f.name.toLocaleLowerCase("ru").includes(q);
+    box.querySelectorAll("[data-filter]").forEach(b => {
+      const on = b.dataset.filter === filter;
+      b.classList.toggle("is-active", on);
+      b.setAttribute("aria-pressed", String(on));
+    });
+    box.querySelector('[data-count="all"]').textContent = items.length;
+    box.querySelector('[data-count="online"]').textContent = online.length;
+    const incoming = box.querySelector('[data-count="incoming"]');
+    incoming.textContent = counts.incoming || "";
+    incoming.hidden = !counts.incoming;
+    box.querySelector('[data-count="outgoing"]').textContent = counts.outgoing || 0;
+    const list = box.querySelector(".friends__list");
+    const nothing = box.querySelector(".friends__nothing");
+    if (filter === "incoming" || filter === "outgoing") {
+      const page = pending[filter];
+      if (!page) {
+        list.innerHTML = "";
+        nothing.innerHTML = ctx.loadingBlock("Загружаем заявки…");
+      } else {
+        const shown = page.items.filter(match);
+        list.innerHTML = shown.map(u => _requestItem(u, filter)).join("");
+        nothing.innerHTML = shown.length ? ""
+          : page.failed ? empty("fas fa-user-clock", "Не удалось загрузить заявки", `${site} не ответил. Попробуйте чуть позже.`)
+          : q ? empty("fas fa-search", "Никого не нашли", "Проверьте написание имени.")
+          : filter === "incoming" ? empty("fas fa-user-clock", "Новых заявок нет", "Здесь появятся люди, которые хотят добавить вас в друзья.")
+          : empty("fas fa-paper-plane", "Исходящих заявок нет", "Здесь появятся заявки, которые вы отправили.");
+      }
+    } else {
+      const shown = (filter === "online" ? online : items).filter(match);
+      list.innerHTML = shown.map(_friendItem).join("");
+      nothing.innerHTML = shown.length ? ""
+        : q ? empty("fas fa-search", "Никого не нашли", "Проверьте написание имени или поищите среди всех пользователей.",
+            `<a class="ed-btn ed-btn--secondary" href="${esc(searchUrl)}" target="_blank" rel="noopener">Искать везде</a>`)
+        : !items.length ? empty("fas fa-user-group", `В ${site} у вас пока нет друзей`,
+            `Добавьте друзей в ${site} — здесь появится, кто из них на AsoPlay и что смотрит.`,
+            `<a class="ed-btn ed-btn--primary" href="${esc(searchUrl)}" target="_blank" rel="noopener">Найти друзей</a>`)
+        : empty("fas fa-circle", "Сейчас никого нет в сети", `Здесь появятся друзья, которые сейчас на AsoPlay или в ${site}.`);
+    }
+    side.innerHTML = _friendsWatchPanel(items) + _friendsSuggestPanel(suggestions);
+  };
+
+  const load = async () => {
+    let fresh;
+    try {
+      fresh = await _fetchJson("/account/friends");
+    } catch (_) {
+      if (!box.isConnected) return;
+      // Уже показанный список не стираем из-за одного сбоя обновления
+      if (!data) box.innerHTML = empty("fas fa-user-group", "Не удалось загрузить друзей", `${site} не ответил. Обновите страницу чуть позже.`,
+        `<a class="ed-btn ed-btn--primary" href="/my/friends">Повторить</a>`);
+      return;
+    }
+    if (!box.isConnected) return;
+    loadedAt = Date.now();
+    if (!fresh.connected) {
+      linked = false;
+      data = null;
+      side.innerHTML = "";
+      box.innerHTML = empty("fas fa-user-group", `Друзья — из ${site}`,
+        `Войдите через ${site}, чтобы видеть друзей: кто сейчас на AsoPlay, кто в сети и что смотрят.`,
+        `<a class="ed-btn ed-btn--primary" href="${esc(_asLoginUrl("/my/friends"))}">Войти через ${esc(site)}</a>`);
+      return;
+    }
+    if (!data) frame();
+    data = fresh;
+    pending.incoming = pending.outgoing = null;
+    if (filter === "incoming" || filter === "outgoing") loadPending(filter);
+    if (suggestions === null) loadSuggestions();
+    paint();
+  };
+
+  // Действие с дружбой: кнопка ждёт ответа, ошибка — заметкой; изменения у второго человека и списки
+  // приходят событием соцсети profile_friend (av:friendship)
+  const act = async (button, method, path, done) => {
+    button.disabled = true;
+    try {
+      const result = await _fetchJson(path, { method });
+      if (data && Number.isInteger(result?.friend_requests)) data.requests = { ...data.requests, incoming: result.friend_requests };
+      done(result);
+    } catch (exc) {
+      showNotice(_friendActionError(exc));
+      button.disabled = false;
+    }
+  };
+  const dropPending = (kind, id) => {
+    const page = pending[kind];
+    if (!page) return;
+    page.items = page.items.filter(u => u.id !== id);
+    page.total = Math.max(0, (page.total || 1) - 1);
+    data.requests = { ...data.requests, [kind]: page.total };
+  };
+
+  const closeMenus = (except) => box.querySelectorAll(".friends__menu").forEach(pop => {
+    if (pop === except) return;
+    pop.hidden = true;
+    pop.parentElement.querySelector("[data-friend-menu]")?.setAttribute("aria-expanded", "false");
+  });
+  box.addEventListener("click", (e) => {
+    const tab = e.target.closest("[data-filter]");
+    if (tab && data) {
+      filter = tab.dataset.filter;
+      if ((filter === "incoming" || filter === "outgoing") && !pending[filter]) loadPending(filter);
+      paint();
+      return;
+    }
+    const write = e.target.closest("[data-friend-write]");
+    if (write && data) {
+      const f = data.items.find(x => x.id === Number(write.dataset.friendWrite));
+      if (f) _openWriteDialog(f);
+      return;
+    }
+    const accept = e.target.closest("[data-friend-accept]");
+    if (accept) {
+      const id = Number(accept.dataset.friendAccept);
+      act(accept, "POST", `/account/friends/${id}/accept`, () => { dropPending("incoming", id); paint(); load(); });
+      return;
+    }
+    const decline = e.target.closest("[data-friend-decline]");
+    if (decline) {
+      const id = Number(decline.dataset.friendDecline);
+      act(decline, "POST", `/account/friends/${id}/decline`, () => { dropPending("incoming", id); paint(); });
+      return;
+    }
+    const cancel = e.target.closest("[data-friend-cancel]");
+    if (cancel) {
+      const id = Number(cancel.dataset.friendCancel);
+      act(cancel, "DELETE", `/account/friends/${id}`, () => { dropPending("outgoing", id); paint(); });
+      return;
+    }
+    const remove = e.target.closest("[data-friend-remove]");
+    if (remove && data) {
+      closeMenus();
+      const id = Number(remove.dataset.friendRemove);
+      const f = data.items.find(x => x.id === id);
+      confirmWithCountdown({
+        title: "Удалить из друзей?",
+        body: `${f?.name || "Этот человек"} пропадёт из друзей здесь и в ${site}.`,
+        countdownSec: 2,
+        yesLabel: "Удалить",
+        onConfirm: async () => {
+          try {
+            await _fetchJson(`/account/friends/${id}`, { method: "DELETE" });
+            data.items = data.items.filter(x => x.id !== id);
+            paint();
+          } catch (exc) {
+            showNotice(_friendActionError(exc));
+          }
+        },
+      });
+      return;
+    }
+    const more = e.target.closest("[data-friend-menu]");
+    if (more) {
+      const pop = more.parentElement.querySelector(".friends__menu");
+      closeMenus(pop);
+      pop.hidden = !pop.hidden;
+      more.setAttribute("aria-expanded", String(!pop.hidden));
+      if (!pop.hidden) { _fitMenu(pop); pop.querySelector(".ed-menu__item")?.focus({ preventScroll: true }); }
+      return;
+    }
+    if (e.target.closest(".friends__menu .ed-menu__item")) closeMenus();
+  });
+  side.addEventListener("click", (e) => {
+    const add = e.target.closest("[data-friend-add]");
+    if (!add) return;
+    const id = Number(add.dataset.friendAdd);
+    act(add, "POST", `/account/friends/${id}`, () => {
+      const u = suggestions?.find(x => x.id === id);
+      if (u) u.sent = true;
+      pending.outgoing = null;
+      data.requests = { ...data.requests, outgoing: (data.requests?.outgoing || 0) + 1 };
+      paint();
+    });
+  });
+  // Друг зашёл, вышел, начал или перестал смотреть — строка и «Смотрят сейчас» меняются сразу
+  const onPresence = (e) => {
+    if (data && _applyFriendPresence(data.items, e.detail)) paint();
+  };
+  const onSocialPresence = (e) => {
+    if (data && _applySocialPresence(data.items, e.detail)) paint();
+  };
+  // Заявка, новый друг, отмена или удаление — где бы это ни случилось, список и заявки перечитываем
+  const onFriendship = () => {
+    if (!linked) return;
+    suggestions = null;
+    load();
+  };
+  const onVisible = () => {
+    if (linked && document.visibilityState === "visible" && Date.now() - loadedAt > FRIENDS_STALE) load();
+  };
+  const onOutside = (e) => { if (!e.target.closest(".friends__menu-wrap")) closeMenus(); };
+  const onKey = (e) => { if (e.key === "Escape") closeMenus(); };
+  document.addEventListener("av:presence", onPresence);
+  document.addEventListener("av:social-presence", onSocialPresence);
+  document.addEventListener("av:friendship", onFriendship);
+  document.addEventListener("visibilitychange", onVisible);
+  document.addEventListener("pointerdown", onOutside);
+  document.addEventListener("keydown", onKey);
+  // Занимаем state.current до первого await: роутер снимает подписки при уходе со страницы
+  ctx.state.current = {
+    destroy: () => {
+      clearTimeout(noticeTimer);
+      document.removeEventListener("av:presence", onPresence);
+      document.removeEventListener("av:social-presence", onSocialPresence);
+      document.removeEventListener("av:friendship", onFriendship);
+      document.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener("pointerdown", onOutside);
+      document.removeEventListener("keydown", onKey);
+    },
+  };
+  await load();
+}
+
+// Блок «Друзья» на странице тайтла: кто смотрит его сейчас и у кого он в списках. Пусто — блок скрыт.
+// Открытый тайтл один, поэтому события живого соединения раздаёт ему одна подписка на весь модуль.
+let _titleFriends = null;
+
+function _titleFriendOrder(a, b) {
+  return (b.now - a.now)
+    || (TITLE_STATUS_ORDER[a.status] ?? 9) - (TITLE_STATUS_ORDER[b.status] ?? 9)
+    || a.name.localeCompare(b.name, "ru");
+}
+
+document.addEventListener("av:presence", (e) => _titleFriends?.presence(e.detail));
+document.addEventListener("visibilitychange", () => _titleFriends?.visible());
+
+// alive() — страница тайтла ещё открыта
+export async function renderTitleFriends(malId, alive) {
+  const box = document.querySelector("#avTitleFriends");
+  if (!box || !ctx.state.user || !authConfig.as_login) return;
+  let items = [];
+  let total = 0;
+  let loadedAt = 0;
+  const paint = () => {
+    const shown = items.slice(0, TITLE_FRIENDS_MAX);
+    box.hidden = !shown.length;
+    box.innerHTML = shown.length ? `
+      <div class="ed-panel__head"><span id="avTitleFriendsHead">Друзья</span>${total > shown.length ? `<span class="ep-count">${total}</span>` : ""}</div>
+      <div class="ed-panel__body">
+        <ul class="title-friends__list">
+          ${shown.map(f => `
+            <li><a class="title-friend" href="${esc(f.profile_path)}">
+              ${_friendAva({ ...f, on_asoplay: !!f.now, social: null })}
+              <span class="title-friend__text"><span class="title-friend__name">${esc(f.name)}</span><span class="title-friend__status${f.now ? " is-client" : ""}">${f.now ? "Смотрит сейчас" : esc(TITLE_FRIEND_STATUS[f.status] || "")}</span></span>
+            </a></li>`).join("")}
+        </ul>
+      </div>` : "";
+  };
+  const load = async () => {
+    let data;
+    try { data = await _fetchJson(`/account/friends/title/${malId}`); } catch (_) { return; }
+    if (!alive() || !box.isConnected) return;
+    items = data?.items || [];
+    total = data?.total || items.length;
+    loadedAt = Date.now();
+    paint();
+  };
+  const view = {
+    // Друг начал смотреть этот тайтл — появляется с «Смотрит сейчас»; перестал — остаётся, если тайтл
+    // у него в списках
+    presence(ev) {
+      if (_titleFriends !== view) return;
+      if (!alive() || !box.isConnected) { _titleFriends = null; return; }
+      const uid = ev?.user?.id;
+      if (!uid) return;
+      const now = !!(ev.on_asoplay && ev.watching?.mal_id === malId);
+      const i = items.findIndex(f => f.id === uid);
+      if (i >= 0) {
+        if (items[i].now === now) return;
+        items[i].now = now;
+        if (!now && !items[i].status) { items.splice(i, 1); total = Math.max(0, total - 1); }
+      } else if (now) {
+        items.push({ ...ev.user, now: true, status: null });
+        total += 1;
+      } else {
+        return;
+      }
+      items.sort(_titleFriendOrder);
+      paint();
+    },
+    visible() {
+      if (_titleFriends !== view) return;
+      if (!alive() || !box.isConnected) { _titleFriends = null; return; }
+      if (document.visibilityState === "visible" && Date.now() - loadedAt > FRIENDS_STALE) load();
+    },
+  };
+  _titleFriends = view;
+  await load();
 }
 
 // ==== public profile ====

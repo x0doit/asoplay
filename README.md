@@ -53,6 +53,20 @@ JavaScript, бэкенд работает на Python/FastAPI, а пользов
   AnimeSocial и локальные HTTP-only сессии проекта.
 - **Личный кабинет**: избранное, продолжить просмотр, списки, статусы,
   оценки, выбранные озвучки, настройки и приватность.
+- **Друзья и «онлайн на AsoPlay»**: страница «Друзья» как в AnimeSocial — кто сейчас на
+  AsoPlay и что смотрит, кто в сети в соцсети, кто когда был, поиск, заявки (принять, отклонить,
+  отменить), «Возможные друзья», «Удалить из друзей», «Написать» (сообщение уходит в переписку
+  соцсети) и колонка «Смотрят сейчас»; блок «Друзья» на странице тайтла; в самой соцсети друзья
+  видят «онлайн на AsoPlay». Всё меняется сразу — по живому соединению вкладки с сервером и
+  сервера с realtime соцсети — и настраивается в приватности.
+- **Раздел «AsoPlay» в панели AnimeSocial**: администраторы соцсети управляют сайтом из её `/cpanel`.
+  Кнопка «Не работает» в плеере отправляет жалобу — как на сайте соцсети, вместе с серией, озвучкой
+  и источником — в очередь модераторов. Тайтл можно скрыть по жалобе правообладателя (страница
+  остаётся, видео нет, для поисковиков — 451), закрепить в карусели главной («Рекомендуем»),
+  пометить 18+ (метка и вопрос «Мне есть 18» перед видео), сбросить его кеш. Ещё — плашка-объявление
+  на сайте, выключатели входа по почте и через AnimeSocial, включение и порядок источников видео,
+  «Обзор» (здоровье источников, люди, просмотры, топ недели) и журнал действий. Правка из панели
+  сразу видна на открытых страницах.
 - **Автоматические статусы списков**: auto-watching, auto-completed и
   stale auto-dropped на основе реального прогресса просмотра.
 - **Реальная логика просмотра**: прогресс фиксируется по событиям плеера, а не
@@ -154,6 +168,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   ├── account.js              auth UI, личные разделы, store, профили
 │   ├── navigation.js           каркас: лист «Ещё», поиск в шапке, тема, активный раздел
 │   ├── profile-activity.js     группировка дневника и календарь активности
+│   ├── realtime.js             живое соединение вкладки с сервером (WebSocket /ws)
+│   ├── site.js                 решения панели AnimeSocial: плашка, скрытые и 18+ тайтлы, вход
 │   └── trailer.js              окно трейлера
 ├── server/
 │   ├── main.py                 FastAPI wiring, static serving, sources
@@ -161,6 +177,12 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   ├── rate_limit.py           лимит попыток входа и IP посетителя за прокси
 │   ├── as_login.py             вход через AnimeSocial (OAuth 2.0 + PKCE) и его сессии
 │   ├── as_api.py               клиент API v2 AnimeSocial
+│   ├── presence.py             присутствие на AsoPlay и друзья из AnimeSocial
+│   ├── realtime.py             WebSocket /ws: вкладки, события друзьям, состояние сервера
+│   ├── as_realtime.py          соединение сервер–сервер с realtime AnimeSocial
+│   ├── admin_api.py            админ-API для раздела «AsoPlay» в /cpanel AnimeSocial (HMAC)
+│   ├── site_settings.py        что решила панель: пометки тайтлов, плашка, функции, источники
+│   ├── video_reports.py        жалобы «Не работает» из плеера
 │   ├── token_box.py            шифрование токенов соцсети в базе (AES-GCM)
 │   ├── animesocial_config.py   AnimeSocial URL/media configuration
 │   ├── account_api.py          account compatibility API
@@ -181,7 +203,9 @@ AsoPlayer — это не отдельная библиотека, а прикл
 ├── sql/
 │   ├── aviev-schema.sql        базовая схема aviev_*
 │   ├── aviev-schema-pass2.sql  списки, приватность, активность, compatibility
-│   └── aviev-schema-pass3.sql  сессии входа через AnimeSocial
+│   ├── aviev-schema-pass3.sql  сессии входа через AnimeSocial
+│   ├── aviev-schema-pass4.sql  настройки присутствия на AsoPlay
+│   └── aviev-schema-pass5.sql  жалобы, пометки тайтлов, настройки сайта, журнал, время просмотра
 ├── animesocial.json            public URL/media mapping для AnimeSocial
 ├── animesocial-db.php          формат DB-конфига AnimeSocial
 ├── vpn.template.json           шаблон xray-конфига
@@ -247,6 +271,8 @@ copy .env.example .env
 mysql -u root AnimeSocial < sql/aviev-schema.sql
 mysql -u root AnimeSocial < sql/aviev-schema-pass2.sql
 mysql -u root AnimeSocial < sql/aviev-schema-pass3.sql
+mysql -u root AnimeSocial < sql/aviev-schema-pass4.sql
+mysql -u root AnimeSocial < sql/aviev-schema-pass5.sql
 ```
 
 Запустить приложение:
@@ -315,6 +341,12 @@ Backend читает runtime settings из `.env`, `animesocial-db.php` и
   токенов соцсети (32 байта в base64). `AV_AS_API_URL`, `AV_AS_REDIRECT_URI` — адреса
   API и возврата, если они не выводятся из адреса соцсети и текущего запроса. `AV_AS_ORIGINS` —
   дополнительные адреса сайта соцсети, которым `/auth/as/whoami` отвечает с cookie.
+- `AV_AS_CA` — каким сертификатам доверять в запросах к соцсети: путь к файлу CA или
+  `system` — хранилище системы (локальный движок в OSPanel с самоподписанным
+  сертификатом). Пусто — набор certifi.
+- `AV_ADMIN_SECRET` — общий секрет подписи запросов раздела «AsoPlay» панели AnimeSocial
+  (тот же, что в настройках раздела у соцсети). Панель ходит на `127.0.0.1:8787/api/admin/…` с этой
+  же машины; через публичный прокси API не отвечает. Пусто — API выключен.
 - `AV_ADBLOCK_ENABLED`, `AV_ADBLOCK_FILTER_URLS`,
   `AV_ADBLOCK_CACHE_TTL_SECONDS` — player Shield filtering behavior.
 - `AV_ADBLOCK_REGEX_LIMIT`, `AV_ADBLOCK_SNIPPET_LIMIT` — parser safety limits
@@ -356,6 +388,32 @@ nginx перед AsoPlay; заголовкам прокси сервер вер�
 «Имя Фамилия, это вы?». Обратно сайт соцсети спрашивает AsoPlay через `/auth/as/whoami` и
 входит под тем же аккаунтом через `/auth/as/to-social`. Функция включается `AV_AS_LOGIN=1`, когда задан
 `AV_TOKEN_KEY`, установлен пакет `cryptography`, а движок соцсети разрешил адрес возврата.
+Форма почты с включённой соцсетью тоже входит через неё (`POST /auth/login` с ключами клиента):
+пароль проверяет соцсеть, вход — только по почте, как на её сайте, и у человека появляется та же
+сессия AsoPlay в соцсети, что после кнопки. Без ключей клиента форма сверяет пароль по таблице
+соцсети и пускает по логину или почте. Кто уже вошёл по почте раньше, тем же входом через соцсеть
+связывает с ней свою сессию; если в соцсети открыт другой аккаунт, вход отклоняется, а не
+подменяет человека.
+
+Живое соединение (`server/realtime.py`, `js/realtime.js`). Каждая вкладка держит WebSocket `/ws`
+со страниц самого AsoPlay (Origin проверяется): сообщает, на экране ли она и что играет в плеере, —
+только когда это меняется; сервер присылает состояние (источники, VPN — раньше вкладки спрашивали
+`/health` раз в 30 секунд) и события друзей. Обрыв замечают ping-кадры WebSocket, вкладка
+переподключается сама.
+
+Присутствие и друзья (`server/presence.py`). Человек на AsoPlay, пока хоть одна его вкладка открыта
+и на экране, и ещё 30 секунд после — перезагрузка не мигает «вышел». Друзьям, которые сейчас на
+сайте, событие уходит сразу. Соцсети сервер сообщает присутствие по постоянному соединению
+сервер–сервер (`server/as_realtime.py`): при подключении — снимок, дальше — каждое изменение; обратно
+приходят события его людей: друг зашёл в соцсеть или вышел, изменилась дружба, страницу заблокировали.
+Пока соединения нет, работает запасной пакет `POST /clients/presence` раз в минуту. Друзья видят в
+соцсети «онлайн на AsoPlay» и «смотрит «…»». Соцсеть принимает отметку у тех, у кого есть сессия AsoPlay в ней, а ссылку «смотрит» —
+только на адресе сайта клиента из панели соцсети. Страница `/my/friends` берёт друзей из соцсети
+(`GET /users/{id}/friends/ids` и `GET /users?ids=` по токену сессии соцсети), а кто на AsoPlay и что
+смотрит — у этого сервера; блок «Друзья» на странице тайтла добавляет, у кого тайтл в списках. В
+`aviev_privacy` две настройки: `hide_presence` никому не показывает, что человек здесь,
+`show_watching` (по умолчанию выключено) показывает друзьям, что он смотрит; скрытые списки в блок не
+попадают.
 
 Основные таблицы проекта:
 
@@ -366,7 +424,7 @@ nginx перед AsoPlay; заголовкам прокси сервер вер�
 - `aviev_title_ratings` — personal ratings.
 - `aviev_dub_prefs` — preferred dubbing per title.
 - `aviev_account_settings` — account toggles.
-- `aviev_privacy` — public profile privacy controls.
+- `aviev_privacy` — public profile privacy controls and presence on AsoPlay.
 - `aviev_as_sessions` — AnimeSocial device sessions behind sign-in with AnimeSocial.
 - `aviev_activity` — contribution/activity graph events.
 - `aviev_title_pages` — canonical SEO title-page cache.
@@ -464,6 +522,21 @@ JavaScript, the backend runs on Python/FastAPI, and user data is stored in MySQL
   account database with project-local HTTP-only sessions.
 - **Personal library** with favorites, continue watching, statuses, ratings,
   dub preferences, settings and privacy controls.
+- **Friends and «онлайн на AsoPlay»**: a friends page laid out like AnimeSocial's, showing who is
+  on AsoPlay now and what they watch, who is online on the social network and when others were
+  last seen, with a search, friend requests (accept, decline, cancel), «Возможные друзья»,
+  «Удалить из друзей», «Написать» (the message goes to the social network dialog) and a
+  «Смотрят сейчас» column; a «Друзья» block on title pages; on the social network itself friends
+  see «онлайн на AsoPlay». Everything updates at once — over the tab's live connection to the server
+  and the server's link to the social network's realtime — and follows the privacy settings.
+- **The «AsoPlay» section in the AnimeSocial panel**: social network admins run the site from its
+  `/cpanel`. The player's «Не работает» button files a report — like reports on the social network,
+  with the episode, dub and source — into the moderators' queue. A title can be hidden after a
+  copyright complaint (the page stays, the video goes, search engines get 451), pinned to the home
+  carousel («Рекомендуем»), marked 18+ (a label and a «Мне есть 18» question before the video), and
+  have its cache reset. There is also a site notice, switches for mail sign-in and sign-in with
+  AnimeSocial, enabling and ordering video sources, an overview (source health, people, watching,
+  the week's top) and an audit log. A change in the panel shows on open pages at once.
 - **Automatic list statuses** driven by real watch progress: auto-watching,
   auto-completed and stale auto-dropped states.
 - **Real watch-progress logic** driven by player events instead of wall-clock
@@ -568,6 +641,8 @@ Key capabilities:
 │   ├── account.js              auth UI, personal sections, store, profiles
 │   ├── navigation.js           shell: "Ещё" sheet, header search, theme, active section
 │   ├── profile-activity.js     diary grouping and activity calendar
+│   ├── realtime.js             the tab's live connection to the server (WebSocket /ws)
+│   ├── site.js                 AnimeSocial panel decisions: notice, hidden and 18+ titles, sign-in
 │   └── trailer.js              trailer dialog
 ├── server/
 │   ├── main.py                 FastAPI app wiring, static serving, sources
@@ -576,6 +651,12 @@ Key capabilities:
 │   ├── as_login.py             sign-in with AnimeSocial (OAuth 2.0 + PKCE) and its sessions
 │   ├── as_api.py               AnimeSocial API v2 client
 │   ├── token_box.py            encryption of social network tokens at rest (AES-GCM)
+│   ├── presence.py             presence on AsoPlay and friends from AnimeSocial
+│   ├── realtime.py             WebSocket /ws: tabs, events to friends, server status
+│   ├── as_realtime.py          server-to-server link with AnimeSocial realtime
+│   ├── admin_api.py            admin API for the «AsoPlay» section in AnimeSocial /cpanel (HMAC)
+│   ├── site_settings.py        what the panel decided: title flags, notice, features, sources
+│   ├── video_reports.py        «Не работает» reports from the player
 │   ├── animesocial_config.py   AnimeSocial URL/media configuration
 │   ├── account_api.py          account compatibility API
 │   ├── adblock.py              AdGuard-backed request filtering
@@ -595,7 +676,9 @@ Key capabilities:
 ├── sql/
 │   ├── aviev-schema.sql        base aviev_* schema
 │   ├── aviev-schema-pass2.sql  lists, privacy, activity and compatibility
-│   └── aviev-schema-pass3.sql  sign-in with AnimeSocial sessions
+│   ├── aviev-schema-pass3.sql  sign-in with AnimeSocial sessions
+│   ├── aviev-schema-pass4.sql  presence settings
+│   └── aviev-schema-pass5.sql  reports, title flags, site settings, audit log, watch time
 ├── animesocial.json            AnimeSocial public URL/media mapping
 ├── animesocial-db.php          AnimeSocial DB config format
 ├── vpn.template.json           xray config template
@@ -662,6 +745,8 @@ Apply database schema in order:
 mysql -u root AnimeSocial < sql/aviev-schema.sql
 mysql -u root AnimeSocial < sql/aviev-schema-pass2.sql
 mysql -u root AnimeSocial < sql/aviev-schema-pass3.sql
+mysql -u root AnimeSocial < sql/aviev-schema-pass4.sql
+mysql -u root AnimeSocial < sql/aviev-schema-pass5.sql
 ```
 
 Start the application:
@@ -731,6 +816,13 @@ Important environment groups:
   `AV_AS_REDIRECT_URI` — API and return addresses when they cannot be derived from the
   AnimeSocial address and the current request. `AV_AS_ORIGINS` — extra social network site
   addresses that `/auth/as/whoami` answers with cookies.
+- `AV_AS_CA` — which certificates to trust in requests to the social network: a CA file path or
+  `system` for the system store (a local OSPanel engine with a self-signed certificate).
+  Empty means the certifi bundle.
+- `AV_ADMIN_SECRET` — the shared secret that signs requests from the «AsoPlay» section of the
+  AnimeSocial panel (the same as in the section settings on the social network). The panel calls
+  `127.0.0.1:8787/api/admin/…` from the same machine; through the public proxy the API does not answer.
+  Empty switches the API off.
 - `AV_ADBLOCK_ENABLED`, `AV_ADBLOCK_FILTER_URLS`,
   `AV_ADBLOCK_CACHE_TTL_SECONDS` — player Shield filtering behavior.
 - `AV_ADBLOCK_REGEX_LIMIT`, `AV_ADBLOCK_SNIPPET_LIMIT` — parser safety limits
@@ -772,7 +864,33 @@ network site itself stays. The page asks the social network who is signed in in 
 это вы?» card. In the other direction the social network site asks AsoPlay through
 `/auth/as/whoami` and signs in as the same account through `/auth/as/to-social`. The feature turns on with
 `AV_AS_LOGIN=1` once `AV_TOKEN_KEY` is set, the `cryptography` package is installed and the
-social network engine allows the return address.
+social network engine allows the return address. With the social network on, the email form
+signs in through it too (`POST /auth/login` with the client keys): the social network checks the
+password, sign-in is by email only, as on its site, and the person gets the same AsoPlay session on
+the social network as after the button. Without client keys the form checks the password against the
+social network's table and accepts a login or an email. Someone signed in by email earlier links
+their session to the social network through the same AnimeSocial sign-in; if another account is open
+on the social network, the sign-in is refused instead of switching the person.
+
+The live connection (`server/realtime.py`, `js/realtime.js`). Every tab holds a WebSocket `/ws`
+opened from AsoPlay's own pages (the Origin is checked): it says whether it is on screen and what the
+player is playing, only when that changes; the server sends its status (sources, VPN — tabs used to
+ask `/health` every 30 seconds) and friends' events. WebSocket ping frames notice a dead link, and the
+tab reconnects by itself.
+
+Presence and friends (`server/presence.py`). A person is on AsoPlay while at least one of their tabs
+is open and on screen, and for 30 seconds after, so a reload does not flash «left». Friends who are on
+the site get the event at once. The server reports presence to the social network over a standing
+server-to-server link (`server/as_realtime.py`): a snapshot on connect, then every change; back come
+its people's events: a friend came to the social network or left, a friendship changed, a page was
+banned. While the link is down, the `POST /clients/presence` batch every minute takes over. Friends see
+«онлайн на AsoPlay» and «смотрит «…»» on the social network. The social network accepts the mark for people who have
+an AsoPlay session on it, and the «watching» link only on the client's site address from the social
+network panel. `/my/friends` takes friends from the social network (`GET /users/{id}/friends/ids` and
+`GET /users?ids=` with the social session token) and who is on AsoPlay and what they watch from this
+server; the «Друзья» block on a title page adds whose lists have the title. `aviev_privacy` holds two
+settings: `hide_presence` shows nobody that the person is here, `show_watching` (off by default) shows
+friends what they watch; hidden lists stay out of the block.
 
 Core project tables:
 
@@ -783,7 +901,7 @@ Core project tables:
 - `aviev_title_ratings` — personal ratings.
 - `aviev_dub_prefs` — preferred dubbing per title.
 - `aviev_account_settings` — account toggles.
-- `aviev_privacy` — public profile privacy controls.
+- `aviev_privacy` — public profile privacy controls and presence on AsoPlay.
 - `aviev_as_sessions` — AnimeSocial device sessions behind sign-in with AnimeSocial.
 - `aviev_activity` — contribution/activity graph events.
 - `aviev_title_pages` — canonical SEO title-page cache.
