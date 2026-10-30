@@ -188,7 +188,9 @@ LISTS = [
 LISTS_FULL = [
     ("FROM aviev_user_lists WHERE user_id=%s AND mal_id=%s", [(5, 52991, "watching", "auto", 0, "Фрирен", "p.jpg", None, None)]),
     ("SELECT auto_add_lists FROM aviev_account_settings", [(1,)]),
-    ("SELECT 1 FROM aviev_episode_progress", [(1,)]),
+    # Ключ — с WHERE: иначе он совпал бы с подзапросом NOT EXISTS в выборке правила 30 дней
+    ("SELECT 1 FROM aviev_episode_progress WHERE user_id=%s", [(1,)]),
+    ("FROM aviev_user_lists l WHERE", [(999999999, 52991, 0, "Фрирен", "p.jpg", None)]),
     ("GROUP BY status", [("watching", 2), ("planned", 1)]),
     ("SELECT COUNT(*) FROM aviev_user_lists", [(3,)]),
     ("FROM aviev_user_lists WHERE user_id=%s AND", [(5, 52991, "watching", "auto", 1, "Фрирен", "p.jpg", None, None)]),

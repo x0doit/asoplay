@@ -179,6 +179,17 @@ class HubTests(unittest.TestCase):
         for ws in (guest_ws, sakura_ws):
             self.assertEqual(ws.events("status"), [{"type": "status", "status": {"ok": True, "sources": ["kodik"], "vpn": True}}])
 
+    def test_records_moved_by_the_30_day_rule_reach_only_their_persons_tabs(self):
+        _, tab1 = self.connect(1, "Сакура")
+        _, tab2 = self.connect(1, "Сакура")
+        _, naruto_ws = self.connect(2, "Наруто", friends={1})
+        _, guest_ws = self.connect(0, "")
+        items = [{"mal_id": 52991, "status": "dropped", "status_source": "auto"}]
+        self.run_async(self.hub.lists_changed(1, items))
+        for ws in (tab1, tab2):
+            self.assertEqual(ws.events("lists"), [{"type": "lists", "items": items}])
+        self.assertEqual((naruto_ws.events("lists"), guest_ws.events("lists")), ([], []))
+
     def test_logout_and_revoked_sessions_close_their_tabs(self):
         sakura, sakura_ws = self.connect(1, "Сакура")
         naruto, naruto_ws = self.connect(2, "Наруто")

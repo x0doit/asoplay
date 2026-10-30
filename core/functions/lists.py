@@ -13,21 +13,23 @@ completed / dropped / postponed), и отдельный флаг is_favorite. К
     - на последней серии — в completed (auto),
     - через 30 дней простоя watching → dropped (auto).
 Все три правила подчиняются настройке `auto_add_lists` в aviev_account_settings. Первые два считает раздел
-/account/lists/progress-event (core/api/sections/lists), третье — sweep_dropped_after_30_days ниже.
+/account/lists/progress-event (core/api/sections/lists), третье — sweep_dropped_after_30_days ниже; по расписанию его
+запускает core/functions/lists_sweep.py.
 
-Activity-логирование живёт в `core.functions.activity` и вызывается отсюда, чтобы
-contribution-график имел честный источник событий.
+Действия человека пишутся в активность (core.functions.activity) там, где он их делает. Автоперенос через 30 дней
+в активность не пишется: график профиля — о том, что человек делал сам; в списке перенос виден по status_source='auto'.
 """
 from __future__ import annotations
 
-from datetime import timedelta
-from typing import Any
+from datetime import datetime, timedelta
+from typing import Any, Callable
 
 from core.classes.clock import utc_now
 from core.classes.jikan import catalog as jikan_catalog
-from core.functions.activity import record_event
 
 STATUSES = ("watching", "planned", "completed", "dropped", "postponed")
+SWEEP_DAYS = 30
+SWEEP_BATCH = 500
 
 
 async def mal_id_exists(mal_id: int) -> bool:
@@ -109,35 +111,66 @@ def upsert_status(conn, user_id: int, mal_id: int, status: str | None,
     )
 
 
-# ---------- cron-friendly hook ----------
-def sweep_dropped_after_30_days(conn) -> int:
-    """Переводит auto-watching без движения >30 дней в auto-dropped — по всей базе.
+# ---------- правило 30 дней ----------
+# Кандидат — одно условие и для выборки, и для UPDATE: правка между ними (ручной статус, новая серия, выключенное
+# автодобавление) строку уже не перенесёт. Простой — и в списке, и в плеере: запись не менялась 30 дней и ни одной
+# серии этого тайтла за 30 дней. Только auto-«Смотрю» и только у тех, кто не выключил автодобавление. Обход — по ключу
+# (user_id, mal_id) после курсора: строка, которую UPDATE не взял, назад не вернётся, и проход кончается всегда.
+_SWEEP_CANDIDATE = """l.status = 'watching' AND l.status_source = 'auto' AND l.updated_at < %s
+       AND NOT EXISTS (SELECT 1 FROM aviev_episode_progress p
+                        WHERE p.user_id = l.user_id AND p.mal_id = l.mal_id AND p.updated_at >= %s)
+       AND COALESCE((SELECT s.auto_add_lists FROM aviev_account_settings s WHERE s.user_id = l.user_id), 1) = 1"""
+_SWEEP_UPDATE = f"""UPDATE aviev_user_lists l SET l.status = 'dropped', l.updated_at = %s
+     WHERE l.user_id = %s AND l.mal_id = %s AND {_SWEEP_CANDIDATE}"""
 
-    Возвращает количество изменённых строк. Планировщика пока нет: вызвать можно откуда угодно, а ручной прогон
-    для одного человека делает POST /account/lists/sweep. Manual-статусы никогда не трогает.
+
+def _sweep_select(user_id: int | None, after: tuple[int, int] | None) -> str:
+    """Следующая пачка кандидатов: по всей базе или у одного человека, после курсора."""
+    scope = ""
+    if user_id is not None:
+        scope = " AND l.user_id = %s" + (" AND l.mal_id > %s" if after else "")
+    elif after:
+        scope = " AND (l.user_id > %s OR (l.user_id = %s AND l.mal_id > %s))"
+    return f"""SELECT l.user_id, l.mal_id, l.is_favorite, l.title, l.poster_url, l.added_at
+      FROM aviev_user_lists l
+     WHERE {_SWEEP_CANDIDATE}{scope}
+     ORDER BY l.user_id, l.mal_id
+     LIMIT %s"""
+
+
+def sweep_dropped_after_30_days(conn, now: datetime, *, user_id: int | None = None, batch: int = SWEEP_BATCH,
+                                on_batch: Callable[[list[tuple[int, dict[str, Any]]]], None] | None = None,
+                                stop: Callable[[], bool] | None = None) -> int:
+    """Переводит auto-«Смотрю» после 30 дней простоя в auto-«Брошено»: по всей базе или у одного человека.
+
+    Пачками по batch строк, каждая — своим commit; после commit — on_batch([(user_id, запись списка), …]) с тем,
+    что перенесено. stop() между пачками прерывает проход. Manual-статусы не трогает. Вернёт, сколько перенесено.
     """
-    cutoff = utc_now() - timedelta(days=30)
+    now = now.replace(microsecond=0)
+    cutoff = now - timedelta(days=SWEEP_DAYS)
     cur = conn.cursor()
-    cur.execute(
-        """SELECT user_id, mal_id FROM aviev_user_lists
-            WHERE status='watching'
-              AND status_source='auto'
-              AND updated_at < %s""",
-        (cutoff,),
-    )
-    rows = cur.fetchall()
-    count = 0
-    for user_id, mal_id in rows:
-        cur.execute(
-            """UPDATE aviev_user_lists
-                SET status='dropped', status_source='auto', updated_at=%s
-                WHERE user_id=%s AND mal_id=%s
-                  AND status='watching' AND status_source='auto'""",
-            (utc_now(), user_id, mal_id),
-        )
-        if cur.rowcount:
-            count += 1
-            record_event(conn, user_id, kind="list_move",
-                         mal_id=mal_id, meta="watching->dropped:auto")
-    conn.commit()
-    return count
+    after: tuple[int, int] | None = None
+    moved = 0
+    while not (stop and stop()):
+        if user_id is not None:
+            scope = (user_id, after[1]) if after else (user_id,)
+        else:
+            scope = (after[0], after[0], after[1]) if after else ()
+        cur.execute(_sweep_select(user_id, after), (cutoff, cutoff, *scope, batch))
+        rows = cur.fetchall()
+        if not rows:
+            break
+        entries = []
+        for uid, mal_id, is_fav, title, poster, added_at in rows:
+            cur.execute(_SWEEP_UPDATE, (now, uid, mal_id, cutoff, cutoff))
+            if cur.rowcount:
+                entries.append((int(uid), row_to_public(
+                    (uid, mal_id, "dropped", "auto", is_fav, title, poster, added_at, now))))
+        conn.commit()
+        moved += len(entries)
+        if entries and on_batch:
+            on_batch(entries)
+        if len(rows) < batch:
+            break
+        after = (int(rows[-1][0]), int(rows[-1][1]))
+    return moved

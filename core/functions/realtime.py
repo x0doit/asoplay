@@ -356,6 +356,14 @@ class Hub:
         if self._loop is not None:
             asyncio.run_coroutine_threadsafe(self.privacy_changed(user_id), self._loop)
 
+    async def lists_changed(self, user_id: int, items: list[dict[str, Any]]) -> None:
+        """Правило 30 дней перенесло тайтлы человека: кадр «lists» во все его вкладки."""
+        await self._to_people([user_id], {"type": "lists", "items": items})
+
+    def lists_changed_from_thread(self, user_id: int, items: list[dict[str, Any]]) -> None:
+        if self._loop is not None:
+            asyncio.run_coroutine_threadsafe(self.lists_changed(user_id, items), self._loop)
+
     # ----- отправка и закрытие -----
     async def send(self, conn: Conn, data: dict[str, Any]) -> None:
         try:
@@ -460,6 +468,11 @@ def privacy_changed(user_id: int) -> None:
 def status_changed() -> None:
     """Из обычного обработчика (поток): в панели Anime Social поменяли то, что видят все вкладки."""
     hub.status_changed_from_thread()
+
+
+def lists_changed(user_id: int, items: list[dict[str, Any]]) -> None:
+    """Из потока: правило 30 дней перенесло тайтлы человека — его вкладки перекрашивают списки."""
+    hub.lists_changed_from_thread(user_id, items)
 
 
 def drop_session(session: str) -> None:

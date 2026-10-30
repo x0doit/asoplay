@@ -48,7 +48,7 @@ from core.classes.sources.oldyummy import OldYummy
 from core.classes.vpn import bridge as vpn_bridge
 from core.config import config
 from core.functions import (
-    activity, presence, realtime, site_settings, social_login, source_health, video_reports,
+    activity, lists_sweep, presence, realtime, site_settings, social_login, source_health, video_reports,
 )
 from core.functions.player_hosts import (
     VK_SCORE, iframe_preference_score, is_disabled_player_url, vk_video_ref,
@@ -169,10 +169,12 @@ async def _startup() -> None:
     await player_proxy.startup()
     await presence.startup()
     await realtime.startup()
+    await lists_sweep.startup()
 
 
 @app.on_event("shutdown")
 async def _shutdown() -> None:
+    await lists_sweep.shutdown()
     await realtime.shutdown()
     await presence.shutdown()
     await player_proxy.shutdown()

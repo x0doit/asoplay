@@ -10,8 +10,8 @@
 Изменчивое (время сервера, аптайм, задержки источников) находится само: --save прогоняет набор дважды подряд
 и помечает всё, что разошлось. Так шаги проверяет и движок Anime Social (сверка ответов «до/после»).
 
-Пользователь — временный аккаунт проверки с заранее заданными данными (temp_account.py): создаётся прямо в базе
-и удаляется после прогона. Админ — несуществующий id 999999999: панель проверяет только подпись, а запросы — одно
+Пользователь — временный аккаунт проверки с заранее заданными данными (core/tests/temp_account.py): создаётся прямо
+в базе и удаляется после прогона. Админ — несуществующий id 999999999: панель проверяет только подпись, а запросы — одно
 чтение. От имени настоящих людей проверка не действует, запросов на запись нет.
 База снимается в начале шага и сравнивается в тот же день: календарь активности в профиле считается от сегодня.
 
@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import re
 import sys
 import time
@@ -32,10 +33,10 @@ from pathlib import Path
 import httpx
 from dotenv import dotenv_values
 
-sys.path.insert(0, str(Path(__file__).parent))  # только для инструмента: соседний модуль временного аккаунта
-from temp_account import HANDLE, TempAccount  # noqa: E402
-
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))  # только для инструмента: временный аккаунт и подключение к базе — из кода приложения
+from core.tests.temp_account import HANDLE, TempAccount  # noqa: E402
+
 BASE = Path(__file__).with_name("baseline") / "responses.json"
 SITE = "http://127.0.0.1:8787"
 ADMIN_ID = 999999999  # такого человека нет: подпись панели проверяется без базы
@@ -153,6 +154,7 @@ _SEED = [
 
 def run() -> dict[str, dict]:
     """Один прогон всего набора."""
+    logging.disable(logging.CRITICAL)  # подключение к базе из кода приложения не шумит в выводе сторожа
     secret = (dotenv_values(ROOT / ".env").get("AV_ADMIN_SECRET") or "").strip().encode("utf-8")
     out: dict[str, dict] = {}
     with httpx.Client(base_url=SITE, follow_redirects=False, timeout=60) as client, TempAccount(_SEED) as token:

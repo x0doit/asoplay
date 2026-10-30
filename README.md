@@ -194,6 +194,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── site_settings.py    что решила панель: пометки тайтлов, плашка, функции, источники
 │   │   ├── video_reports.py    жалобы «Не работает» из плеера
 │   │   ├── lists.py            list/status/favorite domain и auto-rules
+│   │   ├── lists_sweep.py      правило 30 дней по расписанию: раз в сутки, замок, догон после простоя
 │   │   ├── progress.py         позиции в сериях, «досмотрено», пороги «Смотрю»
 │   │   ├── watch_history.py    история «Смотрю» и авто-статус после «не смотрел»
 │   │   ├── privacy.py          флаги приватности и их чтение
@@ -229,7 +230,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │       ├── 2026-04-30_lists_privacy_activity.sql списки, приватность, активность, compatibility
 │       ├── 2026-10-30_admin_panel.sql            жалобы, пометки тайтлов, настройки сайта, журнал, время просмотра
 │       ├── 2026-10-30_as_sessions.sql            сессии входа через AnimeSocial
-│       └── 2026-10-30_presence.sql               настройки присутствия на AsoPlay
+│       ├── 2026-10-30_presence.sql               настройки присутствия на AsoPlay
+│       └── 2026-10-31_task_runs.sql              отметки фоновых задач (правило 30 дней)
 ├── design/EDDAS/tests/         проверки фронтенда (Node); до шага 6 читают app.js и js/ из корня
 ├── tools/
 │   ├── guard/                  сторожа рефакторинга: длины, импорты, docblock, контракт, ответы, стили (all.py)
@@ -298,6 +300,7 @@ mysql -u root AnimeSocial < core/migrations/2026-04-30_lists_privacy_activity.sq
 mysql -u root AnimeSocial < core/migrations/2026-10-30_admin_panel.sql
 mysql -u root AnimeSocial < core/migrations/2026-10-30_as_sessions.sql
 mysql -u root AnimeSocial < core/migrations/2026-10-30_presence.sql
+mysql -u root AnimeSocial < core/migrations/2026-10-31_task_runs.sql
 ```
 
 Запустить приложение:
@@ -372,6 +375,9 @@ Backend читает runtime settings из `.env`, `core/config/db.php` и
 - `AV_ADMIN_SECRET` — общий секрет подписи запросов раздела «AsoPlay» панели AnimeSocial
   (тот же, что в настройках раздела у соцсети). Панель ходит на `127.0.0.1:8787/api/admin/…` с этой
   же машины; через публичный прокси API не отвечает. Пусто — API выключен.
+- `AV_LISTS_SWEEP_AT` — когда идёт правило 30 дней: время UTC «ЧЧ:ММ», по умолчанию 04:00; не «ЧЧ:ММ» —
+  ошибка в журнал и 04:00, `off` — не по расписанию. Проход раз в сутки переносит auto-«Смотрю» без
+  просмотра этого тайтла 30 дней в «Брошено»; после простоя сервера пропущенный проход идёт сразу при старте.
 - `AV_ADBLOCK_ENABLED`, `AV_ADBLOCK_FILTER_URLS`,
   `AV_ADBLOCK_CACHE_TTL_SECONDS` — player Shield filtering behavior.
 - `AV_ADBLOCK_REGEX_LIMIT`, `AV_ADBLOCK_SNIPPET_LIMIT` — parser safety limits
@@ -455,6 +461,7 @@ nginx перед AsoPlay; заголовкам прокси сервер вер�
 - `aviev_title_pages` — canonical SEO title-page cache.
 - `aviev_title_refresh_queue` — title page refresh queue.
 - `aviev_import_marks` — one-time localStorage import markers.
+- `aviev_task_runs` — the last run of each background task (the 30-day rule).
 
 `aviev_activity` использует unique deduplication index:
 
@@ -692,6 +699,7 @@ Key capabilities:
 │   │   ├── site_settings.py    what the panel decided: title flags, notice, features, sources
 │   │   ├── video_reports.py    «Не работает» reports from the player
 │   │   ├── lists.py            list/status/favorite domain and auto-rules
+│   │   ├── lists_sweep.py      the 30-day rule on a schedule: once a day, a lock, catching up after downtime
 │   │   ├── progress.py         episode positions, «watched», «Watching» thresholds
 │   │   ├── watch_history.py    the «Watching» history and auto status after «not watched»
 │   │   ├── privacy.py          privacy flags and reading them
@@ -727,7 +735,8 @@ Key capabilities:
 │       ├── 2026-04-30_lists_privacy_activity.sql lists, privacy, activity and compatibility
 │       ├── 2026-10-30_admin_panel.sql            reports, title flags, site settings, audit log, watch time
 │       ├── 2026-10-30_as_sessions.sql            sign-in with AnimeSocial sessions
-│       └── 2026-10-30_presence.sql               presence settings
+│       ├── 2026-10-30_presence.sql               presence settings
+│       └── 2026-10-31_task_runs.sql              background task marks (the 30-day rule)
 ├── design/EDDAS/tests/         frontend checks (Node); until step 6 they read app.js and js/ from the root
 ├── tools/
 │   ├── guard/                  refactoring guards: lengths, imports, docblocks, contract, responses, styles (all.py)
@@ -797,6 +806,7 @@ mysql -u root AnimeSocial < core/migrations/2026-04-30_lists_privacy_activity.sq
 mysql -u root AnimeSocial < core/migrations/2026-10-30_admin_panel.sql
 mysql -u root AnimeSocial < core/migrations/2026-10-30_as_sessions.sql
 mysql -u root AnimeSocial < core/migrations/2026-10-30_presence.sql
+mysql -u root AnimeSocial < core/migrations/2026-10-31_task_runs.sql
 ```
 
 Start the application:
@@ -873,6 +883,9 @@ Important environment groups:
   AnimeSocial panel (the same as in the section settings on the social network). The panel calls
   `127.0.0.1:8787/api/admin/…` from the same machine; through the public proxy the API does not answer.
   Empty switches the API off.
+- `AV_LISTS_SWEEP_AT` — when the 30-day rule runs: UTC «HH:MM», 04:00 by default; anything else is logged as an
+  error and falls back to 04:00, `off` turns the schedule off. Once a day the run moves an auto «Watching» title
+  nobody has watched for 30 days to «Dropped»; after downtime the missed run happens right at start.
 - `AV_ADBLOCK_ENABLED`, `AV_ADBLOCK_FILTER_URLS`,
   `AV_ADBLOCK_CACHE_TTL_SECONDS` — player Shield filtering behavior.
 - `AV_ADBLOCK_REGEX_LIMIT`, `AV_ADBLOCK_SNIPPET_LIMIT` — parser safety limits
@@ -957,6 +970,7 @@ Core project tables:
 - `aviev_title_pages` — canonical SEO title-page cache.
 - `aviev_title_refresh_queue` — title page refresh queue.
 - `aviev_import_marks` — one-time localStorage import markers.
+- `aviev_task_runs` — the last run of each background task (the 30-day rule).
 
 `aviev_activity` uses a unique deduplication index:
 

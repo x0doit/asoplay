@@ -11,7 +11,6 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -19,8 +18,9 @@ from pydantic import BaseModel, Field, conint
 
 from core.classes.clock import utc_now
 from core.classes.db import connect, current_user_required
+from core.functions import lists_sweep
 from core.functions.activity import record_event
-from core.functions.lists import auto_add_enabled, fetch_entry, upsert_status
+from core.functions.lists import auto_add_enabled, fetch_entry, sweep_dropped_after_30_days, upsert_status
 from core.functions.progress import auto_watching_qualified, history_qualified
 from core.functions.watch_time import watched_seconds
 
@@ -207,21 +207,9 @@ def progress_event(
 @router.post("/sweep")
 def manual_sweep(user: dict[str, Any] = Depends(current_user_required)) -> dict[str, Any]:
     """Диагностическая ручка — пользователь может запустить auto-dropped сам.
-    Выполняется только для его записей, не для всей базы."""
-    cutoff = utc_now() - timedelta(days=30)
+    Выполняется только для его записей, не для всей базы; условие — как у прохода по расписанию."""
     with connect() as conn:
-        cur = conn.cursor()
         if not auto_add_enabled(conn, user["id"]):
             return {"applied": 0, "note": "auto_add_lists disabled"}
-        cur.execute(
-            """UPDATE aviev_user_lists
-                SET status='dropped', status_source='auto', updated_at=%s
-                WHERE user_id=%s
-                  AND status='watching'
-                  AND status_source='auto'
-                  AND updated_at < %s""",
-            (utc_now(), user["id"], cutoff),
-        )
-        n = cur.rowcount
-        conn.commit()
+        n = sweep_dropped_after_30_days(conn, utc_now(), user_id=int(user["id"]), on_batch=lists_sweep.announce)
     return {"applied": int(n)}

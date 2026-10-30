@@ -171,6 +171,9 @@
  "DEDUP_BY_TITLE_PER_DAY": [
   "= 98d9b151f9ed"
  ],
+ "DEFAULT_AT": [
+  "= 2d230e76bd6f"
+ ],
  "DEFAULT_DAYS": [
   "= 22d200f8670d"
  ],
@@ -318,6 +321,12 @@
  "Hub.leave": [
   "async def(self, conn: Conn) -> None"
  ],
+ "Hub.lists_changed": [
+  "async def(self, user_id: int, items: list[dict[str, Any]]) -> None"
+ ],
+ "Hub.lists_changed_from_thread": [
+  "def(self, user_id: int, items: list[dict[str, Any]]) -> None"
+ ],
  "Hub.load_friends": [
   "async def(self, conn: Conn) -> None"
  ],
@@ -453,6 +462,9 @@
  ],
  "MessageIn.text": [
   "str = cb400581ac9f"
+ ],
+ "NAME": [
+  "= a73094449e34"
  ],
  "NATIVE_SOURCES": [
   "= 88945ee3c648",
@@ -600,6 +612,9 @@
  "REPORT_EVERY": [
   "= e6c3dd630428"
  ],
+ "RETRY_AFTER": [
+  "= 15aa0c7e8fbd"
+ ],
  "ROOT": [
   "= 25b03a64adba"
  ],
@@ -725,6 +740,12 @@
   "= 0c8df4bb6485",
   "= 0c8df4bb6485",
   "= bbc6f0539231"
+ ],
+ "SWEEP_BATCH": [
+  "= f83a383c0fa8"
+ ],
+ "SWEEP_DAYS": [
+  "= 22d200f8670d"
  ],
  "SWEEP_EVERY": [
   "= ac3478d69a3c"
@@ -1157,6 +1178,12 @@
  "_STATUS_ORDER": [
   "= c709ed3ff8b9"
  ],
+ "_SWEEP_CANDIDATE": [
+  "= 0804728bf5e6"
+ ],
+ "_SWEEP_UPDATE": [
+  "= 49042793d37c"
+ ],
  "_Seen": [
   "class()"
  ],
@@ -1563,6 +1590,9 @@
  "_lookup_user": [
   "def(identity: str) -> dict[str, Any] | None"
  ],
+ "_loop": [
+  "async def(at: tuple[int, int], sleep: Callable[[float], Any]=asyncio.sleep) -> None"
+ ],
  "_mark_previous_episodes_done_if_needed": [
   "def(conn, user_id: int, mal_id: int, episode_num: int, seconds: int, duration: int, updated_at: datetime) -> None"
  ],
@@ -1852,6 +1882,9 @@
  "_status": [
   "= d33d861d6786"
  ],
+ "_stop": [
+  "= 65ca2c3f8054"
+ ],
  "_store_title": [
   "def(payload: dict[str, Any]) -> dict[str, Any]"
  ],
@@ -1864,7 +1897,11 @@
  "_summary": [
   "def() -> dict[str, Any]"
  ],
+ "_sweep_select": [
+  "def(user_id: int | None, after: tuple[int, int] | None) -> str"
+ ],
  "_task": [
+  "= 6eef6648406c",
   "= 6eef6648406c"
  ],
  "_title_item": [
@@ -2017,6 +2054,9 @@
  ],
  "animesocial_site_url": [
   "def() -> str | None"
+ ],
+ "announce": [
+  "def(entries: list[tuple[int, dict[str, Any]]]) -> None"
  ],
  "app": [
   "= 29d68d469c61"
@@ -2380,6 +2420,9 @@
  "kodik_video": [
   "@kodik_router.api_route('/video/{rest:path}', methods=['GET', 'POST', 'HEAD', 'OPTIONS']) async def(request: Request, rest: str)"
  ],
+ "last_slot": [
+  "def(now: datetime, at: tuple[int, int]) -> datetime"
+ ],
  "list_all": [
   "@router.get('') def(status: str | None=Query(default=None), user: dict[str, Any]=Depends(current_user_required)) -> list[dict[str, Any]]"
  ],
@@ -2395,6 +2438,12 @@
  "listeners": [
   "= 97d170e1550e"
  ],
+ "lists_changed": [
+  "def(user_id: int, items: list[dict[str, Any]]) -> None"
+ ],
+ "lists_sweep_at": [
+  "def() -> str"
+ ],
  "load": [
   "def() -> None"
  ],
@@ -2409,6 +2458,7 @@
   "= 3acb6a6c60f8",
   "= 48bd8c61a38f",
   "= 8a1db55198b6",
+  "= 96797f0c7e5f",
   "= 96ff858b959b",
   "= 9a6a5b08b0f5",
   "= 9d8fc02d77ae",
@@ -2663,6 +2713,9 @@
  "row_to_public": [
   "def(row: tuple) -> dict[str, Any]"
  ],
+ "run_once": [
+  "def(now: datetime | None=None, *, name: str=NAME, at: tuple[int, int]=DEFAULT_AT, batch: int=lists.SWEEP_BATCH, on_batch: Callable[[list[tuple[int, dict[str, Any]]]], None] | None=None) -> int | None"
+ ],
  "seal": [
   "def(text: str, context: str) -> bytes"
  ],
@@ -2671,6 +2724,9 @@
  ],
  "search_titles": [
   "async def(q: str, limit: int=10) -> list[dict]"
+ ],
+ "seconds_to_next": [
+  "def(now: datetime, at: tuple[int, int]) -> float"
  ],
  "send_message": [
   "@router.post('/messages/{peer_id}') def(peer_id: int, payload: MessageIn, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
@@ -2708,6 +2764,7 @@
   "def(url: str) -> tuple[bool, str | None]"
  ],
  "shutdown": [
+  "async def() -> None",
   "async def() -> None",
   "async def() -> None",
   "async def() -> None",
@@ -2765,6 +2822,7 @@
   "async def() -> None",
   "async def() -> None",
   "async def() -> None",
+  "async def() -> None",
   "async def() -> None"
  ],
  "state": [
@@ -2786,8 +2844,11 @@
  "summary": [
   "@router.get('/summary') def(_admin: int=Depends(admin_user)) -> dict[str, Any]"
  ],
+ "sweep_at": [
+  "def() -> tuple[int, int] | None"
+ ],
  "sweep_dropped_after_30_days": [
-  "def(conn) -> int"
+  "def(conn, now: datetime, *, user_id: int | None=None, batch: int=SWEEP_BATCH, on_batch: Callable[[list[tuple[int, dict[str, Any]]]], None] | None=None, stop: Callable[[], bool] | None=None) -> int"
  ],
  "sync_watch_history_from_progress": [
   "def(conn, user_id: int, mal_id: int, *, episode_num: int, title: str='', poster_url: str='', episodes_total: int=0, updated_at: datetime | None=None) -> None"

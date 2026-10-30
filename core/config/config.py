@@ -171,6 +171,12 @@ def admin_secret() -> bytes:
     return os.environ.get("AV_ADMIN_SECRET", "").strip().encode("utf-8")
 
 
+# ---------- списки ----------
+def lists_sweep_at() -> str:
+    """AV_LISTS_SWEEP_AT — когда идёт правило 30 дней: UTC «ЧЧ:ММ» (по умолчанию 04:00), off — не по расписанию."""
+    return os.environ.get("AV_LISTS_SWEEP_AT", "04:00").strip() or "04:00"
+
+
 # ---------- каталог Jikan ----------
 def jikan_php() -> str:
     """AV_JIKAN_PHP — PHP для встроенного Jikan; пусто — PHP из OSPanel или из PATH."""

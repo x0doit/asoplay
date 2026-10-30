@@ -3,7 +3,8 @@
 
 Автор: Чепела Даниил Максимович.
 
-Быстрые: длины файлов, импорты, docblock, контракт, объявления Python, прокси плеера. С --full ещё проверки ядра
+Быстрые: длины файлов, импорты, docblock, контракт, объявления Python, прокси плеера, SQL фоновых проходов.
+С --full ещё проверки ядра
 (core/tests, каждый раздел — в своём процессе) и фронтенда (design/EDDAS/tests), ответы живого сервера, снимок
 вычисленных стилей и браузерный QA (tools/qa): им нужен запущенный локальный сервер, Chrome и playwright-core
 (tools/guard/browser.cjs), а ответам и стилям — база, снятая через --save (core/tests/README.md).
@@ -27,6 +28,7 @@ QUICK = [
     ("contract", [PY, "-B", "tools/guard/contract.py"]),
     ("decls", [PY, "-B", "tools/guard/decls.py"]),
     ("player", [PY, "-B", "tools/guard/player_snapshot.py"]),
+    ("sql_snapshot", [PY, "-B", "tools/guard/sql_snapshot.py"]),
 ]
 
 
