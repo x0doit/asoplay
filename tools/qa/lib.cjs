@@ -183,5 +183,40 @@ async function settle(page, ms = 800) {
   await page.waitForTimeout(ms);
 }
 
+// Живое соединение /ws на подмене: hello со статусом сервера, ответ на ping; кадры вкладки копятся в frames,
+// открытые соединения — в sockets (через них сценарий шлёт свои кадры)
+async function liveSocket(page, userId) {
+  const live = { sockets: [], frames: [] };
+  await page.routeWebSocket(/\/ws$/, ws => {
+    live.sockets.push(ws);
+    ws.onMessage(m => {
+      const frame = JSON.parse(String(m));
+      live.frames.push(frame);
+      if (frame.type === "ping") ws.send(JSON.stringify({ type: "pong" }));
+    });
+    ws.onClose(() => { live.sockets = live.sockets.filter(x => x !== ws); });
+    ws.send(JSON.stringify({ type: "hello", user_id: userId, status: STATUS }));
+  });
+  return live;
+}
+
+// «был в сети 5 минут назад» — как пишет AnimeSocial: единицы от года до минуты и русские формы числа
+const AGO_UNITS = [[31_570_560, ["год", "года", "лет"]], [2_630_880, ["месяц", "месяца", "месяцев"]],
+  [604_800, ["неделю", "недели", "недель"]], [86_400, ["день", "дня", "дней"]], [3_600, ["час", "часа", "часов"]],
+  [60, ["минуту", "минуты", "минут"]]];
+const ruForm = (n, forms) => forms[n % 100 > 10 && n % 100 < 20 ? 2 : n % 10 === 1 ? 0 : n % 10 >= 2 && n % 10 <= 4 ? 1 : 2];
+const agoText = diff => {
+  for (const [len, forms] of AGO_UNITS) if (diff >= len) { const n = Math.floor(diff / len); return `${n} ${ruForm(n, forms)} назад`; }
+  return "только что";
+};
+// Подписи «был в сети …», верные хоть для одного мгновения между from и to (мс по часам страницы). Страница пишет подпись
+// по своим часам в миг отрисовки, а когда именно она рисовала, снаружи известно только с точностью до этого промежутка:
+// ни запаса на медленный прогон, ни застывших часов, от которых встал бы и остальной код страницы со временем
+const seenTexts = (lastSeen, word, from, to) => {
+  const out = new Set();
+  for (let s = Math.floor(from / 1000); s <= Math.floor(to / 1000); s++) out.add(`${word} в сети ${agoText(Math.max(0, s - lastSeen))}`);
+  return out;
+};
+
 module.exports = { SITE, OUT, USER, STATUS, report, foreign, accountMocks, check, shot, overflowing,
-  pickerPlacement, CONSOLE_NOISE, watchConsole, quietSocialSession, settle };
+  pickerPlacement, CONSOLE_NOISE, watchConsole, quietSocialSession, settle, liveSocket, seenTexts };
