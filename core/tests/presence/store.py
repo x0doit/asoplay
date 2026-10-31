@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from core.classes import as_api
-from core.functions import presence
+from core.functions import presence, presence_batch, privacy as privacy_rules
 
 from core.tests.presence.lib import SITE, FakeClock
 
@@ -66,8 +66,8 @@ class BatchTests(unittest.TestCase):
         self.calls = []
         patches = [
             patch.object(presence, "presence", self.store),
-            patch.object(presence, "_privacy", side_effect=lambda ids: {u: self.privacy[u] for u in ids if u in self.privacy}),
-            patch.object(presence, "_titles", side_effect=lambda ids: {m: self.titles[m] for m in ids if m in self.titles}),
+            patch.object(privacy_rules, "for_users", side_effect=lambda ids: {u: self.privacy[u] for u in ids if u in self.privacy}),
+            patch.object(presence, "title_cards", side_effect=lambda ids: {m: self.titles[m] for m in ids if m in self.titles}),
             patch.object(as_api, "call", side_effect=lambda *a, **kw: self.calls.append((a, kw))),
         ]
         for p in patches:
@@ -77,14 +77,14 @@ class BatchTests(unittest.TestCase):
     def test_privacy_decides_who_is_sent_and_what_they_watch(self):
         self.store.tab(1, 1, True, 52991, "из браузера")                     # по умолчанию: на сайте, без «смотрит»
         self.store.tab(2, 1, True, 52991, "Фрирен")
-        self.privacy[2] = presence.Privacy(hide_presence=True, show_watching=True)
+        self.privacy[2] = privacy_rules.Privacy(hide_presence=True, show_watching=True)
         self.store.tab(3, 1, True, 52991, "из браузера")
-        self.privacy[3] = presence.Privacy(show_watching=True)
+        self.privacy[3] = privacy_rules.Privacy(show_watching=True)
         self.store.tab(4, 1, True, 1, "Ковбой Бибоп")                        # тайтла нет в кеше — название из браузера
-        self.privacy[4] = presence.Privacy(show_watching=True)
+        self.privacy[4] = privacy_rules.Privacy(show_watching=True)
         self.store.tab(6, 1, True)                                           # ничего не играет
-        self.privacy[6] = presence.Privacy(show_watching=True)
-        batch = presence.build_batch()
+        self.privacy[6] = privacy_rules.Privacy(show_watching=True)
+        batch = presence_batch.build_batch()
         self.assertEqual(batch["users"], [1, 3, 4, 6])
         self.assertEqual(batch["watching"], [
             {"user_id": 3, "title": "Фрирен, провожающая в последний путь", "url": f"{SITE}/anime/52991"},
@@ -92,13 +92,13 @@ class BatchTests(unittest.TestCase):
         ])
 
     def test_an_empty_batch_goes_once_after_someone_left(self):
-        self.assertFalse(presence.report_once(False))
+        self.assertFalse(presence_batch.report_once(False))
         self.assertEqual(self.calls, [])
         self.store.tab(1, 1, True)
-        self.assertTrue(presence.report_once(False))
+        self.assertTrue(presence_batch.report_once(False))
         self.store = presence.Presence(clock=FakeClock())
         with patch.object(presence, "presence", self.store):
-            self.assertFalse(presence.report_once(True))
-            self.assertFalse(presence.report_once(False))
+            self.assertFalse(presence_batch.report_once(True))
+            self.assertFalse(presence_batch.report_once(False))
         self.assertEqual([kw["body"]["users"] for _, kw in self.calls], [[1], []])
         self.assertEqual(self.calls[0][0], ("POST", "/clients/presence"))

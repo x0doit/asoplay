@@ -9,7 +9,6 @@ styles.css
 
 # Python: делится на шаге 5, docblock — там же
 core/core.py
-core/functions/presence.py
 core/functions/realtime.py
 core/functions/video_reports.py
 core/modules/player/routes.py

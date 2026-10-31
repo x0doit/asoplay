@@ -40,7 +40,9 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from core.classes import as_realtime, as_sessions
 from core.config import animesocial
-from core.functions import presence, rate_limit, sessions
+from core.functions import (
+    friends as friend_data, presence, presence_batch, privacy as privacy_rules, rate_limit, sessions,
+)
 from core.config.config import SITE_URL
 
 log = logging.getLogger("asoplay.realtime")
@@ -129,7 +131,7 @@ class Hub:
         # Что друзьям уже сообщено: (на AsoPlay, что смотрит); и кто это — пока не сообщено «вышел»
         self.published: dict[int, tuple[bool, tuple | None]] = {}
         self.briefs: dict[int, dict[str, Any]] = {}
-        self._privacy: dict[int, tuple[float, presence.Privacy]] = {}
+        self._privacy: dict[int, tuple[float, privacy_rules.Privacy]] = {}
         self._titles: dict[int, tuple[str, str]] = {}
         self._status: dict[str, Any] | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -186,8 +188,8 @@ class Hub:
         try:
             token = await asyncio.to_thread(as_sessions.access_token, conn.session, conn.ip, ua) if as_sessions.enabled() else None
             if token:
-                # presence._friend_ids сам сообщит id через friend_listeners
-                await asyncio.to_thread(presence._friend_ids, conn.user_id, token, conn.ip, ua)
+                # friend_data.friend_ids сам сообщит id через friend_listeners
+                await asyncio.to_thread(friend_data.friend_ids, conn.user_id, token, conn.ip, ua)
         except Exception as exc:  # noqa: BLE001 — без друзей соединение всё равно работает
             log.info("Could not load friends for realtime: %s", exc)
 
@@ -239,14 +241,14 @@ class Hub:
         await self.publish(conn.user_id)
 
     # ----- события друзьям -----
-    async def _rules(self, user_id: int) -> presence.Privacy:
+    async def _rules(self, user_id: int) -> privacy_rules.Privacy:
         hit = self._privacy.get(user_id)
         if hit and hit[0] > self._clock():
             return hit[1]
         try:
-            rules = (await asyncio.to_thread(presence._privacy, [user_id])).get(user_id, presence.Privacy())
+            rules = (await asyncio.to_thread(privacy_rules.for_users, [user_id])).get(user_id, privacy_rules.Privacy())
         except Exception:  # noqa: BLE001 — база недоступна: никому не показываем
-            return presence.Privacy(hide_presence=True)
+            return privacy_rules.Privacy(hide_presence=True)
         self._privacy[user_id] = (self._clock() + PRIVACY_TTL, rules)
         return rules
 
@@ -254,7 +256,7 @@ class Hub:
         """Название и постер тайтла из кеша страниц тайтлов; нет строки — название из вкладки."""
         if mal_id not in self._titles:
             try:
-                found = (await asyncio.to_thread(presence._titles, [mal_id])).get(mal_id)
+                found = (await asyncio.to_thread(presence.title_cards, [mal_id])).get(mal_id)
             except Exception:  # noqa: BLE001
                 found = None
             if len(self._titles) > 5000:
@@ -269,7 +271,7 @@ class Hub:
     async def publish(self, user_id: int) -> None:
         """Сообщить друзьям, если для них что-то изменилось: зашёл, вышел, начал или перестал смотреть."""
         mark = presence.presence.current().get(user_id)
-        rules = await self._rules(user_id) if mark else presence.Privacy()
+        rules = await self._rules(user_id) if mark else privacy_rules.Privacy()
         here = mark is not None and not rules.hide_presence
         watching = None
         if here and rules.show_watching and mark.mal_id:
@@ -303,7 +305,7 @@ class Hub:
     # ----- соцсеть -----
     async def social_snapshot(self) -> dict[str, Any]:
         """Снимок для соцсети при каждом подключении — то же, что запасной пакет: кто на AsoPlay, что смотрит."""
-        return await asyncio.to_thread(presence.build_batch)
+        return await asyncio.to_thread(presence_batch.build_batch)
 
     async def _to_people(self, user_ids: list[int], frame: dict[str, Any]) -> None:
         for uid in user_ids:
@@ -327,7 +329,7 @@ class Hub:
             for viewer in to:
                 if viewer == other:
                     continue
-                presence.forget_friends(viewer)
+                friend_data.forget_friends(viewer)
                 if viewer not in self.by_user:
                     continue
                 ids = set(self.friends.get(viewer, frozenset()))
@@ -448,8 +450,8 @@ class Hub:
 
 
 hub = Hub()
-presence.friend_listeners.append(hub.friends_from_thread)
-presence.batch_needed = lambda: not hub.social.connected
+friend_data.friend_listeners.append(hub.friends_from_thread)
+presence_batch.batch_needed = lambda: not hub.social.connected
 
 
 async def startup() -> None:

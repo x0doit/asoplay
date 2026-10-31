@@ -10,10 +10,10 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 import time
 from urllib.parse import parse_qs, urlsplit
 
-from core.functions import presence
+from core.functions import presence_batch
 
 NOW = int(time.time())
-SITE = presence.SITE_URL
+SITE = presence_batch.SITE_URL
 
 
 class FakeClock:

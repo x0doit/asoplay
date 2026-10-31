@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from core.api.sections import account
 from core.api.sections.account import settings as account_settings
-from core.functions import presence, privacy, sessions
+from core.functions import friends as friend_data, presence, privacy, sessions
 
 from core.tests.presence.lib import FakeCursor, FakeConn
 
@@ -22,17 +22,19 @@ from core.tests.presence.lib import FakeCursor, FakeConn
 class DatabaseTests(unittest.TestCase):
     def test_privacy_reads_in_chunks_and_fills_defaults_for_missing_rows(self):
         cursor = FakeCursor([(3, 1, 0, 1)])
-        with patch.object(presence, "connect", return_value=FakeConn(cursor)):
-            got = presence._privacy(range(1, 1503))
-        self.assertEqual(got, {3: presence.Privacy(hide_presence=True, show_watching=False, hide_lists=True)})
+        with patch.object(privacy, "connect", return_value=FakeConn(cursor)):
+            got = privacy.for_users(range(1, 1503))
+        self.assertEqual(got, {3: privacy.Privacy(hide_presence=True, show_watching=False, hide_lists=True)})
         self.assertEqual([len(params) for _, params in cursor.queries], [1000, 502])
         self.assertIn("FROM aviev_privacy WHERE user_id IN (", cursor.queries[0][0])
 
     def test_nothing_to_look_up_means_no_query(self):
-        with patch.object(presence, "connect", side_effect=AssertionError("no query expected")):
-            self.assertEqual(presence._privacy([]), {})
-            self.assertEqual(presence._titles([0]), {})
-            self.assertEqual(presence._list_statuses(52991, []), {})
+        no_query = AssertionError("no query expected")
+        with patch.object(privacy, "connect", side_effect=no_query), patch.object(presence, "connect", side_effect=no_query), \
+                patch.object(friend_data, "connect", side_effect=no_query):
+            self.assertEqual(privacy.for_users([]), {})
+            self.assertEqual(presence.title_cards([0]), {})
+            self.assertEqual(friend_data.list_statuses(52991, []), {})
 
 
 class PrivacyApiTests(unittest.TestCase):
@@ -68,6 +70,6 @@ class TitleCardTests(unittest.TestCase):
     def test_title_and_poster_come_from_the_title_page_cache(self):
         cursor = FakeCursor([(52991, "Фрирен", "Frieren", "https://cdn.myanimelist.net/images/anime/1015/138006l.jpg"), (1, "", "Cowboy Bebop", "javascript:alert(1)"), (2, "", "", "")])
         with patch.object(presence, "connect", return_value=FakeConn(cursor)):
-            got = presence._titles([52991, 1, 2])
+            got = presence.title_cards([52991, 1, 2])
         self.assertEqual(got, {52991: ("Фрирен", "https://cdn.myanimelist.net/images/anime/1015/138006l.jpg"), 1: ("Cowboy Bebop", "")})
         self.assertIn("poster_url", cursor.queries[0][0])

@@ -307,7 +307,7 @@
   "async def(self) -> None"
  ],
  "Hub._rules": [
-  "async def(self, user_id: int) -> presence.Privacy"
+  "async def(self, user_id: int) -> privacy_rules.Privacy"
  ],
  "Hub._title": [
   "async def(self, mal_id: int, fallback: str) -> tuple[str, str]"
@@ -512,6 +512,9 @@
  ],
  "NoticeIn.until": [
   "int | None = b084b11a4f87"
+ ],
+ "OPEN": [
+  "= b49dc5f80dc2"
  ],
  "OPEN_TIMEOUT": [
   "= b1d5781111d8"
@@ -1113,9 +1116,6 @@
  "_OLDYUMMY_CATALOG_MAX": [
   "= 8a12a315082a"
  ],
- "_OPEN": [
-  "= b49dc5f80dc2"
- ],
  "_PASSTHROUGH_REQUEST_HEADERS": [
   "= a3d98a40aa17"
  ],
@@ -1323,9 +1323,6 @@
  "_check_one": [
   "def(how: str, plain: str, stored: str, salt: str | None) -> bool"
  ],
- "_chunks": [
-  "def(ids: Iterable[int], size: int=_SQL_CHUNK) -> Iterable[list[int]]"
- ],
  "_clamp_days": [
   "def(days: int | None) -> int"
  ],
@@ -1413,9 +1410,6 @@
  "_friend_cache": [
   "= bf21a9e8fbc5"
  ],
- "_friend_ids": [
-  "def(user_id: int, token: str, user_ip: str, user_agent: str) -> list[int]"
- ],
  "_friend_lock": [
   "= c6d6acc28078"
  ],
@@ -1454,9 +1448,6 @@
  ],
  "_httpx_limits": [
   "= f57f9067d46e"
- ],
- "_ids": [
-  "def(values: Any) -> list[int]"
  ],
  "_in": [
   "def(ids: list[int]) -> str"
@@ -1515,9 +1506,6 @@
  ],
  "_list_entry_for_title": [
   "def(conn, user_id: int, mal_id: int) -> dict[str, Any] | None"
- ],
- "_list_statuses": [
-  "def(mal_id: int, user_ids: Iterable[int]) -> dict[int, str]"
  ],
  "_listed": [
   "def(user: dict[str, Any], **extra: Any) -> dict[str, Any]"
@@ -1609,12 +1597,6 @@
  "_pending_fetches": [
   "= bf21a9e8fbc5"
  ],
- "_people": [
-  "def(ids: list[int], token: str, user_ip: str, user_agent: str) -> list[dict[str, Any]]"
- ],
- "_person": [
-  "def(user: dict[str, Any]) -> dict[str, Any]"
- ],
  "_php": [
   "= 6eef6648406c"
  ],
@@ -1635,9 +1617,6 @@
  ],
  "_points_lock": [
   "= c6d6acc28078"
- ],
- "_privacy": [
-  "def(user_ids: Iterable[int]) -> dict[int, Privacy]"
  ],
  "_proxy_url": [
   "def(url: str, base: str | None=None) -> str"
@@ -1786,17 +1765,11 @@
  "_slugify": [
   "def(text: str) -> str"
  ],
- "_social_call": [
-  "def(request: Request, session: str | None, method: str, path: str, body: dict[str, Any] | None=None) -> Any"
- ],
  "_social_failure": [
   "def(session: str | None, exc: as_api.ASApiError, unlinked: dict[str, Any]) -> dict[str, Any]"
  ],
  "_social_origins": [
   "def() -> set[str]"
- ],
- "_social_session": [
-  "def(request: Request, session: str | None) -> tuple[str | None, str, str]"
  ],
  "_source_call": [
   "async def(source: str, op: str, run, timeout: float)"
@@ -1846,9 +1819,6 @@
  ],
  "_title_name": [
   "async def(mal_id: int) -> str | None"
- ],
- "_titles": [
-  "def(mal_ids: Iterable[int]) -> dict[int, tuple[str, str]]"
  ],
  "_tls": [
   "@functools.lru_cache(maxsize=4) def(ca: str) -> ssl.SSLContext | bool",
@@ -1919,9 +1889,6 @@
  ],
  "_watchdog_thread": [
   "= 6eef6648406c"
- ],
- "_watching": [
-  "def(mark: Mark | None, privacy: Privacy, titles: dict[int, tuple[str, str]]) -> dict[str, Any] | None"
  ],
  "_wildcard_to_regex": [
   "def(pattern: str) -> str"
@@ -2119,6 +2086,9 @@
  "changed": [
   "def(what: set[str]) -> None"
  ],
+ "chunks": [
+  "def(ids: Iterable[int], size: int=_SQL_CHUNK) -> Iterable[list[int]]"
+ ],
  "clean": [
   "def(value: str, limit: int) -> str"
  ],
@@ -2240,6 +2210,9 @@
  "fon_url": [
   "def(user_id: int | str | None, fon: str | None) -> str"
  ],
+ "for_users": [
+  "def(user_ids: Iterable[int]) -> dict[int, Privacy]"
+ ],
  "forget": [
   "def(mal_id: int) -> None"
  ],
@@ -2266,6 +2239,9 @@
  ],
  "friend_decline": [
   "@router.post('/friends/{peer_id}/decline') def(peer_id: int, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]"
+ ],
+ "friend_ids": [
+  "def(user_id: int, token: str, user_ip: str, user_agent: str) -> list[int]"
  ],
  "friend_listeners": [
   "= 97d170e1550e"
@@ -2421,6 +2397,9 @@
  "list_remove": [
   "@router.delete('/{mal_id}') def(mal_id: int, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
  ],
+ "list_statuses": [
+  "def(mal_id: int, user_ids: Iterable[int]) -> dict[int, str]"
+ ],
  "listeners": [
   "= 97d170e1550e"
  ],
@@ -2457,6 +2436,8 @@
   "= bd836eb04249",
   "= c37b55460f21",
   "= cc6e10537509",
+  "= d4a1c99740de",
+  "= d4a1c99740de",
   "= d4a1c99740de",
   "= e8debe1c1a68",
   "= ea77bb90f150",
@@ -2521,6 +2502,12 @@
  "path_for": [
   "def(key: str, **params: Any) -> str"
  ],
+ "people": [
+  "def(ids: list[int], token: str, user_ip: str, user_agent: str) -> list[dict[str, Any]]"
+ ],
+ "person": [
+  "def(user: dict[str, Any]) -> dict[str, Any]"
+ ],
  "pinned": [
   "def() -> tuple[int, ...]"
  ],
@@ -2533,13 +2520,16 @@
  "port_alive": [
   "def(host: str, port: int, timeout: float=1.0) -> bool"
  ],
+ "positive_ids": [
+  "def(values: Any) -> list[int]"
+ ],
  "prepare_runtime": [
   "def() -> Path | None"
  ],
  "presence": [
   "= fb958eb6a32b"
  ],
- "presence.batch_needed": [
+ "presence_batch.batch_needed": [
   "= 172567c8c836"
  ],
  "privacy_changed": [
@@ -2721,6 +2711,7 @@
   "= 82e1a4f1c862",
   "= f115762622b1",
   "= f115762622b1",
+  "= f115762622b1",
   "= f9207de8e1db"
  ],
  "row_to_public": [
@@ -2803,6 +2794,12 @@
  "snapshot": [
   "def(sources: Iterable[str] | None=None) -> dict[str, dict[str, object]]"
  ],
+ "social_call": [
+  "def(request: Request, session: str | None, method: str, path: str, body: dict[str, Any] | None=None) -> Any"
+ ],
+ "social_session": [
+  "def(request: Request, session: str | None) -> tuple[str | None, str, str]"
+ ],
  "source_enabled": [
   "def(source: str) -> bool"
  ],
@@ -2868,6 +2865,9 @@
  ],
  "sync_watch_history_from_progress": [
   "def(conn, user_id: int, mal_id: int, *, episode_num: int, title: str='', poster_url: str='', episodes_total: int=0, updated_at: datetime | None=None) -> None"
+ ],
+ "title_cards": [
+  "def(mal_ids: Iterable[int]) -> dict[int, tuple[str, str]]"
  ],
  "title_name": [
   "def(cur: Any, mal_id: int) -> str"
@@ -2940,6 +2940,9 @@
  ],
  "watched_seconds": [
   "def(user_id: int, mal_id: int, episode: int, position: int, clock: Any=time.monotonic) -> int"
+ ],
+ "watching": [
+  "def(mark: Mark | None, privacy: Privacy, titles: dict[int, tuple[str, str]]) -> dict[str, Any] | None"
  ],
  "web_login": [
   "def(access_token: str, path: str, nonce: str='', user_ip: str='', user_agent: str='') -> dict[str, Any]"

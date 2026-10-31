@@ -14,7 +14,8 @@ from urllib.parse import parse_qs, urlsplit
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from core.classes import as_api, as_sessions
-from core.functions import presence, sessions
+from core.api.sections import friends as friend_routes, messages as message_routes
+from core.functions import friends as friend_data, presence, privacy as privacy_rules, sessions
 
 from core.tests.presence.lib import NOW, FakeClock, person, SocialFake
 
@@ -22,7 +23,8 @@ from core.tests.presence.lib import NOW, FakeClock, person, SocialFake
 class FriendsTests(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
-        app.include_router(presence.router)
+        app.include_router(friend_routes.router)
+        app.include_router(message_routes.router)
         app.dependency_overrides[sessions.current_user_required] = lambda: {"id": 7}
         self.client = TestClient(app)
         self.client.cookies.set(sessions.COOKIE_NAME, "s" * 64)
@@ -40,10 +42,10 @@ class FriendsTests(unittest.TestCase):
         self.forgotten = []
         patches = [
             patch.object(presence, "presence", self.store),
-            patch.object(presence, "_friend_cache", {}),
-            patch.object(presence, "_privacy", side_effect=lambda ids: {u: self.privacy[u] for u in ids if u in self.privacy}),
-            patch.object(presence, "_titles", side_effect=lambda ids: {52991: ("Фрирен", "https://cdn.myanimelist.net/images/anime/1015/138006l.jpg")} if 52991 in set(ids) else {}),
-            patch.object(presence, "_list_statuses", side_effect=lambda mal_id, ids: {u: s for u, s in self.statuses.items() if u in set(ids)}),
+            patch.object(friend_data, "_friend_cache", {}),
+            patch.object(privacy_rules, "for_users", side_effect=lambda ids: {u: self.privacy[u] for u in ids if u in self.privacy}),
+            patch.object(presence, "title_cards", side_effect=lambda ids: {52991: ("Фрирен", "https://cdn.myanimelist.net/images/anime/1015/138006l.jpg")} if 52991 in set(ids) else {}),
+            patch.object(friend_data, "list_statuses", side_effect=lambda mal_id, ids: {u: s for u, s in self.statuses.items() if u in set(ids)}),
             patch.object(as_sessions, "enabled", return_value=True),
             patch.object(as_sessions, "access_token", side_effect=lambda *a: self.token),
             patch.object(as_sessions, "_delete", side_effect=self.forgotten.append),
@@ -63,7 +65,7 @@ class FriendsTests(unittest.TestCase):
 
     def test_friends_are_ordered_by_where_they_are(self):
         self.store.tab(13, 1, True, 52991, "Фрирен")
-        self.privacy[13] = presence.Privacy(show_watching=True)
+        self.privacy[13] = privacy_rules.Privacy(show_watching=True)
         self.store.tab(14, 1, True)
         data = self.client.get("/account/friends").json()
         self.assertTrue(data["connected"])
@@ -84,7 +86,7 @@ class FriendsTests(unittest.TestCase):
 
     def test_hidden_presence_hides_the_person_here_too(self):
         self.store.tab(12, 1, True, 52991)
-        self.privacy[12] = presence.Privacy(hide_presence=True, show_watching=True)
+        self.privacy[12] = privacy_rules.Privacy(hide_presence=True, show_watching=True)
         away = next(f for f in self.client.get("/account/friends").json()["items"] if f["id"] == 12)
         self.assertEqual((away["on_asoplay"], away["watching"]), (False, None))
 
@@ -108,11 +110,11 @@ class FriendsTests(unittest.TestCase):
 
     def test_title_shows_who_watches_now_and_whose_lists_have_it(self):
         self.store.tab(12, 1, True, 52991)
-        self.privacy[12] = presence.Privacy(show_watching=True)
+        self.privacy[12] = privacy_rules.Privacy(show_watching=True)
         self.store.tab(13, 1, True, 52991)                                      # смотрит, но не разрешил показывать
         self.store.tab(11, 1, True, 1)                                          # смотрит другой тайтл
         self.statuses = {13: "planned", 14: "completed", 15: "watching", 11: "dropped"}
-        self.privacy[11] = presence.Privacy(hide_lists=True)
+        self.privacy[11] = privacy_rules.Privacy(hide_lists=True)
         data = self.client.get("/account/friends/title/52991").json()
         self.assertEqual([(f["id"], f["now"], f["status"]) for f in data["items"]],
                          [(12, True, None), (14, False, "completed"), (13, False, "planned")])

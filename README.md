@@ -182,6 +182,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── activity.py         /account/activity: график и лента активности
 │   │   ├── auth.py             /auth/login, logout, me, register, config: вход паролем и настройки соцсети
 │   │   ├── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, перевод, картинки
+│   │   ├── friends.py          /account/friends…: друзья, заявки, «Возможные друзья», действия с дружбой
+│   │   ├── messages.py         /account/messages/{id}: «Написать» в переписку AnimeSocial
 │   │   └── social_login.py     /auth/as/…: вход через AnimeSocial, «кто вошёл», переход на сайт соцсети
 │   ├── admin/                  админ-API для раздела «AsoPlay» в /cpanel AnimeSocial (HMAC)
 │   │   ├── router.py           вход: подключает части в порядке маршрутов
@@ -194,7 +196,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   ├── functions/
 │   │   ├── social_login.py     вход через AnimeSocial: PKCE, сессия AsoPlay со связью с соцсетью, вход паролем
 │   │   ├── sessions.py         сессии AsoPlay: создать, проверить, закрыть; cookie и текущий пользователь
-│   │   ├── presence.py         присутствие на AsoPlay и друзья из AnimeSocial
+│   │   ├── presence.py         присутствие на AsoPlay: вкладки и «смотрит»; presence_batch.py — пакет соцсети
+│   │   ├── friends.py          друзья из AnimeSocial: id с кешем, люди, статусы, вызовы соцсети от имени человека
 │   │   ├── realtime.py         WebSocket /ws: вкладки, события друзьям, состояние сервера
 │   │   ├── site_settings.py    что решила панель: пометки тайтлов, плашка, функции, источники
 │   │   ├── video_reports.py    жалобы «Не работает» из плеера
@@ -697,6 +700,8 @@ Key capabilities:
 │   │   ├── activity.py         /account/activity: the activity graph and feed
 │   │   ├── auth.py             /auth/login, logout, me, register, config: password sign-in, social settings
 │   │   ├── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, translate, images
+│   │   ├── friends.py          /account/friends…: friends, requests, suggestions, friendship actions
+│   │   ├── messages.py         /account/messages/{id}: «Write» into the AnimeSocial dialog
 │   │   └── social_login.py     /auth/as/…: sign-in with AnimeSocial, «who is signed in», jump to the site
 │   ├── admin/                  admin API for the «AsoPlay» section in AnimeSocial /cpanel (HMAC)
 │   │   ├── router.py           entry: includes the parts in route order
@@ -709,7 +714,8 @@ Key capabilities:
 │   ├── functions/
 │   │   ├── social_login.py     sign-in with AnimeSocial: PKCE, the AsoPlay session linked to it, password sign-in
 │   │   ├── sessions.py         AsoPlay sessions: create, check, revoke; the cookie and the current user
-│   │   ├── presence.py         presence on AsoPlay and friends from AnimeSocial
+│   │   ├── presence.py         presence on AsoPlay: tabs and «watching»; presence_batch.py — the batch for AS
+│   │   ├── friends.py          friends from AnimeSocial: cached ids, people, statuses, calls on a person's behalf
 │   │   ├── realtime.py         WebSocket /ws: tabs, events to friends, server status
 │   │   ├── site_settings.py    what the panel decided: title flags, notice, features, sources
 │   │   ├── video_reports.py    «Не работает» reports from the player

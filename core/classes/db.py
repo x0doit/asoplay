@@ -12,7 +12,7 @@ passwords.py, сессии AsoPlay — core/functions/sessions.py, вход — 
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Any, Iterator
+from typing import Any, Iterable, Iterator
 
 from fastapi import HTTPException
 
@@ -95,3 +95,14 @@ def health() -> dict[str, Any]:
         return {"ok": False, "error": exc.detail}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
+
+
+# ---------- части для SQL IN ----------
+_SQL_CHUNK = 1000
+
+
+def chunks(ids: Iterable[int], size: int = _SQL_CHUNK) -> Iterable[list[int]]:
+    """Id без повторов, по возрастанию, частями по size — для SQL IN (…)."""
+    ordered = sorted(set(ids))
+    for i in range(0, len(ordered), size):
+        yield ordered[i:i + size]

@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from core.classes import as_api, as_realtime
-from core.functions import presence, realtime, sessions
+from core.functions import presence, presence_batch, privacy as privacy_rules, realtime, sessions
 from core.modules.title_pages import SITE_URL
 
 
@@ -55,12 +55,12 @@ class HubSocialTests(unittest.TestCase):
         self.hub = realtime.Hub(clock=self.clock)
         self.sent_to_social = []
         self.hub.social.presence = lambda uid, online, watching: self.sent_to_social.append((uid, online, watching))
-        self.privacy = {1: presence.Privacy(show_watching=True)}
+        self.privacy = {1: privacy_rules.Privacy(show_watching=True)}
         self.revoked = []
         patches = [
             patch.object(presence, "presence", self.store),
-            patch.object(presence, "_privacy", side_effect=lambda ids: {u: self.privacy[u] for u in ids if u in self.privacy}),
-            patch.object(presence, "_titles", side_effect=lambda ids: {52991: ("Фрирен", "")} if 52991 in ids else {}),
+            patch.object(privacy_rules, "for_users", side_effect=lambda ids: {u: self.privacy[u] for u in ids if u in self.privacy}),
+            patch.object(presence, "title_cards", side_effect=lambda ids: {52991: ("Фрирен", "")} if 52991 in ids else {}),
             patch.object(sessions, "revoke_user_sessions", side_effect=self.revoked.append),
         ]
         for p in patches:
@@ -87,12 +87,12 @@ class HubSocialTests(unittest.TestCase):
         ])
 
     def test_watching_switched_on_mid_play_reaches_the_social_network_at_once(self):
-        self.privacy[1] = presence.Privacy()                             # по умолчанию «что смотрю» скрыто
+        self.privacy[1] = privacy_rules.Privacy()                             # по умолчанию «что смотрю» скрыто
         sakura, _ = self.connect(1)
         asyncio.run(self.hub.handle(sakura, json.dumps({"type": "visible", "value": True})))
         asyncio.run(self.hub.handle(sakura, json.dumps({"type": "watching", "mal_id": 52991, "title": "из вкладки"})))
         self.assertEqual(self.sent_to_social, [(1, True, None)])
-        self.privacy[1] = presence.Privacy(show_watching=True)
+        self.privacy[1] = privacy_rules.Privacy(show_watching=True)
         asyncio.run(self.hub.privacy_changed(1))
         self.assertEqual(self.sent_to_social[-1], (1, True, {"title": "Фрирен", "url": f"{SITE_URL}/anime/52991"}))
 
@@ -122,14 +122,14 @@ class HubSocialTests(unittest.TestCase):
         self.assertEqual((ws_a.closed, ws_b.closed, other.closed), (4001, 4001, None))
 
     def test_the_snapshot_is_the_batch_body(self):
-        with patch.object(presence, "build_batch", return_value={"users": [1], "watching": []}):
+        with patch.object(presence_batch, "build_batch", return_value={"users": [1], "watching": []}):
             self.assertEqual(asyncio.run(self.hub.social_snapshot()), {"users": [1], "watching": []})
 
     def test_the_minute_batch_waits_while_the_link_is_up(self):
         with patch.object(realtime.hub.social, "connected", True):
-            self.assertFalse(presence.batch_needed())
+            self.assertFalse(presence_batch.batch_needed())
         with patch.object(realtime.hub.social, "connected", False):
-            self.assertTrue(presence.batch_needed())
+            self.assertTrue(presence_batch.batch_needed())
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
-from core.functions import presence, realtime, sessions
+from core.functions import presence, privacy as privacy_rules, realtime, sessions
 
 
 class FakeClock:
@@ -55,8 +55,8 @@ class HubTests(unittest.TestCase):
         self.hub = realtime.Hub(clock=self.clock)
         patches = [
             patch.object(presence, "presence", self.store),
-            patch.object(presence, "_privacy", side_effect=lambda ids: {u: self.privacy[u] for u in ids if u in self.privacy}),
-            patch.object(presence, "_titles", side_effect=lambda ids: {m: self.titles[m] for m in ids if m in self.titles}),
+            patch.object(privacy_rules, "for_users", side_effect=lambda ids: {u: self.privacy[u] for u in ids if u in self.privacy}),
+            patch.object(presence, "title_cards", side_effect=lambda ids: {m: self.titles[m] for m in ids if m in self.titles}),
         ]
         for p in patches:
             p.start()
@@ -78,7 +78,7 @@ class HubTests(unittest.TestCase):
     def test_a_friend_sees_at_once_who_came_and_what_they_watch(self):
         naruto, naruto_ws = self.connect(2, "Наруто", friends={1})
         sakura, sakura_ws = self.connect(1, "Сакура", friends={2})
-        self.privacy[1] = presence.Privacy(show_watching=True)
+        self.privacy[1] = privacy_rules.Privacy(show_watching=True)
         self.frame(sakura, type="visible", value=True)
         self.frame(sakura, type="watching", mal_id=52991, title="из браузера")
         came, watches = naruto_ws.events()
@@ -99,7 +99,7 @@ class HubTests(unittest.TestCase):
     def test_hidden_presence_reaches_nobody(self):
         _, naruto_ws = self.connect(2, "Наруто", friends={1})
         sakura, _ = self.connect(1, "Сакура", friends={2})
-        self.privacy[1] = presence.Privacy(hide_presence=True, show_watching=True)
+        self.privacy[1] = privacy_rules.Privacy(hide_presence=True, show_watching=True)
         self.frame(sakura, type="visible", value=True)
         self.frame(sakura, type="watching", mal_id=52991)
         self.assertEqual(naruto_ws.events(), [])
@@ -132,7 +132,7 @@ class HubTests(unittest.TestCase):
         _, naruto_ws = self.connect(2, "Наруто", friends={1})
         sakura, _ = self.connect(1, "Сакура", friends={2})
         self.frame(sakura, type="visible", value=True)
-        self.privacy[1] = presence.Privacy(hide_presence=True)
+        self.privacy[1] = privacy_rules.Privacy(hide_presence=True)
         self.run_async(self.hub.privacy_changed(1))
         self.assertEqual([e["on_asoplay"] for e in naruto_ws.events()], [True, False])
 
@@ -222,7 +222,7 @@ class EndpointTests(unittest.TestCase):
         patches = [
             patch.object(realtime, "hub", self.hub),
             patch.object(presence, "presence", self.store),
-            patch.object(presence, "_privacy", return_value={}),
+            patch.object(privacy_rules, "for_users", return_value={}),
             patch.object(realtime, "_session_user", side_effect=lambda s: self.users.get(s)),
             patch.object(realtime, "status_provider", lambda: {"ok": True, "sources": ["kodik"], "vpn": False}),
             # Друзей здесь не грузим: фоновую задачу закрываем, не запуская

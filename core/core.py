@@ -39,7 +39,7 @@ env.load()  # до остальных импортов: настройки в co
 # FastAPI startup event below. Importing the module is cheap and side-effect
 # free.
 from core.admin import auth as admin_auth, router as admin_router, summary as admin_summary
-from core.api.sections import account, activity, auth, catalog, lists, social_login
+from core.api.sections import account, activity, auth, catalog, friends, lists, messages, social_login
 from core.classes import db, http, http_cache
 from core.classes.adblock import engine as adblock
 from core.classes.jikan import catalog as jikan_catalog
@@ -48,7 +48,7 @@ from core.classes.sources.oldyummy import OldYummy
 from core.classes.vpn import bridge as vpn_bridge
 from core.config import config
 from core.functions import (
-    lists_sweep, presence, realtime, site_settings, source_health, video_reports,
+    lists_sweep, presence_batch, realtime, site_settings, source_health, video_reports,
 )
 from core.functions.player_hosts import (
     VK_SCORE, iframe_preference_score, is_disabled_player_url, vk_video_ref,
@@ -167,7 +167,7 @@ async def _startup() -> None:
     await jikan_catalog.startup()
     await adblock.startup()
     await player_proxy.startup()
-    await presence.startup()
+    await presence_batch.startup()
     await realtime.startup()
     await lists_sweep.startup()
 
@@ -176,7 +176,7 @@ async def _startup() -> None:
 async def _shutdown() -> None:
     await lists_sweep.shutdown()
     await realtime.shutdown()
-    await presence.shutdown()
+    await presence_batch.shutdown()
     await player_proxy.shutdown()
     await adblock.shutdown()
     await jikan_catalog.shutdown()
@@ -941,7 +941,8 @@ app.include_router(catalog.router)
 app.include_router(auth.router)
 app.include_router(social_login.router)
 app.include_router(account.router)
-app.include_router(presence.router)
+app.include_router(friends.router)
+app.include_router(messages.router)
 app.include_router(realtime.router)
 app.include_router(lists.router)
 app.include_router(activity.router)

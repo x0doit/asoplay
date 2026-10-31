@@ -13,7 +13,8 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from core.classes import as_api, as_sessions
-from core.functions import presence, sessions
+from core.api.sections import friends as friend_routes, messages as message_routes
+from core.functions import friends as friend_data, presence, privacy as privacy_rules, sessions
 
 from core.tests.presence.lib import FakeClock, person, SocialFake
 
@@ -23,16 +24,17 @@ class FriendPageTests(unittest.TestCase):
 
     def setUp(self):
         app = FastAPI()
-        app.include_router(presence.router)
+        app.include_router(friend_routes.router)
+        app.include_router(message_routes.router)
         app.dependency_overrides[sessions.current_user_required] = lambda: {"id": 7}
         self.client = TestClient(app)
         self.client.cookies.set(sessions.COOKIE_NAME, "s" * 64)
         self.social = SocialFake([11], [person(11, where="site")])
         patches = [
             patch.object(presence, "presence", presence.Presence(clock=FakeClock())),
-            patch.object(presence, "_friend_cache", {7: (10 ** 12, [11])}),
-            patch.object(presence, "_privacy", return_value={}),
-            patch.object(presence, "_titles", return_value={}),
+            patch.object(friend_data, "_friend_cache", {7: (10 ** 12, [11])}),
+            patch.object(privacy_rules, "for_users", return_value={}),
+            patch.object(presence, "title_cards", return_value={}),
             patch.object(as_sessions, "enabled", return_value=True),
             patch.object(as_sessions, "access_token", return_value="asa_token"),
             patch.object(as_api, "call", side_effect=self.social),
@@ -62,7 +64,7 @@ class FriendPageTests(unittest.TestCase):
 
     def test_actions_go_to_the_social_network_and_the_list_is_read_anew(self):
         self.assertEqual(self.client.post("/account/friends/40").json(), {"status": "outgoing", "friends_count": 5, "friend_requests": 1})
-        self.assertNotIn(7, presence._friend_cache)
+        self.assertNotIn(7, friend_data._friend_cache)
         self.client.post("/account/friends/41/accept")
         self.client.post("/account/friends/42/decline")
         self.client.delete("/account/friends/43")
@@ -87,7 +89,8 @@ class WriteTests(unittest.TestCase):
 
     def setUp(self):
         app = FastAPI()
-        app.include_router(presence.router)
+        app.include_router(friend_routes.router)
+        app.include_router(message_routes.router)
         app.dependency_overrides[sessions.current_user_required] = lambda: {"id": 7}
         self.client = TestClient(app)
         self.client.cookies.set(sessions.COOKIE_NAME, "s" * 64)

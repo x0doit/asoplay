@@ -11,7 +11,7 @@ All rights reserved. See /COPYRIGHT for full terms.
 вышел, изменилась дружба, страницу заблокировали — сервер раздаёт их по вкладкам этих людей.
 
 Пока соединения нет, соцсеть узнаёт о присутствии из запасного пакета POST /clients/presence раз в минуту
-(presence.report_once); после переподключения снимок заменяет всё, что она знала.
+(presence_batch.report_once); после переподключения снимок заменяет всё, что она знала.
 """
 from __future__ import annotations
 
