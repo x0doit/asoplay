@@ -142,7 +142,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
   `Копировать ссылку на аниме`, `Открыть AnimeSocial`.
 - Быстрые PNG-скриншоты текущего кадра с чистыми именами файлов:
   `AsoPlay-{mal_id}-ep{episode}-{hh}-{mm}-{ss}.png`.
-- Отдельный Kodik skin в `assets/player/kodik-skin.css` с акцентом тёмной
+- Отдельный Kodik skin в `design/EDDAS/player/kodik-skin.css` с акцентом тёмной
   темы EDDAS `#9db3cc`.
 - Same-origin player proxy для iframe и media URL — только к хостам самих плееров
   (белый список) и только на публичные адреса; проксируемые документы идут с CSP sandbox.
@@ -260,6 +260,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │       ├── 2026-10-30_as_sessions.sql            сессии входа через AnimeSocial
 │       ├── 2026-10-30_presence.sql               настройки присутствия на AsoPlay
 │       └── 2026-10-31_task_runs.sql              отметки фоновых задач (правило 30 дней)
+├── design/EDDAS/player/        тексты кадров плеера: страница кадра, мост, ошибка, щит, скин Kodik; их читает
+│                               core/modules/player, наружу они не отдаются
 ├── design/EDDAS/tests/         проверки фронтенда (Node); до шага 6 читают app.js и js/ из корня
 ├── tools/
 │   ├── guard/                  сторожа рефакторинга: длины, импорты, docblock, контракт, ответы, стили (all.py)
@@ -675,7 +677,7 @@ Key capabilities:
   `Открыть AnimeSocial`.
 - Quick PNG screenshots of the current frame with clean filenames:
   `AsoPlay-{mal_id}-ep{episode}-{hh}-{mm}-{ss}.png`.
-- Dedicated Kodik skin in `assets/player/kodik-skin.css` with the EDDAS
+- Dedicated Kodik skin in `design/EDDAS/player/kodik-skin.css` with the EDDAS
   dark-theme accent `#9db3cc`.
 - Same-origin player proxy for iframe and media URLs — only to the players' own hosts
   (a list) and only to public addresses; proxied documents carry a CSP sandbox.
@@ -793,6 +795,8 @@ Key capabilities:
 │       ├── 2026-10-30_as_sessions.sql            sign-in with AnimeSocial sessions
 │       ├── 2026-10-30_presence.sql               presence settings
 │       └── 2026-10-31_task_runs.sql              background task marks (the 30-day rule)
+├── design/EDDAS/player/        player frame texts: the frame page, the bridge, the error page, the shield, the
+│                               Kodik skin; core/modules/player reads them, they are not served directly
 ├── design/EDDAS/tests/         frontend checks (Node); until step 6 they read app.js and js/ from the root
 ├── tools/
 │   ├── guard/                  refactoring guards: lengths, imports, docblocks, contract, responses, styles (all.py)

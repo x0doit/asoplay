@@ -546,6 +546,9 @@
  "PAGE": [
   "= e1822db470e6"
  ],
+ "PLAYER_DIR": [
+  "= 525c827940ab"
+ ],
  "PLAYER_MAX_TEXT_REWRITE": [
   "= 1f132d14ed70"
  ],
@@ -1045,6 +1048,9 @@
  "_ASSET_DIRS": [
   "= eed1256b6334"
  ],
+ "_AUTHOR": [
+  "= d2d1632ffbee"
+ ],
  "_Attempt": [
   "class()"
  ],
@@ -1059,6 +1065,9 @@
  ],
  "_BRIDGE": [
   "= 5890bf19f0fb"
+ ],
+ "_BRIDGE_PAGE": [
+  "= c4743dc6a81b"
  ],
  "_BRIDGE_PROXY_VALUES": [
   "= bba23692572e"
@@ -1097,11 +1106,17 @@
  "_DURATION_PART": [
   "= 20c50f069e92"
  ],
+ "_ERROR_PAGE": [
+  "= a395a90020d4"
+ ],
  "_FALLBACK_BLOCK_HOSTS": [
   "= 9b19a08b6f47"
  ],
  "_FALLBACK_SNIPPETS": [
   "= 4bd953ce9154"
+ ],
+ "_FRAME_PAGE": [
+  "= 5ec23ffb06f5"
  ],
  "_FRAME_SANDBOX": [
   "= 708cdc188489"
@@ -1143,7 +1158,7 @@
   "= c43aeeb3b05d"
  ],
  "_KODIK_SKIN_CSS": [
-  "= fe3c370312c6"
+  "= 53e0d154c4cd"
  ],
  "_LEGACY_PATHS": [
   "= 5ba758654a48"
@@ -1225,10 +1240,13 @@
   "def(self, tag, attrs)"
  ],
  "_SHIELD_LOGGER_JS": [
-  "= 9a4bcd9eacf3"
+  "= 67c01c2e4dcd"
  ],
  "_SKIP_TYPES": [
   "= f5f3c6625bf8"
+ ],
+ "_SLOT": [
+  "= c101fe481f61"
  ],
  "_SOCIAL_WHERE": [
   "= f03606f6f317"
@@ -1439,6 +1457,9 @@
  ],
  "_file_route": [
   "def(app: FastAPI, route: str, path: Path, media: str | None=None) -> None"
+ ],
+ "_fill": [
+  "def(template: str, **values: str) -> str"
  ],
  "_find_xray": [
   "def() -> str | None"
@@ -1811,6 +1832,12 @@
  "_task": [
   "= 6eef6648406c",
   "= 6eef6648406c"
+ ],
+ "_template": [
+  "def(name: str, slots: set[str], **parts: tuple[str, ...]) -> str"
+ ],
+ "_text": [
+  "def(name: str) -> str"
  ],
  "_title_item": [
   "def(mal_id: int, name: str, flags: tuple | None) -> dict[str, Any]"

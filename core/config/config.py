@@ -23,6 +23,8 @@ CONFIG_DIR = ROOT / "core" / "config"
 DB_PHP = CONFIG_DIR / "db.php"  # конфиг БД в формате Anime Social; на сервере — файл владельца
 ANIMESOCIAL_JSON = CONFIG_DIR / "animesocial.json"  # адреса и медиа Anime Social; на сервере — файл владельца
 XRAY_TEMPLATE = CONFIG_DIR / "server" / "xray.template.json"
+# Тексты кадров плеера: страница кадра, мост, ошибка, щит, скин Kodik (core/modules/player)
+PLAYER_DIR = ROOT / "design" / "EDDAS" / "player"
 # Рабочие файлы, вне git: HTTP-кеш, списки adblock, конфиг и журнал запущенного xray
 CACHE_DIR = CONFIG_DIR / "cache"
 ADBLOCK_CACHE_DIR = CACHE_DIR / "adblock"
