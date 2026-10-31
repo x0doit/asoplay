@@ -926,7 +926,8 @@
  ],
  "TIMEOUT": [
   "= 4fde6b87a266",
-  "= 4fde6b87a266"
+  "= 4fde6b87a266",
+  "= db63fca62705"
  ],
  "TTL_FRESH": [
   "= 1a50418c7d7f"
@@ -1020,6 +1021,15 @@
  "_ASSET_DIRS": [
   "= eed1256b6334"
  ],
+ "_Attempt": [
+  "class()"
+ ],
+ "_Attempt.counts": [
+  "Counter = 1c67b000944d"
+ ],
+ "_Attempt.waiting": [
+  "str = b6ee60926c0a"
+ ],
  "_BLOCKED_HEADERS": [
   "= cf9816cd6025"
  ],
@@ -1034,6 +1044,9 @@
  ],
  "_CACHE_SHELL": [
   "= 6eef6648406c"
+ ],
+ "_CATALOG": [
+  "= 447a6b447985"
  ],
  "_CHROME_UA": [
   "= d3a1bafa2196"
@@ -1056,6 +1069,9 @@
  ],
  "_DOCUMENT_TYPES": [
   "= b7cae0f22549"
+ ],
+ "_DURATION_PART": [
+  "= 20c50f069e92"
  ],
  "_FALLBACK_BLOCK_HOSTS": [
   "= 9b19a08b6f47"
@@ -1115,9 +1131,6 @@
  "_NON_ALNUM": [
   "= a17d35a61d0c"
  ],
- "_OLDYUMMY_CATALOG_MAX": [
-  "= 8a12a315082a"
- ],
  "_PASSTHROUGH_REQUEST_HEADERS": [
   "= a3d98a40aa17"
  ],
@@ -1138,6 +1151,9 @@
  ],
  "_RETRY_STATUS_CODES": [
   "= 15b9572724ca"
+ ],
+ "_ROUNDS": [
+  "= 77de68daecd8"
  ],
  "_ROUTE_ERRORS": [
   "= 13d76b7969ec"
@@ -1162,6 +1178,9 @@
  ],
  "_SHIELD_LOGGER_JS": [
   "= 9a4bcd9eacf3"
+ ],
+ "_SKIP_TYPES": [
+  "= f5f3c6625bf8"
  ],
  "_SOCIAL_WHERE": [
   "= f03606f6f317"
@@ -1222,6 +1241,9 @@
  ],
  "_TYPE_MODIFIERS": [
   "= 888677e45d35"
+ ],
+ "_UNIT_MINUTES": [
+  "= cbc4e1cf3f45"
  ],
  "_UNSUPPORTED_MODIFIERS": [
   "= 288901d6b8f4"
@@ -1303,6 +1325,9 @@
  ],
  "_cached_matches": [
   "def(q: str) -> dict[int, str]"
+ ],
+ "_candidate": [
+  "def(a: dict, counts: Counter) -> int | None"
  ],
  "_catalog": [
   "async def(coro: Any) -> Any"
@@ -1457,6 +1482,9 @@
  "_key": [
   "def() -> bytes | None"
  ],
+ "_known_and_long": [
+  "async def(mal_id: int, counts: Counter) -> bool"
+ ],
  "_kodik_mirror": [
   "async def(request: Request, kind: str, rest: str)"
  ],
@@ -1495,6 +1523,9 @@
  ],
  "_match_first": [
   "def(patterns: tuple[str, ...], text: str) -> str"
+ ],
+ "_minutes": [
+  "def(duration: str) -> float | None"
  ],
  "_module_proxy_url": [
   "def(url: str, base: str) -> str"
@@ -1568,7 +1599,7 @@
   "def(q: str) -> int | None"
  ],
  "_random_watchable": [
-  "async def()"
+  "async def(attempt: _Attempt) -> dict"
  ],
  "_rank": [
   "def(item: dict[str, Any]) -> tuple"
@@ -1666,6 +1697,9 @@
  "_settings_view": [
   "def() -> dict[str, Any]"
  ],
+ "_shuffled": [
+  "async def(attempt: _Attempt) -> list[dict]"
+ ],
  "_shutdown": [
   "@app.on_event('shutdown') async def() -> None"
  ],
@@ -1730,6 +1764,9 @@
  "_tls": [
   "@functools.lru_cache(maxsize=4) def(ca: str) -> ssl.SSLContext | bool",
   "def(url: str) -> ssl.SSLContext | None"
+ ],
+ "_too_short": [
+  "def(card: dict) -> bool"
  ],
  "_unregistered": [
   "def(*_args, **_kwargs)"
