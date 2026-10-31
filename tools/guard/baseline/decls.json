@@ -1284,9 +1284,6 @@
  "_authorize_url": [
   "def() -> str"
  ],
- "_bridge": [
-  "async def(payload: dict) -> dict"
- ],
  "_bridge_desired": [
   "= 97cdbdc7feff"
  ],
@@ -1457,6 +1454,9 @@
  ],
  "_headers_for_upstream": [
   "def(request: Request, url: str, base: str | None, referer: str | None=None) -> dict[str, str]"
+ ],
+ "_hidden": [
+  "= 08fd15ac4243"
  ],
  "_hls_quality_sources": [
   "def(master_url: str, playlist: str) -> list[dict[str, str]]"
@@ -1897,6 +1897,9 @@
  "_unplayable_player_url": [
   "def(url: str) -> bool"
  ],
+ "_unregistered": [
+  "def(*_args, **_kwargs)"
+ ],
  "_update": [
   "def(session: str, tokens: dict[str, Any]) -> None"
  ],
@@ -1923,6 +1926,9 @@
  ],
  "_version": [
   "@lru_cache(maxsize=1) def() -> str"
+ ],
+ "_visible": [
+  "= 08fd15ac4243"
  ],
  "_vk_frame": [
   "async def(request: Request, ref: dict[str, str]) -> Response"
@@ -2132,6 +2138,7 @@
   "async def(method: str, url: str, *, params: dict | None=None, json_body: Any=None, ttl: float, timeout: float=15.0, headers: dict | None=None) -> tuple[bytes, str, int]"
  ],
  "call": [
+  "async def(payload: dict) -> dict",
   "def(method: str, path: str, *, token: str | None=None, body: dict[str, Any] | None=None, user_ip: str='', user_agent: str='') -> Any"
  ],
  "canonical_title": [
@@ -2449,6 +2456,7 @@
   "= 32d06339fc74",
   "= 3acb6a6c60f8",
   "= 48bd8c61a38f",
+  "= 48bd8c61a38f",
   "= 8a1db55198b6",
   "= 96797f0c7e5f",
   "= 96ff858b959b",
@@ -2638,6 +2646,9 @@
  ],
  "register_shell_routes": [
   "def(app) -> None"
+ ],
+ "register_title_filter": [
+  "def(*, hidden: Callable[[Any], bool], visible: Callable[[list], list]) -> None"
  ],
  "register_url": [
   "def() -> str"

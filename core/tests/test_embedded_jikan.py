@@ -15,28 +15,31 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 from fastapi import HTTPException
 from core.classes import http
-from core.classes.jikan import catalog as j
+from core.classes.jikan import catalog as j, php_bridge
 
 
 class CatalogTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        j._workers = asyncio.Semaphore(4)
+        php_bridge._workers = asyncio.Semaphore(4)
         j._network = asyncio.Semaphore(2)
         http._MAL_LIMIT = http._RateLimiter(rps=1000)
         j._retry_after = 0
         j._pending.clear()
+        saved = (j._hidden, j._visible)
+        self.addCleanup(lambda: j.register_title_filter(hidden=saved[0], visible=saved[1]))
+        j.register_title_filter(hidden=lambda mal_id: False, visible=lambda items: items)
 
     async def asyncTearDown(self):
         await j.shutdown()
 
     async def test_php_and_locked_library_are_available(self):
-        result = await j._bridge({"mode": "health"})
+        result = await php_bridge.call({"mode": "health"})
         self.assertEqual(result["jikan"], "v5.0.0")
 
     async def test_official_request_keeps_genres_and_search_filters(self):
         p = {"genres": "26,46", "page": 2, "type": "tv", "status": "complete",
              "order_by": "score", "sort": "desc", "min_score": "7", "start_date": "2018-01-01"}
-        d = await j._bridge({"mode": "describe", "path": "anime", "params": p})
+        d = await php_bridge.call({"mode": "describe", "path": "anime", "params": p})
         u = urlparse(d["url"])
         self.assertEqual(u.netloc, "myanimelist.net")
         q = parse_qs(u.query)
@@ -45,7 +48,7 @@ class CatalogTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(q[key], value)
 
     async def test_empty_mal_search_404_is_a_valid_empty_result(self):
-        result = await j._bridge({"mode": "parse", "path": "anime", "params": {}, "status": 404, "html": ""})
+        result = await php_bridge.call({"mode": "parse", "path": "anime", "params": {}, "status": 404, "html": ""})
         self.assertEqual(result, {"data": [], "has_next_page": False})
 
     async def test_pagination_has_no_gaps_when_sfw_removes_rows(self):
@@ -68,6 +71,19 @@ class CatalogTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["data"][0]["mal_id"], 2)
         self.assertEqual(result["pagination"]["last_visible_page"], 2)
         self.assertFalse(result["pagination"]["has_next_page"])
+
+    async def test_title_lists_fail_clearly_without_the_hidden_title_filter(self):
+        # Без строки регистрации в core.py список не должен молча показать скрытые тайтлы.
+        j.register_title_filter(hidden=j._unregistered, visible=j._unregistered)
+        rows = {"data": [{"mal_id": 1, "type": "TV"}], "has_next_page": False}
+        with patch.object(j, "_native", new=AsyncMock(return_value=rows)):
+            for path in ("anime", "top/anime", "seasons/2026/fall", "random/anime"):
+                with self.subTest(path=path), self.assertRaisesRegex(RuntimeError, "register_title_filter"):
+                    await j.catalog(path, {})
+            episodes = await j.catalog("anime/5/episodes", {})
+            card = await j.catalog("anime/5/full", {})
+        self.assertEqual(episodes["data"], rows["data"])
+        self.assertEqual(card["data"], rows["data"])
 
     async def test_details_share_full_cache_identity(self):
         native = AsyncMock(return_value={"data": {"mal_id": 1535}})
@@ -130,15 +146,15 @@ class CatalogTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_process_timeout_kills_and_reaps_child(self):
         process = Mock(returncode=None, communicate=AsyncMock(side_effect=[asyncio.TimeoutError(), (b"", b"")]))
-        with patch.object(j.asyncio, "create_subprocess_exec", new=AsyncMock(return_value=process)):
+        with patch.object(php_bridge.asyncio, "create_subprocess_exec", new=AsyncMock(return_value=process)):
             with self.assertRaises(asyncio.TimeoutError):
-                await j._bridge({"mode": "health"})
+                await php_bridge.call({"mode": "health"})
         process.kill.assert_called_once()
         self.assertEqual(process.communicate.await_count, 2)
 
     async def test_rate_limit_response_prevents_immediate_new_network_request(self):
         client = Mock(request=AsyncMock(return_value=httpx.Response(429)))
-        with patch.object(j, "_bridge", new=AsyncMock(return_value={"url": "https://myanimelist.net/anime.php", "page_size": 50})), \
+        with patch.object(php_bridge, "call", new=AsyncMock(return_value={"url": "https://myanimelist.net/anime.php", "page_size": 50})), \
              patch.object(http, "get_client", new=AsyncMock(return_value=client)):
             for _ in range(2):
                 with self.assertRaises(HTTPException):

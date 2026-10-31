@@ -11,7 +11,6 @@ styles.css
 core/core.py
 core/classes/db.py
 core/classes/http.py
-core/classes/jikan/catalog.py
 core/functions/presence.py
 core/functions/realtime.py
 core/functions/social_login.py

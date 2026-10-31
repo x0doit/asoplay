@@ -211,7 +211,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── as_realtime.py      соединение сервер–сервер с realtime AnimeSocial
 │   │   ├── token_box.py        шифрование токенов соцсети в базе (AES-GCM)
 │   │   ├── http.py             Jikan/AniList/Shiki/translate/image proxies
-│   │   ├── jikan/catalog.py    встроенный каталог MAL, кэш и лимит запросов
+│   │   ├── jikan/              каталог MAL: catalog.py (запросы, кеш, лимит, фильтры), php_bridge.py (запуск PHP)
 │   │   ├── jikan/php/          PHP-мост, Composer manifest и lockfile
 │   │   ├── adblock/            блокировщик плеера: rules.py (разбор фильтров AdGuard), engine.py (списки, проверка)
 │   │   ├── vpn/                VPN-мост: xray.py (конфиг и процесс xray), bridge.py (жизненный цикл, сторож)
@@ -718,7 +718,7 @@ Key capabilities:
 │   │   ├── as_realtime.py      server-to-server link with AnimeSocial realtime
 │   │   ├── token_box.py        encryption of social network tokens at rest (AES-GCM)
 │   │   ├── http.py             Jikan/AniList/Shiki/translate/image proxies
-│   │   ├── jikan/catalog.py    embedded MAL catalog, cache and rate limiting
+│   │   ├── jikan/              MAL catalog: catalog.py (requests, cache, rate limit, filters), php_bridge.py (PHP runs)
 │   │   ├── jikan/php/          PHP bridge, Composer manifest and lockfile
 │   │   ├── adblock/            player ad-block: rules.py (AdGuard filter parsing), engine.py (lists, checks)
 │   │   ├── vpn/                VPN bridge: xray.py (xray config and process), bridge.py (lifecycle, watchdog)

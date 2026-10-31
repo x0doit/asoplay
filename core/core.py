@@ -371,6 +371,9 @@ realtime.status_provider = lambda: {
 realtime.extra_origins = {o.rstrip("/") for o in config.ALLOWED_ORIGINS if o != "*"}
 site_settings.listeners.append(lambda _what: realtime.status_changed())
 admin_summary.loaded_sources = _all_sources
+# Каталог (core/classes/jikan) ниже site_settings и не импортирует его: скрытые по жалобе правообладателя
+# тайтлы он берёт из функций, которые core.py регистрирует здесь, до первого запроса.
+jikan_catalog.register_title_filter(hidden=site_settings.hidden, visible=site_settings.visible)
 
 
 @app.get("/health")
