@@ -1,0 +1,12 @@
+# Файлы, которые ждут своего шага рефакторинга. lines.py и docblocks.py их пропускают.
+# Переносят — правь путь, доводят до правил (деление, docblock) — удаляй строку.
+
+# Фронтенд: делится на шагах 7 и 8
+app.js
+js/account.js
+js/navigation.js
+styles.css
+
+# Python: делится на шаге 5, docblock — там же
+core/modules/player/routes.py
+# После части K: решить, поднимать ли cookie и current_user_* из core/functions/sessions.py в core/auth.py

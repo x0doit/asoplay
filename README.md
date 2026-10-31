@@ -144,7 +144,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
   `AsoPlay-{mal_id}-ep{episode}-{hh}-{mm}-{ss}.png`.
 - Отдельный Kodik skin в `assets/player/kodik-skin.css` с акцентом тёмной
   темы EDDAS `#9db3cc`.
-- Same-origin player proxy для iframe и media URL.
+- Same-origin player proxy для iframe и media URL — только к хостам самих плееров
+  (белый список) и только на публичные адреса; проксируемые документы идут с CSP sandbox.
 - AsoPlay Shield для фильтрации рекламных URL, блокировки popup/navigation
   сценариев и защиты от шумных third-party scripts внутри sandbox.
 - Отдельные служебные player-ресурсы: `/player/asoplay-shield.js`,
@@ -171,44 +172,98 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   ├── realtime.js             живое соединение вкладки с сервером (WebSocket /ws)
 │   ├── site.js                 решения панели AnimeSocial: плашка, скрытые и 18+ тайтлы, вход
 │   └── trailer.js              окно трейлера
-├── server/
-│   ├── main.py                 FastAPI wiring, static serving, sources
-│   ├── animesocial.py          AnimeSocial DB auth bridge и sessions
-│   ├── rate_limit.py           лимит попыток входа и IP посетителя за прокси
-│   ├── as_login.py             вход через AnimeSocial (OAuth 2.0 + PKCE) и его сессии
-│   ├── as_api.py               клиент API v2 AnimeSocial
-│   ├── presence.py             присутствие на AsoPlay и друзья из AnimeSocial
-│   ├── realtime.py             WebSocket /ws: вкладки, события друзьям, состояние сервера
-│   ├── as_realtime.py          соединение сервер–сервер с realtime AnimeSocial
-│   ├── admin_api.py            админ-API для раздела «AsoPlay» в /cpanel AnimeSocial (HMAC)
-│   ├── site_settings.py        что решила панель: пометки тайтлов, плашка, функции, источники
-│   ├── video_reports.py        жалобы «Не работает» из плеера
-│   ├── token_box.py            шифрование токенов соцсети в базе (AES-GCM)
-│   ├── animesocial_config.py   AnimeSocial URL/media configuration
-│   ├── account_api.py          account compatibility API
-│   ├── adblock.py              AdGuard-backed request filtering
-│   ├── user_lists.py           list/status/favorite domain и auto-rules
-│   ├── activity_log.py         contribution/activity event log
-│   ├── profile_pages.py        public profile API и SSR shell
-│   ├── title_pages.py          canonical anime pages, sitemap, robots
-│   ├── proxies.py              Jikan/AniList/Shiki/translate/image proxies
-│   ├── jikan_catalog.py        встроенный каталог MAL, кэш и лимит запросов
-│   ├── jikan/                 PHP-мост, Composer manifest и lockfile
-│   ├── player_proxy.py         same-origin player proxy, Shield, iframe bridge
-│   ├── source_health.py        source failure/cooldown state
-│   ├── vpn_bridge.py           optional xray runtime bridge
-│   ├── animevost.py            native AnimeVost source adapter
-│   ├── oldyummy.py             native old.yummyani source adapter
-│   └── requirements.txt        Python runtime dependencies
-├── sql/
-│   ├── aviev-schema.sql        базовая схема aviev_*
-│   ├── aviev-schema-pass2.sql  списки, приватность, активность, compatibility
-│   ├── aviev-schema-pass3.sql  сессии входа через AnimeSocial
-│   ├── aviev-schema-pass4.sql  настройки присутствия на AsoPlay
-│   └── aviev-schema-pass5.sql  жалобы, пометки тайтлов, настройки сайта, журнал, время просмотра
-├── animesocial.json            public URL/media mapping для AnimeSocial
-├── animesocial-db.php          формат DB-конфига AnimeSocial
-├── vpn.template.json           шаблон xray-конфига
+├── core/                       бэкенд, пакет Python: запуск python -m core
+│   ├── __main__.py             запуск uvicorn (адрес и порт — AV_BIND_HOST, AV_BIND_PORT)
+│   ├── core.py                 сборка FastAPI: CORS, жизненный цикл, связи слоёв, роутеры, ошибки; статика до шага 6
+│   ├── requirements.txt        Python runtime dependencies
+│   ├── api/sections/           разделы API сайта
+│   │   ├── account/            /account/…: вход __init__.py подключает части в порядке маршрутов —
+│   │   │                       favorites, history, progress, ratings, settings, import_storage
+│   │   ├── lists/              /account/lists/…: entries (записи), progress_event (события плеера)
+│   │   ├── sources/            /src/…: search.py (поиск, серии), media.py (озвучки, видео)
+│   │   ├── activity.py         /account/activity: график и лента активности
+│   │   ├── auth.py             /auth/login, logout, me, register, config: вход паролем и настройки соцсети
+│   │   ├── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, перевод, картинки
+│   │   ├── friends.py          /account/friends…: друзья, заявки, «Возможные друзья», действия с дружбой
+│   │   ├── health.py           /health, /sources, /source-health, /adblock/…: состояние сервера
+│   │   ├── messages.py         /account/messages/{id}: «Написать» в переписку AnimeSocial
+│   │   ├── profile.py          /profile/…: публичные данные профиля — сводка, активность, списки
+│   │   ├── random.py           /random/watchable: случайный тайтл, который есть у источника
+│   │   ├── realtime.py         WebSocket /ws: протокол кадров, проверка Origin, вход по cookie
+│   │   ├── reports.py          /reports, /reports/kinds: жалоба «Не работает» из плеера
+│   │   └── social_login.py     /auth/as/…: вход через AnimeSocial, «кто вошёл», переход на сайт соцсети
+│   ├── admin/                  админ-API для раздела «AsoPlay» в /cpanel AnimeSocial (HMAC)
+│   │   ├── router.py           вход: подключает части в порядке маршрутов
+│   │   ├── auth.py             подпись, повторы, ошибки, обёртка ответов, страницы
+│   │   └── reports.py, audit.py, settings.py, titles.py, summary.py   разделы панели
+│   ├── modules/
+│   │   ├── title_pages.py      /anime/{id}-{slug}/: страница тайтла, запись кеша с фронтенда, маршруты оболочки SPA
+│   │   ├── title_render.py     HTML страницы тайтла: мета-теги, Open Graph, JSON-LD; общая оболочка и заглушка 404
+│   │   ├── title_cache.py      кеш страниц тайтлов (aviev_title_pages), адрес страницы, заполнение из каталога
+│   │   ├── seo.py              /sitemap.xml и /robots.txt
+│   │   ├── profile_pages.py    /@handle: страница профиля для поисковиков и превью ссылок (SSR)
+│   │   └── player/routes.py    same-origin player proxy, Shield, iframe bridge
+│   ├── functions/
+│   │   ├── social_login.py     вход через AnimeSocial: PKCE, сессия AsoPlay со связью с соцсетью, вход паролем
+│   │   ├── sessions.py         сессии AsoPlay: создать, проверить, закрыть; cookie и текущий пользователь
+│   │   ├── presence.py         присутствие на AsoPlay: вкладки и «смотрит»; presence_batch.py — пакет соцсети
+│   │   ├── friends.py          друзья из AnimeSocial: id с кешем, люди, статусы, вызовы соцсети от имени человека
+│   │   ├── realtime.py         хаб живых соединений: вкладки, кадры, фон; realtime_presence.py — присутствие
+│   │   │                       друзьям, realtime_social.py — события соцсети и состояние сервера
+│   │   ├── site_settings.py    что решила панель: пометки тайтлов, плашка, функции, источники
+│   │   ├── video_reports.py    жалобы «Не работает»: причины, статусы, очистка текста — для раздела и панели
+│   │   ├── lists.py            list/status/favorite domain и auto-rules; счётчики и записи публичного профиля
+│   │   ├── lists_sweep.py      правило 30 дней по расписанию: раз в сутки, замок, догон после простоя
+│   │   ├── progress.py         позиции в сериях, «досмотрено», пороги «Смотрю»
+│   │   ├── watch_history.py    история «Смотрю» и авто-статус после «не смотрел»
+│   │   ├── privacy.py          флаги приватности и их чтение
+│   │   ├── watch_time.py       сколько посмотрели — для «Обзора» в панели
+│   │   ├── activity.py         запись событий активности (contribution-график)
+│   │   ├── activity_feed.py    лента событий и график по дням
+│   │   ├── rate_limit.py       лимит попыток входа и IP посетителя за прокси
+│   │   ├── source_health.py    source failure/cooldown state
+│   │   ├── sources.py          источники видео: реестр, ключи найденного, вызов напрямую или через VPN-мост
+│   │   ├── native_sources.py   свои источники (old.yummyani, animevost) в том же виде, что anicli-api
+│   │   ├── source_filters.py   фильтры найденного: год, имена озвучек, неиграбельные и VK-плееры, реклама
+│   │   └── player_hosts.py     политика плееров: белый список хостов прокси, VK, неиграющие плееры
+│   ├── classes/
+│   │   ├── db.py               подключение к базе AnimeSocial: настройки, соединение, проверка для /health
+│   │   ├── accounts.py         аккаунты соцсети: схема таблицы, поиск, @handle, бан
+│   │   ├── passwords.py        проверка пароля по хешу: bcrypt, argon2, sha*, md5, DLE
+│   │   ├── as_api.py           клиент API v2 AnimeSocial
+│   │   ├── as_sessions.py      сессии соцсети у сессий AsoPlay (токены, обновление, выход); включён ли вход
+│   │   ├── as_realtime.py      соединение сервер–сервер с realtime AnimeSocial
+│   │   ├── token_box.py        шифрование токенов соцсети в базе (AES-GCM)
+│   │   ├── http.py             клиенты (напрямую и через VPN-мост), маршрут для хоста, темп запросов к MAL
+│   │   ├── http_cache.py       кеш апстримов на диске, повторы и паузы апстримов, один запрос на одинаковые
+│   │   ├── http_public.py      выход только на публичные адреса: сетевой слой клиента прокси плеера
+│   │   ├── jikan/              каталог MAL: catalog.py (запросы, кеш, лимит, фильтры), php_bridge.py (запуск PHP)
+│   │   ├── jikan/php/          PHP-мост, Composer manifest и lockfile
+│   │   ├── adblock/            блокировщик плеера: rules.py (разбор фильтров AdGuard), engine.py (списки, проверка)
+│   │   ├── vpn/                VPN-мост: xray.py (конфиг и процесс xray), bridge.py (жизненный цикл, сторож)
+│   │   ├── sources/animevost.py native AnimeVost source adapter
+│   │   └── sources/oldyummy.py native old.yummyani source adapter
+│   ├── config/
+│   │   ├── env.py              корень проекта и загрузка .env при старте
+│   │   ├── config.py           все настройки и переменные окружения в одном месте
+│   │   ├── animesocial.py      AnimeSocial URL/media configuration
+│   │   ├── animesocial.json    public URL/media mapping для AnimeSocial
+│   │   ├── db.php              формат DB-конфига AnimeSocial
+│   │   ├── server/             шаблон xray-конфига и unit systemd
+│   │   └── cache/              рабочие файлы: HTTP-кеш, adblock, xray (вне git)
+│   ├── tests/                  проверки ядра: раздел — test_{раздел}.py, большой — вход и папка частей;
+│   │                           запуск run.py, как запускать и что нужно — README.md
+│   └── migrations/
+│       ├── 0000_schema.sql                       базовая схема aviev_*
+│       ├── 2026-04-30_lists_privacy_activity.sql списки, приватность, активность, compatibility
+│       ├── 2026-10-30_admin_panel.sql            жалобы, пометки тайтлов, настройки сайта, журнал, время просмотра
+│       ├── 2026-10-30_as_sessions.sql            сессии входа через AnimeSocial
+│       ├── 2026-10-30_presence.sql               настройки присутствия на AsoPlay
+│       └── 2026-10-31_task_runs.sql              отметки фоновых задач (правило 30 дней)
+├── design/EDDAS/tests/         проверки фронтенда (Node); до шага 6 читают app.js и js/ из корня
+├── tools/
+│   ├── guard/                  сторожа рефакторинга: длины, импорты, docblock, контракт, ответы, стили (all.py)
+│   └── qa/                     браузерный QA экранов: eddas-qa.cjs и сценарии в scenarios/
 ├── .env.example                шаблон environment variables
 ├── COPYRIGHT                   proprietary copyright notice
 └── .gitignore                  ignored local/runtime artifacts
@@ -240,13 +295,13 @@ AsoPlayer — это не отдельная библиотека, а прикл
 Установить Python dependencies:
 
 ```bash
-pip install -r server/requirements.txt
+pip install -r core/requirements.txt
 ```
 
 Установить зафиксированные зависимости встроенного парсера:
 
 ```bash
-composer --working-dir=server/jikan install --no-dev --no-scripts --no-plugins --optimize-autoloader
+composer --working-dir=core/classes/jikan/php install --no-dev --no-scripts --no-plugins --optimize-autoloader
 ```
 
 Используйте актуальную исправленную версию PHP 8.4/8.5. На Windows бэкенд
@@ -268,17 +323,18 @@ copy .env.example .env
 Применить database schema строго по порядку:
 
 ```bash
-mysql -u root AnimeSocial < sql/aviev-schema.sql
-mysql -u root AnimeSocial < sql/aviev-schema-pass2.sql
-mysql -u root AnimeSocial < sql/aviev-schema-pass3.sql
-mysql -u root AnimeSocial < sql/aviev-schema-pass4.sql
-mysql -u root AnimeSocial < sql/aviev-schema-pass5.sql
+mysql -u root AnimeSocial < core/migrations/0000_schema.sql
+mysql -u root AnimeSocial < core/migrations/2026-04-30_lists_privacy_activity.sql
+mysql -u root AnimeSocial < core/migrations/2026-10-30_admin_panel.sql
+mysql -u root AnimeSocial < core/migrations/2026-10-30_as_sessions.sql
+mysql -u root AnimeSocial < core/migrations/2026-10-30_presence.sql
+mysql -u root AnimeSocial < core/migrations/2026-10-31_task_runs.sql
 ```
 
 Запустить приложение:
 
 ```bash
-python -B -m server.main
+python -B -m core
 ```
 
 Локальный адрес по умолчанию:
@@ -320,8 +376,8 @@ GET /health
 
 ## Конфигурация
 
-Backend читает runtime settings из `.env`, `animesocial-db.php` и
-`animesocial.json`.
+Backend читает runtime settings из `.env`, `core/config/db.php` и
+`core/config/animesocial.json`; все переменные собраны в `core/config/config.py`.
 
 Основные группы переменных:
 
@@ -347,6 +403,9 @@ Backend читает runtime settings из `.env`, `animesocial-db.php` и
 - `AV_ADMIN_SECRET` — общий секрет подписи запросов раздела «AsoPlay» панели AnimeSocial
   (тот же, что в настройках раздела у соцсети). Панель ходит на `127.0.0.1:8787/api/admin/…` с этой
   же машины; через публичный прокси API не отвечает. Пусто — API выключен.
+- `AV_LISTS_SWEEP_AT` — когда идёт правило 30 дней: время UTC «ЧЧ:ММ», по умолчанию 04:00; не «ЧЧ:ММ» —
+  ошибка в журнал и 04:00, `off` — не по расписанию. Проход раз в сутки переносит auto-«Смотрю» без
+  просмотра этого тайтла 30 дней в «Брошено»; после простоя сервера пропущенный проход идёт сразу при старте.
 - `AV_ADBLOCK_ENABLED`, `AV_ADBLOCK_FILTER_URLS`,
   `AV_ADBLOCK_CACHE_TTL_SECONDS` — player Shield filtering behavior.
 - `AV_ADBLOCK_REGEX_LIMIT`, `AV_ADBLOCK_SNIPPET_LIMIT` — parser safety limits
@@ -377,7 +436,7 @@ Production secrets должны храниться только на серве�
 ответ 429 с `Retry-After`. Адрес посетителя берётся из `X-Real-IP`, который выставляет
 nginx перед AsoPlay; заголовкам прокси сервер верит только у запросов с 127.0.0.1.
 
-Вход через AnimeSocial (`server/as_login.py`) — OAuth 2.0 + PKCE поверх API v2 соцсети:
+Вход через AnimeSocial (`core/functions/social_login.py`) — OAuth 2.0 + PKCE поверх API v2 соцсети:
 кнопка ведёт на `/auth/as/start`, соцсеть спрашивает «Войти в AsoPlay?» и возвращает код
 на `/auth/as/callback`, AsoPlay меняет его на токены и открывает свою сессию. Сессия
 устройства соцсети хранится в `aviev_as_sessions` с зашифрованными токенами и
@@ -395,16 +454,16 @@ nginx перед AsoPlay; заголовкам прокси сервер вер�
 связывает с ней свою сессию; если в соцсети открыт другой аккаунт, вход отклоняется, а не
 подменяет человека.
 
-Живое соединение (`server/realtime.py`, `js/realtime.js`). Каждая вкладка держит WebSocket `/ws`
+Живое соединение (`core/functions/realtime.py`, `js/realtime.js`). Каждая вкладка держит WebSocket `/ws`
 со страниц самого AsoPlay (Origin проверяется): сообщает, на экране ли она и что играет в плеере, —
 только когда это меняется; сервер присылает состояние (источники, VPN — раньше вкладки спрашивали
 `/health` раз в 30 секунд) и события друзей. Обрыв замечают ping-кадры WebSocket, вкладка
 переподключается сама.
 
-Присутствие и друзья (`server/presence.py`). Человек на AsoPlay, пока хоть одна его вкладка открыта
+Присутствие и друзья (`core/functions/presence.py`). Человек на AsoPlay, пока хоть одна его вкладка открыта
 и на экране, и ещё 30 секунд после — перезагрузка не мигает «вышел». Друзьям, которые сейчас на
 сайте, событие уходит сразу. Соцсети сервер сообщает присутствие по постоянному соединению
-сервер–сервер (`server/as_realtime.py`): при подключении — снимок, дальше — каждое изменение; обратно
+сервер–сервер (`core/classes/as_realtime.py`): при подключении — снимок, дальше — каждое изменение; обратно
 приходят события его людей: друг зашёл в соцсеть или вышел, изменилась дружба, страницу заблокировали.
 Пока соединения нет, работает запасной пакет `POST /clients/presence` раз в минуту. Друзья видят в
 соцсети «онлайн на AsoPlay» и «смотрит «…»». Соцсеть принимает отметку у тех, у кого есть сессия AsoPlay в ней, а ссылку «смотрит» —
@@ -430,6 +489,7 @@ nginx перед AsoPlay; заголовкам прокси сервер вер�
 - `aviev_title_pages` — canonical SEO title-page cache.
 - `aviev_title_refresh_queue` — title page refresh queue.
 - `aviev_import_marks` — one-time localStorage import markers.
+- `aviev_task_runs` — the last run of each background task (the 30-day rule).
 
 `aviev_activity` использует unique deduplication index:
 
@@ -617,7 +677,8 @@ Key capabilities:
   `AsoPlay-{mal_id}-ep{episode}-{hh}-{mm}-{ss}.png`.
 - Dedicated Kodik skin in `assets/player/kodik-skin.css` with the EDDAS
   dark-theme accent `#9db3cc`.
-- Same-origin player proxy for iframe and media URLs.
+- Same-origin player proxy for iframe and media URLs — only to the players' own hosts
+  (a list) and only to public addresses; proxied documents carry a CSP sandbox.
 - AsoPlay Shield for filtering ad URLs, blocking popup/navigation flows and
   reducing noisy third-party behavior inside sandboxed players.
 - Dedicated internal player resources: `/player/asoplay-shield.js`,
@@ -644,44 +705,98 @@ Key capabilities:
 │   ├── realtime.js             the tab's live connection to the server (WebSocket /ws)
 │   ├── site.js                 AnimeSocial panel decisions: notice, hidden and 18+ titles, sign-in
 │   └── trailer.js              trailer dialog
-├── server/
-│   ├── main.py                 FastAPI app wiring, static serving, sources
-│   ├── animesocial.py          AnimeSocial DB auth bridge and sessions
-│   ├── rate_limit.py           login attempt limit and visitor IP behind the proxy
-│   ├── as_login.py             sign-in with AnimeSocial (OAuth 2.0 + PKCE) and its sessions
-│   ├── as_api.py               AnimeSocial API v2 client
-│   ├── token_box.py            encryption of social network tokens at rest (AES-GCM)
-│   ├── presence.py             presence on AsoPlay and friends from AnimeSocial
-│   ├── realtime.py             WebSocket /ws: tabs, events to friends, server status
-│   ├── as_realtime.py          server-to-server link with AnimeSocial realtime
-│   ├── admin_api.py            admin API for the «AsoPlay» section in AnimeSocial /cpanel (HMAC)
-│   ├── site_settings.py        what the panel decided: title flags, notice, features, sources
-│   ├── video_reports.py        «Не работает» reports from the player
-│   ├── animesocial_config.py   AnimeSocial URL/media configuration
-│   ├── account_api.py          account compatibility API
-│   ├── adblock.py              AdGuard-backed request filtering
-│   ├── user_lists.py           list/status/favorite domain and auto-rules
-│   ├── activity_log.py         contribution/activity event log
-│   ├── profile_pages.py        public profile API and SSR shell
-│   ├── title_pages.py          canonical anime pages, sitemap, robots
-│   ├── proxies.py              Jikan/AniList/Shiki/translate/image proxies
-│   ├── jikan_catalog.py        embedded MAL catalog, cache and rate limiting
-│   ├── jikan/                 PHP bridge, Composer manifest and lockfile
-│   ├── player_proxy.py         same-origin player proxy, Shield, iframe bridge
-│   ├── source_health.py        source failure/cooldown state
-│   ├── vpn_bridge.py           optional xray runtime bridge
-│   ├── animevost.py            native AnimeVost source adapter
-│   ├── oldyummy.py             native old.yummyani source adapter
-│   └── requirements.txt        Python runtime dependencies
-├── sql/
-│   ├── aviev-schema.sql        base aviev_* schema
-│   ├── aviev-schema-pass2.sql  lists, privacy, activity and compatibility
-│   ├── aviev-schema-pass3.sql  sign-in with AnimeSocial sessions
-│   ├── aviev-schema-pass4.sql  presence settings
-│   └── aviev-schema-pass5.sql  reports, title flags, site settings, audit log, watch time
-├── animesocial.json            AnimeSocial public URL/media mapping
-├── animesocial-db.php          AnimeSocial DB config format
-├── vpn.template.json           xray config template
+├── core/                       backend, a Python package: started with python -m core
+│   ├── __main__.py             uvicorn start (address and port: AV_BIND_HOST, AV_BIND_PORT)
+│   ├── core.py                 FastAPI wiring: CORS, lifecycle, layer links, routers, errors; static until step 6
+│   ├── requirements.txt        Python runtime dependencies
+│   ├── api/sections/           site API sections
+│   │   ├── account/            /account/…: the __init__.py entry includes the parts in route order —
+│   │   │                       favorites, history, progress, ratings, settings, import_storage
+│   │   ├── lists/              /account/lists/…: entries, progress_event (player events)
+│   │   ├── sources/            /src/…: search.py (search, episodes), media.py (dubs, videos)
+│   │   ├── activity.py         /account/activity: the activity graph and feed
+│   │   ├── auth.py             /auth/login, logout, me, register, config: password sign-in, social settings
+│   │   ├── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, translate, images
+│   │   ├── friends.py          /account/friends…: friends, requests, suggestions, friendship actions
+│   │   ├── health.py           /health, /sources, /source-health, /adblock/…: server state
+│   │   ├── messages.py         /account/messages/{id}: «Write» into the AnimeSocial dialog
+│   │   ├── profile.py          /profile/…: public profile data — summary, activity, lists
+│   │   ├── random.py           /random/watchable: a random title a source has
+│   │   ├── realtime.py         WebSocket /ws: the frame protocol, the Origin check, sign-in by cookie
+│   │   ├── reports.py          /reports, /reports/kinds: the «Не работает» report from the player
+│   │   └── social_login.py     /auth/as/…: sign-in with AnimeSocial, «who is signed in», jump to the site
+│   ├── admin/                  admin API for the «AsoPlay» section in AnimeSocial /cpanel (HMAC)
+│   │   ├── router.py           entry: includes the parts in route order
+│   │   ├── auth.py             signature, replays, errors, response envelope, pages
+│   │   └── reports.py, audit.py, settings.py, titles.py, summary.py   panel sections
+│   ├── modules/
+│   │   ├── title_pages.py      /anime/{id}-{slug}/: the title page, the record from the frontend, the SPA shell routes
+│   │   ├── title_render.py     title page HTML: meta tags, Open Graph, JSON-LD; the generic shell and the 404 stub
+│   │   ├── title_cache.py      the title page cache (aviev_title_pages), the page address, backfill from the catalog
+│   │   ├── seo.py              /sitemap.xml and /robots.txt
+│   │   ├── profile_pages.py    /@handle: the profile page for crawlers and link previews (SSR)
+│   │   └── player/routes.py    same-origin player proxy, Shield, iframe bridge
+│   ├── functions/
+│   │   ├── social_login.py     sign-in with AnimeSocial: PKCE, the AsoPlay session linked to it, password sign-in
+│   │   ├── sessions.py         AsoPlay sessions: create, check, revoke; the cookie and the current user
+│   │   ├── presence.py         presence on AsoPlay: tabs and «watching»; presence_batch.py — the batch for AS
+│   │   ├── friends.py          friends from AnimeSocial: cached ids, people, statuses, calls on a person's behalf
+│   │   ├── realtime.py         the live connection hub: tabs, frames, background; realtime_presence.py —
+│   │   │                       presence to friends, realtime_social.py — social events and server status
+│   │   ├── site_settings.py    what the panel decided: title flags, notice, features, sources
+│   │   ├── video_reports.py    «Не работает» reports: kinds, statuses, text cleanup — for the section and the panel
+│   │   ├── lists.py            list/status/favorite domain and auto-rules; counts and entries for the public profile
+│   │   ├── lists_sweep.py      the 30-day rule on a schedule: once a day, a lock, catching up after downtime
+│   │   ├── progress.py         episode positions, «watched», «Watching» thresholds
+│   │   ├── watch_history.py    the «Watching» history and auto status after «not watched»
+│   │   ├── privacy.py          privacy flags and reading them
+│   │   ├── watch_time.py       watched time for the panel overview
+│   │   ├── activity.py         records activity events (the contribution graph)
+│   │   ├── activity_feed.py    the event feed and the per-day graph
+│   │   ├── rate_limit.py       login attempt limit and visitor IP behind the proxy
+│   │   ├── source_health.py    source failure/cooldown state
+│   │   ├── sources.py          video sources: the registry, keys of found objects, calls direct or via the VPN bridge
+│   │   ├── native_sources.py   our own sources (old.yummyani, animevost) shaped like anicli-api
+│   │   ├── source_filters.py   filters for found objects: year, dub names, unplayable and VK players, ads
+│   │   └── player_hosts.py     player policy: the proxy host list, VK, players that do not play
+│   ├── classes/
+│   │   ├── db.py               AnimeSocial DB connection: settings, connect, the /health probe
+│   │   ├── accounts.py         social network accounts: table layout, lookup, @handle, ban
+│   │   ├── passwords.py        password check against the stored hash: bcrypt, argon2, sha*, md5, DLE
+│   │   ├── as_api.py           AnimeSocial API v2 client
+│   │   ├── as_sessions.py      social network sessions of AsoPlay sessions (tokens, refresh, logout); login on/off
+│   │   ├── as_realtime.py      server-to-server link with AnimeSocial realtime
+│   │   ├── token_box.py        encryption of social network tokens at rest (AES-GCM)
+│   │   ├── http.py             clients (direct and through the VPN bridge), route per host, MAL pacing
+│   │   ├── http_cache.py       upstream disk cache, retries and upstream pauses, one request for equal ones
+│   │   ├── http_public.py      connections to public addresses only: the player proxy client's network layer
+│   │   ├── jikan/              MAL catalog: catalog.py (requests, cache, rate limit, filters), php_bridge.py (PHP runs)
+│   │   ├── jikan/php/          PHP bridge, Composer manifest and lockfile
+│   │   ├── adblock/            player ad-block: rules.py (AdGuard filter parsing), engine.py (lists, checks)
+│   │   ├── vpn/                VPN bridge: xray.py (xray config and process), bridge.py (lifecycle, watchdog)
+│   │   ├── sources/animevost.py native AnimeVost source adapter
+│   │   └── sources/oldyummy.py native old.yummyani source adapter
+│   ├── config/
+│   │   ├── env.py              project root and loading .env at start-up
+│   │   ├── config.py           every setting and environment variable in one place
+│   │   ├── animesocial.py      AnimeSocial URL/media configuration
+│   │   ├── animesocial.json    AnimeSocial public URL/media mapping
+│   │   ├── db.php              AnimeSocial DB config format
+│   │   ├── server/             xray config template and the systemd unit
+│   │   └── cache/              work files: HTTP cache, adblock, xray (not in git)
+│   ├── tests/                  core checks: a section is test_{section}.py, a big one is an entry and a parts
+│   │                           folder; run.py runs them, README.md says how and what each needs
+│   └── migrations/
+│       ├── 0000_schema.sql                       base aviev_* schema
+│       ├── 2026-04-30_lists_privacy_activity.sql lists, privacy, activity and compatibility
+│       ├── 2026-10-30_admin_panel.sql            reports, title flags, site settings, audit log, watch time
+│       ├── 2026-10-30_as_sessions.sql            sign-in with AnimeSocial sessions
+│       ├── 2026-10-30_presence.sql               presence settings
+│       └── 2026-10-31_task_runs.sql              background task marks (the 30-day rule)
+├── design/EDDAS/tests/         frontend checks (Node); until step 6 they read app.js and js/ from the root
+├── tools/
+│   ├── guard/                  refactoring guards: lengths, imports, docblocks, contract, responses, styles (all.py)
+│   └── qa/                     browser QA of the screens: eddas-qa.cjs and the scenarios in scenarios/
 ├── .env.example                environment template
 ├── COPYRIGHT                   proprietary copyright notice
 └── .gitignore                  ignored local/runtime artifacts
@@ -714,13 +829,13 @@ deploy, host or redistribute the project.
 Install Python dependencies:
 
 ```bash
-pip install -r server/requirements.txt
+pip install -r core/requirements.txt
 ```
 
 Install the pinned parser dependencies:
 
 ```bash
-composer --working-dir=server/jikan install --no-dev --no-scripts --no-plugins --optimize-autoloader
+composer --working-dir=core/classes/jikan/php install --no-dev --no-scripts --no-plugins --optimize-autoloader
 ```
 
 Use a currently patched PHP 8.4/8.5 release. Windows detects OSPanel PHP;
@@ -742,17 +857,18 @@ copy .env.example .env
 Apply database schema in order:
 
 ```bash
-mysql -u root AnimeSocial < sql/aviev-schema.sql
-mysql -u root AnimeSocial < sql/aviev-schema-pass2.sql
-mysql -u root AnimeSocial < sql/aviev-schema-pass3.sql
-mysql -u root AnimeSocial < sql/aviev-schema-pass4.sql
-mysql -u root AnimeSocial < sql/aviev-schema-pass5.sql
+mysql -u root AnimeSocial < core/migrations/0000_schema.sql
+mysql -u root AnimeSocial < core/migrations/2026-04-30_lists_privacy_activity.sql
+mysql -u root AnimeSocial < core/migrations/2026-10-30_admin_panel.sql
+mysql -u root AnimeSocial < core/migrations/2026-10-30_as_sessions.sql
+mysql -u root AnimeSocial < core/migrations/2026-10-30_presence.sql
+mysql -u root AnimeSocial < core/migrations/2026-10-31_task_runs.sql
 ```
 
 Start the application:
 
 ```bash
-python -B -m server.main
+python -B -m core
 ```
 
 Default local URL:
@@ -794,8 +910,8 @@ Expected response:
 
 ## Configuration
 
-The backend reads runtime settings from `.env`, `animesocial-db.php` and
-`animesocial.json`.
+The backend reads runtime settings from `.env`, `core/config/db.php` and
+`core/config/animesocial.json`; every variable is declared in `core/config/config.py`.
 
 Important environment groups:
 
@@ -823,6 +939,9 @@ Important environment groups:
   AnimeSocial panel (the same as in the section settings on the social network). The panel calls
   `127.0.0.1:8787/api/admin/…` from the same machine; through the public proxy the API does not answer.
   Empty switches the API off.
+- `AV_LISTS_SWEEP_AT` — when the 30-day rule runs: UTC «HH:MM», 04:00 by default; anything else is logged as an
+  error and falls back to 04:00, `off` turns the schedule off. Once a day the run moves an auto «Watching» title
+  nobody has watched for 30 days to «Dropped»; after downtime the missed run happens right at start.
 - `AV_ADBLOCK_ENABLED`, `AV_ADBLOCK_FILTER_URLS`,
   `AV_ADBLOCK_CACHE_TTL_SECONDS` — player Shield filtering behavior.
 - `AV_ADBLOCK_REGEX_LIMIT`, `AV_ADBLOCK_SNIPPET_LIMIT` — parser safety limits
@@ -853,7 +972,7 @@ site: at most 20 failed attempts from one address and 8 per login within 15 minu
 then status 429 with `Retry-After`. The visitor address comes from `X-Real-IP`, set by
 the nginx in front of AsoPlay; proxy headers are trusted only on requests from 127.0.0.1.
 
-Sign-in with AnimeSocial (`server/as_login.py`) is OAuth 2.0 + PKCE on top of the social
+Sign-in with AnimeSocial (`core/functions/social_login.py`) is OAuth 2.0 + PKCE on top of the social
 network's API v2: the button leads to `/auth/as/start`, the social network asks «Войти в
 AsoPlay?» and returns a code to `/auth/as/callback`, and AsoPlay exchanges it for tokens and
 opens its own session. The social network device session is kept in `aviev_as_sessions`
@@ -872,16 +991,16 @@ social network's table and accepts a login or an email. Someone signed in by ema
 their session to the social network through the same AnimeSocial sign-in; if another account is open
 on the social network, the sign-in is refused instead of switching the person.
 
-The live connection (`server/realtime.py`, `js/realtime.js`). Every tab holds a WebSocket `/ws`
+The live connection (`core/functions/realtime.py`, `js/realtime.js`). Every tab holds a WebSocket `/ws`
 opened from AsoPlay's own pages (the Origin is checked): it says whether it is on screen and what the
 player is playing, only when that changes; the server sends its status (sources, VPN — tabs used to
 ask `/health` every 30 seconds) and friends' events. WebSocket ping frames notice a dead link, and the
 tab reconnects by itself.
 
-Presence and friends (`server/presence.py`). A person is on AsoPlay while at least one of their tabs
+Presence and friends (`core/functions/presence.py`). A person is on AsoPlay while at least one of their tabs
 is open and on screen, and for 30 seconds after, so a reload does not flash «left». Friends who are on
 the site get the event at once. The server reports presence to the social network over a standing
-server-to-server link (`server/as_realtime.py`): a snapshot on connect, then every change; back come
+server-to-server link (`core/classes/as_realtime.py`): a snapshot on connect, then every change; back come
 its people's events: a friend came to the social network or left, a friendship changed, a page was
 banned. While the link is down, the `POST /clients/presence` batch every minute takes over. Friends see
 «онлайн на AsoPlay» and «смотрит «…»» on the social network. The social network accepts the mark for people who have
@@ -907,6 +1026,7 @@ Core project tables:
 - `aviev_title_pages` — canonical SEO title-page cache.
 - `aviev_title_refresh_queue` — title page refresh queue.
 - `aviev_import_marks` — one-time localStorage import markers.
+- `aviev_task_runs` — the last run of each background task (the 30-day rule).
 
 `aviev_activity` uses a unique deduplication index:
 

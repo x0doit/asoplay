@@ -10,6 +10,7 @@
  *   av:presence        {user, on_asoplay, watching}       — друг зашёл на AsoPlay, вышел, начал или перестал смотреть
  *   av:social-presence {user_id, online_where, last_seen} — друг зашёл в Anime Social или вышел оттуда
  *   av:friendship      {user_id, status}                  — дружба изменилась (заявка, принята, удалена)
+ *   av:lists           {items}                            — правило 30 дней перенесло тайтлы в «Брошено»
  *   av:session-ended   {}                                 — вход закрыт: выход в другой вкладке, блокировка
  *   av:link            {up, failures}                     — соединение есть / его нет столько попыток подряд
  * Обрыв соединение переживает само: переподключается с растущей паузой, сразу — при возврате сети и
@@ -110,6 +111,7 @@ function _connect() {
     if (frame.type === "presence") _emit("av:presence", frame);
     else if (frame.type === "social_presence") _emit("av:social-presence", frame);
     else if (frame.type === "friendship") _emit("av:friendship", frame);
+    else if (frame.type === "lists") _emit("av:lists", frame);
   };
   sock.onclose = (e) => {
     if (ws !== sock) return;

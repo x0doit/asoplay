@@ -62,6 +62,69 @@ export function getSocialConfig() { return authConfig.social; }
 // Вход закрыли в другой вкладке или страницу заблокировали в соцсети: шапка и разделы — как у гостя
 document.addEventListener("av:session-ended", () => { if (ctx?.state.user) refresh(); });
 
+// Запись списка с сервера (как в /account/lists) — в store вкладки; пустые название и постер берутся из прежней
+function _storeListEntry(entry, prev) {
+  return {
+    status: entry.status,
+    status_source: entry.status_source,
+    is_favorite: !!entry.is_favorite,
+    title: entry.title || prev?.title || "",
+    cover: entry.poster_url || prev?.cover || "",
+    at: Date.parse(entry.updated_at || "") || Date.now(),
+  };
+}
+
+// Открытая страница со списками человека — «Списки» или свой профиль — обновляется на месте, когда запись списка
+// меняется не её кнопками (кадр «lists»): счётчики и карточки, без экрана загрузки. Изменения за 50 мс — одной пачкой.
+let _liveLists = null;      // { root, apply(changes) } — вид, который сейчас на экране
+let _liveQueue = [];
+let _liveTimer = 0;
+window.addEventListener("av:list-updated", (e) => {
+  if (!_liveLists) return;
+  _liveQueue.push(e.detail || {});
+  clearTimeout(_liveTimer);
+  _liveTimer = setTimeout(() => {
+    const view = _liveLists, changes = _liveQueue;
+    _liveQueue = [];
+    if (!view?.root.isConnected) { if (view === _liveLists) _liveLists = null; return; }
+    view.apply(changes);
+  }, 50);
+});
+
+async function _freshListCounts() {
+  try { return await _fetchJson("/account/lists/counts"); } catch (_) { return null; }
+}
+
+// Счётчики на вкладках со статусами (data-status): нуль — без значка
+function _paintTabCounts(tabsEl, counts) {
+  tabsEl?.querySelectorAll("[data-status]").forEach(tab => {
+    const n = counts[tab.dataset.status] || 0;
+    let badge = tab.querySelector(".ed-tabs__count");
+    if (!n) { badge?.remove(); return; }
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "ed-tabs__count";
+      tab.appendChild(badge);
+    }
+    badge.textContent = String(n);
+  });
+}
+
+// Правило 30 дней перенесло тайтлы в «Брошено» (кадр «lists» по /ws): store обновляется, а страница тайтла
+// перекрашивает список так же, как после события плеера
+document.addEventListener("av:lists", (e) => {
+  if (!ctx?.state.user) return;
+  ctx.state.lists = ctx.state.lists || {};
+  for (const entry of e.detail?.items || []) {
+    if (!entry?.mal_id) continue;
+    const key = String(entry.mal_id);
+    ctx.state.lists[key] = _storeListEntry(entry, ctx.state.lists[key]);
+    window.dispatchEvent(new CustomEvent("av:list-updated", {
+      detail: { mal_id: Number(entry.mal_id), applied: [entry.status], entry: ctx.state.lists[key] },
+    }));
+  }
+});
+
 function _historyQualifiedProgress(seconds, duration) {
   const sec = Number(seconds || 0);
   const dur = Number(duration || 0);
@@ -622,14 +685,7 @@ export const store = {
         const key = String(r.entry.mal_id);
         ctx.state.lists = ctx.state.lists || {};
         const prev = ctx.state.lists[key];
-        ctx.state.lists[key] = {
-          status: r.entry.status,
-          status_source: r.entry.status_source,
-          is_favorite: !!r.entry.is_favorite,
-          title: r.entry.title || prev?.title || "",
-          cover: r.entry.poster_url || prev?.cover || "",
-          at: Date.parse(r.entry.updated_at || "") || Date.now(),
-        };
+        ctx.state.lists[key] = _storeListEntry(r.entry, prev);
         // Если сервер применил авто-правила (watching через 10 мин, completed
         // на последней серии, …) — бросаем событие, чтобы страница аниме могла
         // мгновенно перерисовать list-picker и отразить новый статус без
@@ -1532,6 +1588,37 @@ export async function viewMyLists(activeStatus) {
     if (ctx.enrichWithShiki) ctx.enrichWithShiki(grid, items);
     _bindListCardActions(grid, status);
   }
+  _liveLists = { root: document.querySelector("#avListGrid"), apply: (changes) => _applyListChanges(status, changes) };
+}
+
+// Запись сменила список, пока открыта вкладка current: карточка уходит из неё или приходит в неё, счётчики — с сервера
+async function _applyListChanges(current, changes) {
+  const box = document.querySelector("#avListGrid");
+  if (!box) return;
+  for (const { mal_id: mal, entry } of changes) {
+    if (!mal) continue;
+    const card = box.querySelector(`.av-card-wrap[data-mal="${mal}"]`);
+    const belongs = entry?.status === current;
+    if (card && !belongs) {
+      card.classList.add("slide-out");
+      setTimeout(() => {
+        card.remove();
+        if (!box.querySelector(".av-card-wrap")) box.innerHTML = _listEmptyState(current);
+      }, 180);
+    } else if (!card && belongs) {
+      let grid = box.querySelector(".av-grid");
+      if (!grid) {
+        box.innerHTML = `<div class="ed-grid av-grid"></div>`;
+        grid = box.querySelector(".av-grid");
+        _bindListCardActions(grid, current);
+      }
+      const item = { mal_id: mal, title: entry.title, poster_url: entry.cover, status_source: entry.status_source };
+      grid.insertAdjacentHTML("afterbegin", _listCardWithActions(item, current));
+      if (ctx.enrichWithShiki) ctx.enrichWithShiki(grid.firstElementChild, [item]);
+    }
+  }
+  const counts = await _freshListCounts();
+  if (counts) _paintTabCounts(document.querySelector("#avListTabs"), counts);
 }
 
 function _listEmptyState(status) {
@@ -2466,6 +2553,11 @@ export async function renderTitleFriends(malId, alive) {
 }
 
 // ==== public profile ====
+function _profileStats(counts) {
+  const inLists = LIST_ORDER_MYLISTS.reduce((n, s) => n + (counts[s] || 0), 0);
+  return [`${inLists} в списках`, `${counts.completed || 0} просмотрено`, `${counts.favorite || 0} в избранном`].join(", ");
+}
+
 export async function viewProfile(handle) {
   ctx.setActive(null);
   let data;
@@ -2494,10 +2586,7 @@ export async function viewProfile(handle) {
       ${esc(label)}${c ? `<span class="ed-tabs__count">${c}</span>` : ""}
     </button>`;
   }).join("") : "";
-  const inLists = counts ? LIST_ORDER_MYLISTS.reduce((n, s) => n + (counts[s] || 0), 0) : 0;
-  const stats = !listsHidden && counts
-    ? [`${inLists} в списках`, `${counts.completed || 0} просмотрено`, `${counts.favorite || 0} в избранном`].join(", ")
-    : "";
+  const stats = !listsHidden && counts ? _profileStats(counts) : "";
 
   ctx.outlet.innerHTML = `
     <div class="page-stack profile-page">
@@ -2658,6 +2747,33 @@ export async function viewProfile(handle) {
       });
     });
     loadTab(initial);
+    // Свой профиль: запись списка сменилась (кадр «lists») — счётчики, строка итогов и открытая вкладка обновляются
+    // на месте; открытая вкладка перерисовывается, когда придёт новый список, без экрана загрузки
+    if (is_owner) {
+      const stage = profile.querySelector("#avProfileList");
+      _liveLists = {
+        root: stage,
+        apply: async () => {
+          listCache.clear();
+          const current = stage.dataset.status;
+          const seq = ++listSeq;
+          const [r, fresh] = await Promise.all([
+            current ? _fetchJson(`/profile/${encodeURIComponent(handle)}/lists?status=${current}`).catch(() => null) : null,
+            _freshListCounts(),
+          ]);
+          if (r && seq === listSeq) {
+            const next = buildListHtml(r);
+            listCache.set(current, next);
+            paintList(current, next.html, next.items, seq);
+          }
+          if (fresh) {
+            _paintTabCounts(tabsEl, fresh);
+            const statsEl = profile.querySelector(".profile-stats");
+            if (statsEl) statsEl.textContent = _profileStats(fresh);
+          }
+        },
+      };
+    }
   }
 
   if (!activityHidden) {

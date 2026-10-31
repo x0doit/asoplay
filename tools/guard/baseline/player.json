@@ -1,0 +1,105 @@
+{
+ "GET /player/asoplay-shield.js": {
+  "bytes": 639,
+  "headers": {
+   "cache-control": "no-store",
+   "content-type": "application/javascript"
+  },
+  "sha256": "0b372f39fdfeb113b1480fbc45ac4dfe4edf5c64615976ba4dce9b9e2bf38974",
+  "status": 200
+ },
+ "GET /player/kodik-skin.css": {
+  "bytes": 2086,
+  "headers": {
+   "cache-control": "no-store",
+   "content-type": "text/css; charset=utf-8"
+  },
+  "sha256": "52877aaf8bd9c52f8aa4d9e2035c00eee8f1afaa6c994d0bf0ce95df793e333f",
+  "status": 200
+ },
+ "bridge_script/alloha": {
+  "bytes": 38038,
+  "headers": {},
+  "sha256": "e8ca10a4de73afa356cc62de2194d82d5f50c8e9b6bbac85b063c2fd698c4534"
+ },
+ "bridge_script/cvh": {
+  "bytes": 38052,
+  "headers": {},
+  "sha256": "3b0f802292a3ef3641deaa1d1a253b01d2d639dfa716c425ed0905c490b43a3f"
+ },
+ "bridge_script/generic": {
+  "bytes": 38035,
+  "headers": {},
+  "sha256": "e90018e1d4482239ec4bbbf5139dbcf2ad40aad4c9d729dcdeadf7048cc9a1e1"
+ },
+ "bridge_script/kodik": {
+  "bytes": 38114,
+  "headers": {},
+  "sha256": "c3858d66244abdfff97e0e3f584359a3fd915420a9b5bc53705365c01b7224db"
+ },
+ "clean_video_frame/cvh": {
+  "bytes": 22551,
+  "headers": {
+   "cache-control": "no-store",
+   "content-security-policy": "default-src 'self' data: blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts allow-presentation",
+   "content-type": "text/html; charset=utf-8"
+  },
+  "sha256": "470c85c93e7a42d2c89d531820d5e6010870d47216434567d170b19026b11789"
+ },
+ "clean_video_frame/sibnet": {
+  "bytes": 22476,
+  "headers": {
+   "cache-control": "no-store",
+   "content-security-policy": "default-src 'self' data: blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts allow-presentation",
+   "content-type": "text/html; charset=utf-8"
+  },
+  "sha256": "2d9d412a4006dee1c766a4a381b2589eb8fedadc34d9cea13456266914a1392d"
+ },
+ "clean_video_frame/vk": {
+  "bytes": 22403,
+  "headers": {
+   "cache-control": "no-store",
+   "content-security-policy": "default-src 'self' data: blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts allow-presentation",
+   "content-type": "text/html; charset=utf-8"
+  },
+  "sha256": "0a76800aefeaf8321a509d01f8a7c6cfd7539cf5ec94e6e88fca582688ee6900"
+ },
+ "cvh_error_frame/message": {
+  "bytes": 427,
+  "headers": {
+   "cache-control": "no-store",
+   "content-type": "text/html; charset=utf-8"
+  },
+  "sha256": "780da24e5c22c509e7d2cb01eea14fc9f5812569d751afafbcb74327b2e00a69"
+ },
+ "rewrite_body/css": {
+  "bytes": 474,
+  "headers": {},
+  "sha256": "70936550bdff7d5dd33f19b3188f491cea6ed230d7ac726954501fb23b61b9c3"
+ },
+ "rewrite_body/frame": {
+  "bytes": 38989,
+  "headers": {},
+  "sha256": "9b6728d4f7edd4ad64799d5d215ad60b24ceb68c269902678706aa7fb282a7d0"
+ },
+ "rewrite_body/html": {
+  "bytes": 38872,
+  "headers": {},
+  "sha256": "5c90bdc984c9be4ec30d19658c8b6f8986951789defaad11d42ab148370e2b38"
+ },
+ "rewrite_body/js": {
+  "bytes": 97,
+  "headers": {},
+  "sha256": "713f0c308a2d812c1854b1fce70c1af9dff4d7a6302f1615217fbfe388418acb"
+ },
+ "rewrite_body/js-cvh": {
+  "bytes": 83,
+  "headers": {},
+  "sha256": "f099e1350d71ae3db0c172b14c064b1d21afb1d637153bb29c6beb2ad1ea4a84"
+ },
+ "rewrite_body/m3u8": {
+  "bytes": 450,
+  "headers": {},
+  "sha256": "202111afa9598814f2c3a10b15f34d78576072cabbbcd5bd32683b9548b1f050"
+ }
+}

@@ -1,0 +1,243 @@
+[
+ {
+  "case": "due",
+  "result": 2,
+  "trace": [
+   [
+    "sql",
+    "SELECT GET_LOCK(%s, 0)",
+    [
+     "asoplay:lists_sweep"
+    ]
+   ],
+   [
+    "sql",
+    "SELECT started_at, finished_at FROM aviev_task_runs WHERE name = %s",
+    [
+     "lists_sweep"
+    ]
+   ],
+   [
+    "sql",
+    "INSERT INTO aviev_task_runs (name, started_at, finished_at, processed) VALUES (%s, %s, NULL, 0) ON DUPLICATE KEY UPDATE started_at = VALUES(started_at), finished_at = NULL, processed = 0",
+    [
+     "lists_sweep",
+     "2026-10-31T04:30:15"
+    ]
+   ],
+   [
+    "commit"
+   ],
+   [
+    "sql",
+    "SELECT l.user_id, l.mal_id, l.is_favorite, l.title, l.poster_url, l.added_at FROM aviev_user_lists l WHERE l.status = 'watching' AND l.status_source = 'auto' AND l.updated_at < %s AND NOT EXISTS (SELECT 1 FROM aviev_episode_progress p WHERE p.user_id = l.user_id AND p.mal_id = l.mal_id AND p.updated_at >= %s) AND COALESCE((SELECT s.auto_add_lists FROM aviev_account_settings s WHERE s.user_id = l.user_id), 1) = 1 ORDER BY l.user_id, l.mal_id LIMIT %s",
+    [
+     "2026-10-01T04:30:15",
+     "2026-10-01T04:30:15",
+     2
+    ]
+   ],
+   [
+    "sql",
+    "UPDATE aviev_user_lists l SET l.status = 'dropped', l.updated_at = %s WHERE l.user_id = %s AND l.mal_id = %s AND l.status = 'watching' AND l.status_source = 'auto' AND l.updated_at < %s AND NOT EXISTS (SELECT 1 FROM aviev_episode_progress p WHERE p.user_id = l.user_id AND p.mal_id = l.mal_id AND p.updated_at >= %s) AND COALESCE((SELECT s.auto_add_lists FROM aviev_account_settings s WHERE s.user_id = l.user_id), 1) = 1",
+    [
+     "2026-10-31T04:30:15",
+     5,
+     1,
+     "2026-10-01T04:30:15",
+     "2026-10-01T04:30:15"
+    ]
+   ],
+   [
+    "sql",
+    "UPDATE aviev_user_lists l SET l.status = 'dropped', l.updated_at = %s WHERE l.user_id = %s AND l.mal_id = %s AND l.status = 'watching' AND l.status_source = 'auto' AND l.updated_at < %s AND NOT EXISTS (SELECT 1 FROM aviev_episode_progress p WHERE p.user_id = l.user_id AND p.mal_id = l.mal_id AND p.updated_at >= %s) AND COALESCE((SELECT s.auto_add_lists FROM aviev_account_settings s WHERE s.user_id = l.user_id), 1) = 1",
+    [
+     "2026-10-31T04:30:15",
+     5,
+     2,
+     "2026-10-01T04:30:15",
+     "2026-10-01T04:30:15"
+    ]
+   ],
+   [
+    "commit"
+   ],
+   [
+    "frames",
+    [
+     [
+      5,
+      1,
+      "dropped",
+      "2026-10-31T04:30:15"
+     ]
+    ]
+   ],
+   [
+    "sql",
+    "SELECT l.user_id, l.mal_id, l.is_favorite, l.title, l.poster_url, l.added_at FROM aviev_user_lists l WHERE l.status = 'watching' AND l.status_source = 'auto' AND l.updated_at < %s AND NOT EXISTS (SELECT 1 FROM aviev_episode_progress p WHERE p.user_id = l.user_id AND p.mal_id = l.mal_id AND p.updated_at >= %s) AND COALESCE((SELECT s.auto_add_lists FROM aviev_account_settings s WHERE s.user_id = l.user_id), 1) = 1 AND (l.user_id > %s OR (l.user_id = %s AND l.mal_id > %s)) ORDER BY l.user_id, l.mal_id LIMIT %s",
+    [
+     "2026-10-01T04:30:15",
+     "2026-10-01T04:30:15",
+     5,
+     5,
+     2,
+     2
+    ]
+   ],
+   [
+    "sql",
+    "UPDATE aviev_user_lists l SET l.status = 'dropped', l.updated_at = %s WHERE l.user_id = %s AND l.mal_id = %s AND l.status = 'watching' AND l.status_source = 'auto' AND l.updated_at < %s AND NOT EXISTS (SELECT 1 FROM aviev_episode_progress p WHERE p.user_id = l.user_id AND p.mal_id = l.mal_id AND p.updated_at >= %s) AND COALESCE((SELECT s.auto_add_lists FROM aviev_account_settings s WHERE s.user_id = l.user_id), 1) = 1",
+    [
+     "2026-10-31T04:30:15",
+     7,
+     3,
+     "2026-10-01T04:30:15",
+     "2026-10-01T04:30:15"
+    ]
+   ],
+   [
+    "commit"
+   ],
+   [
+    "frames",
+    [
+     [
+      7,
+      3,
+      "dropped",
+      "2026-10-31T04:30:15"
+     ]
+    ]
+   ],
+   [
+    "sql",
+    "UPDATE aviev_task_runs SET finished_at = %s, processed = %s WHERE name = %s",
+    [
+     "2026-10-31T04:31:00",
+     2,
+     "lists_sweep"
+    ]
+   ],
+   [
+    "commit"
+   ],
+   [
+    "sql",
+    "SELECT RELEASE_LOCK(%s)",
+    [
+     "asoplay:lists_sweep"
+    ]
+   ]
+  ]
+ },
+ {
+  "case": "busy",
+  "result": null,
+  "trace": [
+   [
+    "sql",
+    "SELECT GET_LOCK(%s, 0)",
+    [
+     "asoplay:lists_sweep"
+    ]
+   ]
+  ]
+ },
+ {
+  "case": "done",
+  "result": null,
+  "trace": [
+   [
+    "sql",
+    "SELECT GET_LOCK(%s, 0)",
+    [
+     "asoplay:lists_sweep"
+    ]
+   ],
+   [
+    "sql",
+    "SELECT started_at, finished_at FROM aviev_task_runs WHERE name = %s",
+    [
+     "lists_sweep"
+    ]
+   ],
+   [
+    "sql",
+    "SELECT RELEASE_LOCK(%s)",
+    [
+     "asoplay:lists_sweep"
+    ]
+   ]
+  ]
+ },
+ {
+  "case": "person",
+  "result": 2,
+  "trace": [
+   [
+    "sql",
+    "SELECT l.user_id, l.mal_id, l.is_favorite, l.title, l.poster_url, l.added_at FROM aviev_user_lists l WHERE l.status = 'watching' AND l.status_source = 'auto' AND l.updated_at < %s AND NOT EXISTS (SELECT 1 FROM aviev_episode_progress p WHERE p.user_id = l.user_id AND p.mal_id = l.mal_id AND p.updated_at >= %s) AND COALESCE((SELECT s.auto_add_lists FROM aviev_account_settings s WHERE s.user_id = l.user_id), 1) = 1 AND l.user_id = %s ORDER BY l.user_id, l.mal_id LIMIT %s",
+    [
+     "2026-10-01T04:30:15",
+     "2026-10-01T04:30:15",
+     5,
+     2
+    ]
+   ],
+   [
+    "sql",
+    "UPDATE aviev_user_lists l SET l.status = 'dropped', l.updated_at = %s WHERE l.user_id = %s AND l.mal_id = %s AND l.status = 'watching' AND l.status_source = 'auto' AND l.updated_at < %s AND NOT EXISTS (SELECT 1 FROM aviev_episode_progress p WHERE p.user_id = l.user_id AND p.mal_id = l.mal_id AND p.updated_at >= %s) AND COALESCE((SELECT s.auto_add_lists FROM aviev_account_settings s WHERE s.user_id = l.user_id), 1) = 1",
+    [
+     "2026-10-31T04:30:15",
+     5,
+     1,
+     "2026-10-01T04:30:15",
+     "2026-10-01T04:30:15"
+    ]
+   ],
+   [
+    "sql",
+    "UPDATE aviev_user_lists l SET l.status = 'dropped', l.updated_at = %s WHERE l.user_id = %s AND l.mal_id = %s AND l.status = 'watching' AND l.status_source = 'auto' AND l.updated_at < %s AND NOT EXISTS (SELECT 1 FROM aviev_episode_progress p WHERE p.user_id = l.user_id AND p.mal_id = l.mal_id AND p.updated_at >= %s) AND COALESCE((SELECT s.auto_add_lists FROM aviev_account_settings s WHERE s.user_id = l.user_id), 1) = 1",
+    [
+     "2026-10-31T04:30:15",
+     5,
+     2,
+     "2026-10-01T04:30:15",
+     "2026-10-01T04:30:15"
+    ]
+   ],
+   [
+    "commit"
+   ],
+   [
+    "frames",
+    [
+     [
+      5,
+      1,
+      "dropped",
+      "2026-10-31T04:30:15"
+     ],
+     [
+      5,
+      2,
+      "dropped",
+      "2026-10-31T04:30:15"
+     ]
+    ]
+   ],
+   [
+    "sql",
+    "SELECT l.user_id, l.mal_id, l.is_favorite, l.title, l.poster_url, l.added_at FROM aviev_user_lists l WHERE l.status = 'watching' AND l.status_source = 'auto' AND l.updated_at < %s AND NOT EXISTS (SELECT 1 FROM aviev_episode_progress p WHERE p.user_id = l.user_id AND p.mal_id = l.mal_id AND p.updated_at >= %s) AND COALESCE((SELECT s.auto_add_lists FROM aviev_account_settings s WHERE s.user_id = l.user_id), 1) = 1 AND l.user_id = %s AND l.mal_id > %s ORDER BY l.user_id, l.mal_id LIMIT %s",
+    [
+     "2026-10-01T04:30:15",
+     "2026-10-01T04:30:15",
+     5,
+     2,
+     2
+    ]
+   ]
+  ]
+ }
+]
