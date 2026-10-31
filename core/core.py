@@ -29,14 +29,14 @@ env.load()  # до остальных импортов: настройки в co
 # free.
 from core.admin import auth as admin_auth, router as admin_router, summary as admin_summary
 from core.api.sections import account, activity, auth, catalog, friends, health, lists, messages, profile, social_login
-from core.api.sections import random as random_api, realtime as realtime_ws, sources as source_api
+from core.api.sections import random as random_api, realtime as realtime_ws, reports, sources as source_api
 from core.classes import http, http_cache
 from core.classes.adblock import engine as adblock
 from core.classes.jikan import catalog as jikan_catalog
 from core.classes.vpn import bridge as vpn_bridge
 from core.config import config
 from core.functions import (
-    lists_sweep, presence_batch, realtime, realtime_social, site_settings, sources, video_reports,
+    lists_sweep, presence_batch, realtime, realtime_social, site_settings, sources,
 )
 from core.modules import profile_pages, seo, title_pages
 from core.modules.player import routes as player_proxy
@@ -166,7 +166,7 @@ app.include_router(player_proxy.router)
 app.include_router(player_proxy.kodik_router)
 app.include_router(title_pages.router)
 app.include_router(seo.router)
-app.include_router(video_reports.router)
+app.include_router(reports.router)
 app.include_router(admin_router.router)
 app.add_exception_handler(admin_auth.AdminError, admin_auth.error_response)
 

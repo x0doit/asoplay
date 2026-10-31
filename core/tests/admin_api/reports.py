@@ -13,7 +13,8 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from core.admin import auth as admin_auth, reports as admin_reports
-from core.functions import sessions, video_reports
+from core.api.sections import reports as report_routes  # сама проверка называется reports
+from core.functions import sessions
 
 from core.tests.admin_api.lib import ScriptCursor, FakeConn, PanelCase, REPORT_ROW
 
@@ -58,12 +59,12 @@ class PanelReportTests(PanelCase):
 class PublicReportTests(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
-        app.include_router(video_reports.router)
+        app.include_router(report_routes.router)
         app.dependency_overrides[sessions.current_user_required] = lambda: {"id": 9}
         self.client = TestClient(app)
         self.cursor = ScriptCursor({"FROM aviev_title_pages": [("Тетрадь смерти", "Death Note")]})
-        for p in (patch.object(video_reports, "connect", side_effect=lambda: FakeConn(self.cursor)),
-                  patch.object(video_reports, "_limiter", video_reports.rate_limit.SlidingWindow(2, 3600))):
+        for p in (patch.object(report_routes, "connect", side_effect=lambda: FakeConn(self.cursor)),
+                  patch.object(report_routes, "_limiter", report_routes.rate_limit.SlidingWindow(2, 3600))):
             p.start()
             self.addCleanup(p.stop)
 
@@ -103,5 +104,5 @@ class PublicReportTests(unittest.TestCase):
 
     def test_guests_cannot_report(self):
         app = FastAPI()
-        app.include_router(video_reports.router)
+        app.include_router(report_routes.router)
         self.assertEqual(TestClient(app).post("/reports", json={"mal_id": 1, "kind": "other"}).status_code, 401)

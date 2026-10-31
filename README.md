@@ -189,6 +189,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── profile.py          /profile/…: публичные данные профиля — сводка, активность, списки
 │   │   ├── random.py           /random/watchable: случайный тайтл, который есть у источника
 │   │   ├── realtime.py         WebSocket /ws: протокол кадров, проверка Origin, вход по cookie
+│   │   ├── reports.py          /reports, /reports/kinds: жалоба «Не работает» из плеера
 │   │   └── social_login.py     /auth/as/…: вход через AnimeSocial, «кто вошёл», переход на сайт соцсети
 │   ├── admin/                  админ-API для раздела «AsoPlay» в /cpanel AnimeSocial (HMAC)
 │   │   ├── router.py           вход: подключает части в порядке маршрутов
@@ -209,7 +210,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── realtime.py         хаб живых соединений: вкладки, кадры, фон; realtime_presence.py — присутствие
 │   │   │                       друзьям, realtime_social.py — события соцсети и состояние сервера
 │   │   ├── site_settings.py    что решила панель: пометки тайтлов, плашка, функции, источники
-│   │   ├── video_reports.py    жалобы «Не работает» из плеера
+│   │   ├── video_reports.py    жалобы «Не работает»: причины, статусы, очистка текста — для раздела и панели
 │   │   ├── lists.py            list/status/favorite domain и auto-rules; счётчики и записи публичного профиля
 │   │   ├── lists_sweep.py      правило 30 дней по расписанию: раз в сутки, замок, догон после простоя
 │   │   ├── progress.py         позиции в сериях, «досмотрено», пороги «Смотрю»
@@ -719,6 +720,7 @@ Key capabilities:
 │   │   ├── profile.py          /profile/…: public profile data — summary, activity, lists
 │   │   ├── random.py           /random/watchable: a random title a source has
 │   │   ├── realtime.py         WebSocket /ws: the frame protocol, the Origin check, sign-in by cookie
+│   │   ├── reports.py          /reports, /reports/kinds: the «Не работает» report from the player
 │   │   └── social_login.py     /auth/as/…: sign-in with AnimeSocial, «who is signed in», jump to the site
 │   ├── admin/                  admin API for the «AsoPlay» section in AnimeSocial /cpanel (HMAC)
 │   │   ├── router.py           entry: includes the parts in route order
@@ -739,7 +741,7 @@ Key capabilities:
 │   │   ├── realtime.py         the live connection hub: tabs, frames, background; realtime_presence.py —
 │   │   │                       presence to friends, realtime_social.py — social events and server status
 │   │   ├── site_settings.py    what the panel decided: title flags, notice, features, sources
-│   │   ├── video_reports.py    «Не работает» reports from the player
+│   │   ├── video_reports.py    «Не работает» reports: kinds, statuses, text cleanup — for the section and the panel
 │   │   ├── lists.py            list/status/favorite domain and auto-rules; counts and entries for the public profile
 │   │   ├── lists_sweep.py      the 30-day rule on a schedule: once a day, a lock, catching up after downtime
 │   │   ├── progress.py         episode positions, «watched», «Watching» thresholds

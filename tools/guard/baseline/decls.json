@@ -1468,7 +1468,7 @@
   "= bf21a9e8fbc5"
  ],
  "_limiter": [
-  "= 4e3ce3681989"
+  "= 77d9795d7846"
  ],
  "_list_entry_for_title": [
   "def(conn, user_id: int, mal_id: int) -> dict[str, Any] | None"
@@ -2389,7 +2389,6 @@
   "= d4a1c99740de",
   "= d4a1c99740de",
   "= d4a1c99740de",
-  "= e8debe1c1a68",
   "= ea77bb90f150",
   "= eae50792383d",
   "= eae50792383d",

@@ -10,7 +10,7 @@ TestClient с подменённым соединением (курсор зап
 
     python -B tools/guard/sql_trace.py <копия кода до шага> [сценарий]   выход 1 — если хоть что-то разошлось
 
-Сценарии: account (по умолчанию), lists, title_pages.
+Сценарии: account (по умолчанию), lists, title_pages, reports.
 """
 from __future__ import annotations
 
@@ -223,10 +223,25 @@ TITLE_PAGES = [
 ]
 # slug уже у тайтла 1535
 TITLE_PAGES_FULL = [("SELECT mal_id FROM aviev_title_pages WHERE slug=%s", [(1535,)])]
+REPORT = {"mal_id": 1535, "episode": 3, "dub": "AniLibria", "source": "anilibria", "player": "kodikplayer.com",
+          "kind": "no_video", "text": "Не грузится"}
+REPORTS = [
+    ("GET", "/reports/kinds", None),
+    *[("POST", "/reports", {**REPORT, "episode": n}) for n in range(1, 12)],  # 10 жалоб за час, одиннадцатая — 429
+    ("POST", "/reports", {**REPORT, "text": ""}),
+    ("POST", "/reports", {**REPORT, "kind": "nope"}),
+    ("POST", "/reports", {**REPORT, "source": "Bad Source!"}),
+    ("POST", "/reports", {**REPORT, "player": "-bad"}),
+    ("POST", "/reports", {**REPORT, "mal_id": 0}),
+]
+REPORT_TITLE = ("FROM aviev_title_pages", [("Тетрадь смерти", "Death Note")])
+# Такая же открытая жалоба уже есть: повтор с текстом обновляет её, без текста — ничего не пишет
+REPORTS_FULL = [("SELECT id FROM aviev_reports", [(77,)]), REPORT_TITLE]
 SCENARIOS = {
     "account": (ACCOUNT, [[], ACCOUNT_FULL], ["core.api.sections.account"]),
     "lists": (LISTS, [[], LISTS_FULL], ["core.api.sections.lists", "core.functions.lists"]),
     "title_pages": (TITLE_PAGES, [[], TITLE_PAGES_FULL], ["core.modules.title_pages"]),
+    "reports": (REPORTS, [[REPORT_TITLE], REPORTS_FULL], ["core.api.sections.reports", "core.functions.video_reports"]),
 }
 
 
