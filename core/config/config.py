@@ -58,7 +58,10 @@ else:
 
 # ---------- вход и сессии (при старте) ----------
 SESSION_TTL_DAYS = int(os.environ.get("AV_SESSION_TTL_DAYS", "30") or 30)
-COOKIE_SECURE = os.environ.get("AV_COOKIE_SECURE", "0") in ("1", "true", "yes", "on")
+# Сайт на https ставит Secure сам: cookie сессии не уйдёт открытым текстом и при заходе по http.
+# Явный AV_COOKIE_SECURE (0 или 1) решает сам; пустое значение — как не заданное.
+_COOKIE_SECURE_DEFAULT = "1" if SITE_URL.lower().startswith("https://") else "0"
+COOKIE_SECURE = (os.environ.get("AV_COOKIE_SECURE") or _COOKIE_SECURE_DEFAULT) in ("1", "true", "yes", "on")
 COOKIE_SAMESITE = os.environ.get("AV_COOKIE_SAMESITE", "lax").lower()
 AUTH_VERIFIER = (os.environ.get("AV_AUTH_VERIFIER") or "auto").strip().lower()
 

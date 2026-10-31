@@ -118,7 +118,7 @@
   "= 8fa3482a20f2"
  ],
  "COOKIE_SECURE": [
-  "= 2f8c0e39cc07"
+  "= 1c1541325ba8"
  ],
  "COOLDOWN_SECONDS": [
   "= df1f005bd0e9"
@@ -1036,6 +1036,9 @@
  "_CONTROL": [
   "= 2dd2fd8dc46d",
   "= 98758fa8f853"
+ ],
+ "_COOKIE_SECURE_DEFAULT": [
+  "= 309580b974d5"
  ],
  "_DEAD_SESSION": [
   "= b1eb27577455"

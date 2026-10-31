@@ -52,5 +52,37 @@ class StartSettingsSeeEnvFile(unittest.TestCase):
         self.assertEqual(self.probe(config_first=True), "AsoPlay False http://127.0.0.1:8787")
 
 
+COOKIE_PROBE = """
+import sys
+sys.path.insert(0, {root!r})
+from core.config import config
+print(config.COOKIE_SECURE)
+"""
+
+
+class CookieSecureFollowsSiteUrl(unittest.TestCase):
+    """Сайт на https ставит Secure у cookie сессии сам; явные 0 и 1 решают сами."""
+
+    def secure(self, **values) -> str:
+        env = {k: v for k, v in os.environ.items() if k not in ("AV_SITE_URL", "AV_COOKIE_SECURE")}
+        env.update(values)
+        code = COOKIE_PROBE.format(root=str(ROOT))
+        out = subprocess.run([sys.executable, "-B", "-c", code], capture_output=True, text=True, env=env, timeout=120)
+        self.assertEqual(out.returncode, 0, out.stderr[-2000:])
+        return out.stdout.strip().splitlines()[-1]
+
+    def test_https_site_sets_secure_by_itself(self):
+        self.assertEqual(self.secure(AV_SITE_URL="https://check.test"), "True")
+
+    def test_http_site_leaves_it_off(self):
+        self.assertEqual(self.secure(AV_SITE_URL="http://127.0.0.1:8787"), "False")
+        self.assertEqual(self.secure(), "False")  # адрес по умолчанию — http
+
+    def test_explicit_value_wins_and_empty_means_not_set(self):
+        self.assertEqual(self.secure(AV_SITE_URL="https://check.test", AV_COOKIE_SECURE="0"), "False")
+        self.assertEqual(self.secure(AV_SITE_URL="http://127.0.0.1:8787", AV_COOKIE_SECURE="1"), "True")
+        self.assertEqual(self.secure(AV_SITE_URL="https://check.test", AV_COOKIE_SECURE=""), "True")
+
+
 if __name__ == "__main__":
     unittest.main()
