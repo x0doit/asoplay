@@ -10,8 +10,10 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 import asyncio
 import json
 import os
+import tempfile
 import time
 import unittest
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
@@ -58,6 +60,17 @@ class VpnBridgeConfigTests(unittest.TestCase):
 
     def test_without_settings_the_bridge_stays_direct(self):
         self.assertIsNone(self.build({}))
+
+    def test_runtime_config_creates_its_own_folder(self):
+        # Папку кеша создаёт и импорт http_cache, но xray на это не полагается: пишет и в папку, которой ещё нет.
+        cfg = {"inbounds": [{"protocol": "http", "port": 1}], "outbounds": []}
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = Path(tmp) / "missing" / "xray-runtime.json"
+            with patch.object(vpn_xray.config, "XRAY_RUNTIME", runtime), \
+                    patch.object(vpn_xray, "build_config", return_value=cfg):
+                self.assertEqual(vpn_xray.prepare_runtime(), runtime)
+            written = json.loads(runtime.read_text(encoding="utf-8"))
+        self.assertEqual(written["inbounds"][0]["port"], vpn_xray.VPN_HTTP_PORT)
 
 
 class RouteFallbackTests(unittest.IsolatedAsyncioTestCase):

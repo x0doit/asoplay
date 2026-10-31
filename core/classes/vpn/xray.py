@@ -176,6 +176,8 @@ def prepare_runtime() -> Path | None:
             inbound["port"] = VPN_HTTP_PORT
         elif inbound.get("protocol") == "dokodemo-door":
             inbound["port"] = VPN_METRICS_PORT
+    # Папку создаём сами, не надеясь на импорт http_cache; в ней же launch ведёт xray.log.
+    config.XRAY_RUNTIME.parent.mkdir(parents=True, exist_ok=True)
     config.XRAY_RUNTIME.write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
     return config.XRAY_RUNTIME
 
