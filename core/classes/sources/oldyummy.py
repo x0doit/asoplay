@@ -1,14 +1,17 @@
 """
-old.yummyani.me / api.yani.tv — нативный клиент.
-Своя SWAGGER-документированная REST-апи (/api/*), покрытие больше, чем у
-anicli-api yummy_anime, и часто попадаются тайтлы, которых нет в других
-источниках (включая spin-off'ы типа "Re:Zero. Перерыв с нуля 3").
+Клиент old.yummyani.me (api.yani.tv): поиск тайтлов и все серии тайтла со всеми озвучками.
+
+Автор: Чепела Даниил Максимович.
+AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
+
+Своё REST-API (/api/*, описано в Swagger): покрытие больше, чем у yummy_anime из anicli-api, и часто есть тайтлы,
+которых нет в других источниках (включая спин-оффы вроде «Re:Zero. Перерыв с нуля 3»). Недоступный хост —
+исключение сети: вызывающий (core/functions/sources.py) может повторить через мост VPN; остальные сбои — пустой
+список.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
-from typing import Any
 
 import httpx
 
@@ -20,7 +23,10 @@ TIMEOUT = 12.0
 
 
 class OldYummy:
+    """Клиент old.yummyani.me: прямой по умолчанию, с proxy — для повтора через мост VPN."""
+
     def __init__(self, proxy: str | None = None) -> None:
+        """Клиент httpx; proxy задают только экземпляру для повтора через мост VPN."""
         # Прямой клиент по умолчанию; экземпляр с proxy нужен только для повтора
         # через VPN, когда хост недоступен напрямую.
         self._client = httpx.AsyncClient(
@@ -32,10 +38,12 @@ class OldYummy:
         )
 
     async def close(self) -> None:
+        """Закрыть HTTP-клиент."""
         await self._client.aclose()
 
     # ---- search ----
     async def search(self, query: str, limit: int = 20) -> list[dict]:
+        """Поиск тайтлов — до limit результатов; ответ не 200 или сбой — пусто."""
         if not query:
             return []
         try:
@@ -60,6 +68,7 @@ class OldYummy:
 
     # ---- videos (возвращает сразу все эпизоды со всеми озвучками) ----
     async def videos(self, anime_id: int | str) -> list[dict]:
+        """Все видео тайтла — серии со всеми озвучками сразу; ответ не 200 или сбой — пусто."""
         try:
             r = await self._client.get(f"{BASE}/anime/{anime_id}/videos")
             if r.status_code != 200:
@@ -75,6 +84,7 @@ class OldYummy:
     # ---- helpers ----
     @staticmethod
     def _format_item(raw: dict) -> dict:
+        """Запись поиска → словарь: id и адрес тайтла, названия, год, картинка, описание, id в MAL, число серий, тип."""
         poster = raw.get("poster") or {}
         thumb = (poster.get("small") or poster.get("medium") or poster.get("big") or "").lstrip("/")
         if thumb and not thumb.startswith("http"):
@@ -91,13 +101,3 @@ class OldYummy:
             "episodes": (raw.get("episodes") or {}).get("count"),
             "type": (raw.get("type") or {}).get("alias"),
         }
-
-
-_instance: OldYummy | None = None
-
-
-def get_oldyummy() -> OldYummy:
-    global _instance
-    if _instance is None:
-        _instance = OldYummy()
-    return _instance

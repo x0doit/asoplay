@@ -1,14 +1,11 @@
-# -*- coding: utf-8 -*-
 """
-AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
-All rights reserved. See /COPYRIGHT for full terms.
+Ограничение частоты попыток (скользящее окно) и настоящий IP посетителя за прокси aaPanel.
 
-Ограничение частоты попыток (скользящее окно) и настоящий IP посетителя за
-прокси aaPanel.
+Автор: Чепела Даниил Максимович.
+AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
-AsoPlay работает одним процессом, поэтому счётчики живут в памяти: после
-перезапуска они обнуляются, и это допустимо. Число ключей ограничено, чтобы
-перебор с множества адресов не съел память.
+AsoPlay работает одним процессом, поэтому счётчики живут в памяти: после перезапуска они обнуляются, и это
+допустимо. Число ключей ограничено, чтобы перебор с множества адресов не съел память.
 """
 from __future__ import annotations
 
@@ -24,6 +21,7 @@ _LOOPBACK = {"127.0.0.1", "::1"}
 
 
 def _valid_ip(value: str) -> bool:
+    """Строка — адрес IPv4 или IPv6."""
     try:
         ipaddress.ip_address(value)
         return True
@@ -56,6 +54,7 @@ class SlidingWindow:
 
     def __init__(self, limit: int, window: float, max_keys: int = 50_000,
                  clock: Callable[[], float] = time.monotonic):
+        """limit событий за window секунд на ключ, не больше max_keys ключей; clock — часы (проверки их подменяют)."""
         self.limit = limit
         self.window = window
         self.max_keys = max_keys
@@ -64,6 +63,7 @@ class SlidingWindow:
         self._lock = threading.Lock()
 
     def _trim(self, key: str, now: float) -> Deque[float] | None:
+        """События ключа без истёкших; не осталось — ключ убирается и ответ None. Зовётся под замком."""
         hits = self._hits.get(key)
         if hits is None:
             return None
@@ -84,6 +84,7 @@ class SlidingWindow:
             return max(1, int(hits[0] + self.window - now + 0.999))
 
     def hit(self, key: str) -> None:
+        """Засчитать событие ключу; ключей слишком много — сначала вытеснить истёкшие и самые давние."""
         now = self._clock()
         with self._lock:
             hits = self._trim(key, now)
@@ -94,10 +95,12 @@ class SlidingWindow:
             hits.append(now)
 
     def reset(self, key: str) -> None:
+        """Забыть события ключа."""
         with self._lock:
             self._hits.pop(key, None)
 
     def _evict(self, now: float) -> None:
+        """Освободить место под новый ключ: убрать истёкшие ключи, затем самые давние. Зовётся под замком."""
         # Сначала истёкшие ключи, затем самые давние: словарь хранит порядок добавления
         for key in list(self._hits):
             self._trim(key, now)

@@ -1421,10 +1421,6 @@
  "_in": [
   "def(ids: list[int]) -> str"
  ],
- "_instance": [
-  "= 6eef6648406c",
-  "= 6eef6648406c"
- ],
  "_int_or_none": [
   "def(value: Any) -> int | None"
  ],
@@ -2197,9 +2193,6 @@
  "get": [
   "def(key: str) -> Any"
  ],
- "get_animevost": [
-  "def() -> Animevost"
- ],
  "get_client": [
   "async def() -> httpx.AsyncClient"
  ],
@@ -2208,9 +2201,6 @@
  ],
  "get_extractor": [
   "def(source: str)"
- ],
- "get_oldyummy": [
-  "def() -> OldYummy"
  ],
  "get_vpn_client": [
   "async def() -> httpx.AsyncClient | None"

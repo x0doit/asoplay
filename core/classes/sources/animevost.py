@@ -1,13 +1,17 @@
 """
-Животновост‑клиент: https://api.animevost.org
-Надёжный источник с прямыми mp4 ссылками (480p + 720p) на русском озвучании.
-Широчайшее покрытие — от новых релизов до классики.
+Клиент AnimeVost (https://api.animevost.org): поиск и серии с прямыми mp4 (480p и 720p) в русской озвучке.
+
+Автор: Чепела Даниил Максимович.
+AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
+
+Надёжный источник с широким покрытием — от новых релизов до классики. Клиент без состояния: всё — простыми
+HTTP-запросами. Недоступный хост — исключение сети, а не пустой ответ: вызывающий (core/functions/sources.py) может
+повторить через мост VPN; остальные сбои — в журнал и пустой список.
 """
 from __future__ import annotations
 
 import re
 import logging
-from typing import Any
 
 import httpx
 
@@ -22,6 +26,7 @@ class Animevost:
     """Stateless клиент. Все операции идут через простой HTTP."""
 
     def __init__(self, proxy: str | None = None) -> None:
+        """Клиент httpx; proxy задают только экземпляру для повтора через мост VPN."""
         # proxy задаётся только у экземпляра для повтора через VPN.
         self._client = httpx.AsyncClient(
             headers={"User-Agent": UA, "Accept": "application/json"},
@@ -31,6 +36,7 @@ class Animevost:
         )
 
     async def close(self) -> None:
+        """Закрыть HTTP-клиент."""
         await self._client.aclose()
 
     # ---- search ----
@@ -93,11 +99,14 @@ class Animevost:
     # ---- helpers ----
     @staticmethod
     def _parse_episode_num(name: str) -> int | None:
+        """Номер серии из начала её названия («12 серия» → 12); числа нет — None."""
         m = re.match(r"\s*(\d+)", name or "")
         return int(m.group(1)) if m else None
 
     @staticmethod
     def _format_item(raw: dict) -> dict:
+        """Запись поиска → словарь: id, названия (русское, английское, пометка), год, жанр, описание,
+        картинка, рейтинг."""
         full_title = raw.get("title") or ""
         ru, en, note = Animevost._split_title(full_title)
         return {
@@ -128,14 +137,3 @@ class Animevost:
             ru, en = base.split("/", 1)
             return ru.strip(), en.strip(), note
         return base.strip(), "", note
-
-
-# Singleton для удобной регистрации
-_instance: Animevost | None = None
-
-
-def get_animevost() -> Animevost:
-    global _instance
-    if _instance is None:
-        _instance = Animevost()
-    return _instance

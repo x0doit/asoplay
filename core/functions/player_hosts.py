@@ -1,4 +1,13 @@
-"""Shared player selection policy for source discovery and proxy entry points."""
+"""
+Политика плееров для поиска у источников и для прокси плеера: VK, неиграющие плееры, предпочтения хостов.
+
+Автор: Чепела Даниил Максимович.
+AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
+
+Плееры VK и обёртка Yummy над VK никогда не грузятся как проксируемые документы: их видео идут только через
+чистый фрейм AsoPlay, без плеера VK и рекламных скриптов обёртки. Остальные хосты ранжируются: CVH, затем Kodik,
+затем Alloha, затем неизвестные; VK — ниже всех (VK_SCORE).
+"""
 import re
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -11,12 +20,14 @@ VK_SCORE = -10
 
 
 def _split(url: str):
+    """Адрес → (разобранный адрес, хост строчными без точки в конце, путь без %-кодов строчными без / в конце)."""
     parsed = urlsplit((url or "").strip())
     host = (parsed.hostname or "").lower().rstrip(".")
     return parsed, host, unquote(parsed.path).lower().rstrip("/")
 
 
 def _is_vk_host(host: str) -> bool:
+    """Хост VK или его поддомен."""
     return any(host == domain or host.endswith("." + domain) for domain in _VK_DOMAINS)
 
 
@@ -57,6 +68,7 @@ def is_disabled_player_url(url: str) -> bool:
 
 
 def iframe_preference_score(url: str) -> int:
+    """Насколько хорош плеер по адресу: CVH — 30, Kodik — 20, Alloha — 10, остальные — 0, VK — VK_SCORE."""
     try:
         _, host, path = _split(url)
     except ValueError:

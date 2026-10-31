@@ -10,12 +10,3 @@ styles.css
 # Python: делится на шаге 5, docblock — там же
 core/modules/player/routes.py
 # После части K: решить, поднимать ли cookie и current_user_* из core/functions/sessions.py в core/auth.py
-
-# Python: переехал без деления, ждёт только docblock (шаг 5)
-core/classes/sources/animevost.py
-core/classes/sources/oldyummy.py
-core/config/animesocial.py
-core/functions/player_hosts.py
-core/functions/rate_limit.py
-core/functions/site_settings.py
-core/functions/source_health.py

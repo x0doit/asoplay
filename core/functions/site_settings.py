@@ -1,7 +1,8 @@
-# -*- coding: utf-8 -*-
 """
-AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
-All rights reserved. See /COPYRIGHT for full terms.
+Решения панели Anime Social для всего сайта: пометки тайтлов, плашка, функции, источники видео.
+
+Автор: Чепела Даниил Максимович.
+AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
 То, что администраторы Anime Social решают в разделе «AsoPlay» панели (core/admin/router.py), — для всего сайта:
 
@@ -47,6 +48,8 @@ SOURCE_NAMES = dict(SOURCES)
 
 @dataclass(frozen=True)
 class Flags:
+    """Пометки тайтлов из панели: скрытые, закреплённые (свежие первыми) и 18+."""
+
     hidden: frozenset[int] = frozenset()
     pinned: tuple[int, ...] = ()           # свежезакреплённые первыми
     adult: frozenset[int] = frozenset()
@@ -54,13 +57,19 @@ class Flags:
 
 @dataclass(frozen=True)
 class Settings:
+    """Настройки из панели: плашка, включённые функции, источники видео и их порядок."""
+
     notice: dict[str, Any] = field(default_factory=lambda: {"text": "", "until": None})
     features: dict[str, bool] = field(default_factory=lambda: {"comments": True, "password_login": True, "as_login": True})
     sources: tuple[dict[str, Any], ...] = ()
 
 
 class _State:
+    """Пометки и настройки в памяти процесса: читаются из базы при старте и меняются вместе с ней
+    при правке из панели."""
+
     def __init__(self) -> None:
+        """Всё по умолчанию — до загрузки из базы."""
         self.flags = Flags()
         self.settings = Settings()
         self._lock = threading.Lock()
@@ -78,7 +87,7 @@ class _State:
             log.exception("Could not read the panel settings; using defaults")
             return
         defaults = Settings()
-        notice = stored.get("notice") if isinstance(stored.get("notice"), dict) else {}
+        raw_notice = stored.get("notice") if isinstance(stored.get("notice"), dict) else {}
         features = stored.get("features") if isinstance(stored.get("features"), dict) else {}
         sources = stored.get("sources") if isinstance(stored.get("sources"), list) else []
         with self._lock:
@@ -88,13 +97,15 @@ class _State:
                 adult=frozenset(int(r[0]) for r in rows if r[3]),
             )
             self.settings = Settings(
-                notice={"text": str(notice.get("text") or "")[:NOTICE_MAX], "until": _int_or_none(notice.get("until"))},
+                notice={"text": str(raw_notice.get("text") or "")[:NOTICE_MAX],
+                        "until": _int_or_none(raw_notice.get("until"))},
                 features={k: bool(features.get(k, v)) for k, v in defaults.features.items()},
                 sources=tuple(s for s in sources if isinstance(s, dict) and s.get("id") in SOURCE_NAMES),
             )
 
 
 def parse_json(value: Any) -> Any:
+    """Значение из базы как JSON; не JSON — None."""
     try:
         return json.loads(value or "null")
     except (TypeError, ValueError):
@@ -102,6 +113,7 @@ def parse_json(value: Any) -> Any:
 
 
 def _int_or_none(value: Any) -> int | None:
+    """Положительное число (не bool) — целым; остальное — None."""
     return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0 else None
 
 
@@ -112,6 +124,7 @@ listeners: list[Callable[[set[str]], None]] = []
 
 
 def changed(what: set[str]) -> None:
+    """Сказать слушателям, что из панели поменяли what; сбой слушателя — в журнал, остальные всё равно узнают."""
     for listener in list(listeners):
         try:
             listener(what)
@@ -121,14 +134,17 @@ def changed(what: set[str]) -> None:
 
 # ---------- для остального сайта ----------
 def hidden(mal_id: Any) -> bool:
+    """Тайтл скрыт по жалобе правообладателя."""
     return mal_id in state.flags.hidden
 
 
 def adult(mal_id: Any) -> bool:
+    """Тайтл помечен 18+."""
     return mal_id in state.flags.adult
 
 
 def pinned() -> tuple[int, ...]:
+    """Закреплённые в карусели главной тайтлы — свежие первыми."""
     return state.flags.pinned
 
 
@@ -150,6 +166,7 @@ def notice() -> dict[str, Any] | None:
 
 
 def feature(name: str) -> bool:
+    """Включена ли функция; о неизвестной панель не решала — включена."""
     return bool(state.settings.features.get(name, True))
 
 
@@ -172,6 +189,7 @@ def source_order() -> list[str]:
 
 
 def source_enabled(source: str) -> bool:
+    """Включён ли источник в панели; источник не из списка плеера — включён."""
     if source not in SOURCE_NAMES:
         return True
     return source in source_order()

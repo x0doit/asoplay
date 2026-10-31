@@ -1,10 +1,13 @@
-# -*- coding: utf-8 -*-
 """
-In-memory source health state.
+Здоровье источников видео в памяти процесса: успехи, сбои, задержка и остывание после череды сбоев.
 
-This is intentionally process-local. It protects the running app from a source
-that is timing out or throwing repeatedly, without changing the database or
-publishing any persistent operational state.
+Автор: Чепела Даниил Максимович.
+AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
+
+Состояние нарочно живёт только в процессе: оно защищает работающий сайт от источника, который раз за разом не
+отвечает или падает, не трогая базу и не публикуя постоянного состояния. После FAIL_THRESHOLD сбоев подряд источник
+остывает COOLDOWN_SECONDS секунд. Для «Обзора» в панели Anime Social — доля ошибок и задержка за последние сутки,
+по часам.
 """
 from __future__ import annotations
 
@@ -22,6 +25,9 @@ WINDOW_HOURS = 24
 
 @dataclass
 class SourceState:
+    """Состояние источника: счётчики, остывание, последние успех и ошибка, задержка, почасовые
+    итоги за сутки."""
+
     name: str
     successes: int = 0
     failures: int = 0
@@ -35,6 +41,7 @@ class SourceState:
     hours: dict[int, list[int]] = field(default_factory=dict)
 
     def _hour(self) -> list[int]:
+        """Итоги текущего часа [успехи, ошибки, сумма задержек]; часы старше суток выбрасываются."""
         now = int(time.time() // 3600)
         for old in [h for h in self.hours if h <= now - WINDOW_HOURS]:
             del self.hours[old]
@@ -45,6 +52,7 @@ _STATES: dict[str, SourceState] = {}
 
 
 def _state(source: str) -> SourceState:
+    """Состояние источника по имени; нет такого — создаётся."""
     source = str(source or "").strip()
     if source not in _STATES:
         _STATES[source] = SourceState(name=source)
@@ -52,15 +60,18 @@ def _state(source: str) -> SourceState:
 
 
 def is_available(source: str) -> bool:
+    """Источник сейчас не остывает."""
     return _state(source).cooldown_until <= time.time()
 
 
 def cooldown_remaining(source: str) -> int:
+    """Сколько секунд источнику ещё остывать; 0 — не остывает."""
     remaining = _state(source).cooldown_until - time.time()
     return max(0, int(round(remaining)))
 
 
 def mark_success(source: str, latency_ms: int | None = None) -> None:
+    """Засчитать успех: серия сбоев и остывание сбрасываются, задержка — в почасовые итоги."""
     state = _state(source)
     state.successes += 1
     state.consecutive_failures = 0
@@ -73,6 +84,7 @@ def mark_success(source: str, latency_ms: int | None = None) -> None:
 
 
 def mark_failure(source: str, error: object) -> None:
+    """Засчитать сбой с текстом ошибки; FAIL_THRESHOLD сбоев подряд — остывание на COOLDOWN_SECONDS."""
     state = _state(source)
     state.failures += 1
     state.consecutive_failures += 1
@@ -85,10 +97,13 @@ def mark_failure(source: str, error: object) -> None:
 
 
 def available_sources(sources: Iterable[str]) -> list[str]:
+    """Источники из списка, которые сейчас не остывают."""
     return [source for source in sources if is_available(source)]
 
 
 def snapshot(sources: Iterable[str] | None = None) -> dict[str, dict[str, object]]:
+    """Состояние источников для /health и /source-health: доступен ли, сколько остывать, счётчики, последние успех
+    и ошибка, задержка."""
     names = list(sources) if sources is not None else sorted(_STATES)
     now = time.time()
     out: dict[str, dict[str, object]] = {}

@@ -1,19 +1,16 @@
-# -*- coding: utf-8 -*-
 """
-AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
-All rights reserved. See /COPYRIGHT for full terms.
+Адреса и картинки Anime Social: ссылки на вход, регистрацию, восстановление и профиль, аватары, обложки и фоны.
 
-AnimeSocial link-and-assets config. Reads core/config/animesocial.json once, applies
-env overrides (AV_ANIMESOCIAL_SITE_URL wins), and exposes URL builders for
-everything that references the partner social network:
+Автор: Чепела Даниил Максимович.
+AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
-    - register / login / recover / profile links
-    - avatar URLs (50 / 100 / full sizes)
-    - cover and background (fon) URLs
-    - no-avatar fallback
-
-The same config is exposed verbatim to the frontend via /auth/config, so
-there is exactly ONE place on disk that owns AnimeSocial URLs.
+Читает core/config/animesocial.json один раз, накладывает переменные окружения (AV_ANIMESOCIAL_SITE_URL важнее
+файла) и собирает адреса для всего, что ссылается на соцсеть:
+    - ссылки на регистрацию, вход, восстановление и профиль;
+    - аватары (50, 100 и полный размер);
+    - обложка и фон (fon) профиля;
+    - картинка «нет аватара».
+Тот же конфиг уходит фронтенду через /auth/config, так что адреса Anime Social задаются ровно в одном месте.
 """
 from __future__ import annotations
 
@@ -29,6 +26,7 @@ log = logging.getLogger("asoplay.animesocial_config")
 
 
 def _load_raw() -> dict[str, Any]:
+    """animesocial.json как есть; нет файла — зашитые значения по умолчанию, файл не читается — пустой словарь."""
     if not config.ANIMESOCIAL_JSON.is_file():
         log.warning("animesocial.json missing — using hard-coded fallback")
         return {
@@ -73,6 +71,7 @@ def get_config() -> dict[str, Any]:
 
 
 def site_url() -> str:
+    """Адрес сайта Anime Social без косой черты в конце."""
     return get_config()["site_url"]
 
 
@@ -88,6 +87,7 @@ def absolute(path: str) -> str:
 
 
 def _resolve_template(template: str, **params: Any) -> str:
+    """Шаблон с подстановками {ключ} → значения из params; None — пустая строка."""
     out = template
     for key, value in params.items():
         out = out.replace("{" + key + "}", str(value) if value is not None else "")
@@ -101,18 +101,22 @@ def path_for(key: str, **params: Any) -> str:
 
 
 def register_url() -> str:
+    """Ссылка на регистрацию в Anime Social."""
     return path_for("register")
 
 
 def login_url() -> str:
+    """Ссылка на вход в Anime Social."""
     return path_for("login")
 
 
 def recover_url() -> str:
+    """Ссылка на восстановление пароля в Anime Social."""
     return path_for("recover")
 
 
 def profile_url(user_id: int | str) -> str:
+    """Ссылка на профиль человека в Anime Social."""
     return path_for("profile", user_id=user_id)
 
 
@@ -136,6 +140,7 @@ def avatar_url(user_id: int | str | None, photo: str | None, size: str = "medium
 
 
 def cover_url(user_id: int | str | None, cover: str | None) -> str:
+    """Полный адрес обложки профиля; нет id или файла — пусто."""
     if not user_id or not cover:
         return ""
     template = get_config()["uploads"].get("cover")
@@ -145,6 +150,7 @@ def cover_url(user_id: int | str | None, cover: str | None) -> str:
 
 
 def fon_url(user_id: int | str | None, fon: str | None) -> str:
+    """Полный адрес фона профиля; нет id или файла — пусто."""
     if not user_id or not fon:
         return ""
     template = get_config()["uploads"].get("fon")
