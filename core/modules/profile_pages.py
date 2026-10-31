@@ -30,7 +30,7 @@ from core.functions.sessions import current_user_optional
 from core.functions.privacy import read_privacy
 from core.functions.activity_feed import graph_for_user_public, fetch_recent_paged
 from core.config.config import SITE_NAME, SITE_URL
-from core.modules.title_pages import _read_shell, _override_head
+from core.modules import title_render
 
 log = logging.getLogger("asoplay.profile_pages")
 
@@ -186,12 +186,12 @@ def profile_lists(
 def _render_shell(head_extra: str, noscript: str, *,
                   title: str | None = None, description: str | None = None,
                   robots: str | None = None) -> HTMLResponse:
-    shell = _read_shell()
-    shell = _override_head(shell, title=title, description=description, robots=robots)
+    shell = title_render.read_shell()
+    shell = title_render.override_head(shell, title=title, description=description, robots=robots)
     shell = shell.replace("<!--av:head-extra-->", head_extra, 1)
     shell = shell.replace("<!--av:preload-->", "", 1)
     shell = shell.replace("<!--av:noscript-->", noscript, 1)
-    # no-cache: см. title_pages.py, та же причина — избегаем застревания
+    # no-cache: см. title_render.py, та же причина — избегаем застревания
     # пользователя на старой cache-buster версии app.js/styles.css.
     return HTMLResponse(shell, headers={"Cache-Control": "no-cache"})
 

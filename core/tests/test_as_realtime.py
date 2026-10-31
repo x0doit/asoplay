@@ -11,8 +11,8 @@ import unittest
 from unittest.mock import patch
 
 from core.classes import as_api, as_realtime
+from core.config.config import SITE_URL
 from core.functions import presence, presence_batch, privacy as privacy_rules, realtime, realtime_social, sessions
-from core.modules.title_pages import SITE_URL
 
 
 class FakeClock:

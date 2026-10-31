@@ -10,7 +10,7 @@ TestClient с подменённым соединением (курсор зап
 
     python -B tools/guard/sql_trace.py <копия кода до шага> [сценарий]   выход 1 — если хоть что-то разошлось
 
-Сценарии: account (по умолчанию), lists.
+Сценарии: account (по умолчанию), lists, title_pages.
 """
 from __future__ import annotations
 
@@ -207,9 +207,26 @@ LISTS_FULL = [
     ("SELECT COUNT(*) FROM aviev_user_lists", [(3,)]),
     ("FROM aviev_user_lists WHERE user_id=%s AND", [(5, 52991, "watching", "auto", 1, "Фрирен", "p.jpg", None, None)]),
 ]
+TITLE = {"title_ru": "Тетрадь смерти", "title_en": "Death Note", "title_jp": "デスノート", "synopsis": "Тетрадь.",
+         "poster_url": "https://p.example/1.jpg", "banner_url": "https://p.example/b.jpg", "year": 2006, "kind": "TV",
+         "airing_status": "Finished Airing", "episodes_total": 37, "score": 8.62, "genres": ["Mystery", "Supernatural"],
+         "studios": "Madhouse"}
+TITLE_PAGES = [
+    ("POST", "/title-pages/record", {"mal_id": 1535, **TITLE}),
+    ("POST", "/title-pages/record", {"mal_id": 52991, **TITLE}),  # slug занят другим mal_id — с суффиксом
+    ("POST", "/title-pages/record", {"mal_id": 2}),  # названий нет — mal-2
+    ("POST", "/title-pages/record", {"mal_id": 3, "title_en": "II"}),  # slug короче трёх знаков — mal-3
+    ("POST", "/title-pages/record", {"mal_id": 4, "title_en": "Anime"}),  # slug «anime» — mal-4
+    ("POST", "/title-pages/record", {"mal_id": 5, "title_ru": "Наруто"}),  # кириллица в slug не попадает — mal-5
+    ("POST", "/title-pages/record", {"mal_id": 0}),
+    ("POST", "/title-pages/record", {"mal_id": 6, "title_en": "x" * 501}),
+]
+# slug уже у тайтла 1535
+TITLE_PAGES_FULL = [("SELECT mal_id FROM aviev_title_pages WHERE slug=%s", [(1535,)])]
 SCENARIOS = {
     "account": (ACCOUNT, [[], ACCOUNT_FULL], ["core.api.sections.account"]),
     "lists": (LISTS, [[], LISTS_FULL], ["core.api.sections.lists", "core.functions.lists"]),
+    "title_pages": (TITLE_PAGES, [[], TITLE_PAGES_FULL], ["core.modules.title_pages"]),
 }
 
 

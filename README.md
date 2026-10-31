@@ -191,7 +191,10 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── auth.py             подпись, повторы, ошибки, обёртка ответов, страницы
 │   │   └── reports.py, audit.py, settings.py, titles.py, summary.py   разделы панели
 │   ├── modules/
-│   │   ├── title_pages.py      canonical anime pages, sitemap, robots
+│   │   ├── title_pages.py      /anime/{id}-{slug}/: страница тайтла, запись кеша с фронтенда, маршруты оболочки SPA
+│   │   ├── title_render.py     HTML страницы тайтла: мета-теги, Open Graph, JSON-LD; общая оболочка и заглушка 404
+│   │   ├── title_cache.py      кеш страниц тайтлов (aviev_title_pages), адрес страницы, заполнение из каталога
+│   │   ├── seo.py              /sitemap.xml и /robots.txt
 │   │   ├── profile_pages.py    public profile API и SSR shell
 │   │   └── player/routes.py    same-origin player proxy, Shield, iframe bridge
 │   ├── functions/
@@ -711,7 +714,10 @@ Key capabilities:
 │   │   ├── auth.py             signature, replays, errors, response envelope, pages
 │   │   └── reports.py, audit.py, settings.py, titles.py, summary.py   panel sections
 │   ├── modules/
-│   │   ├── title_pages.py      canonical anime pages, sitemap, robots
+│   │   ├── title_pages.py      /anime/{id}-{slug}/: the title page, the record from the frontend, the SPA shell routes
+│   │   ├── title_render.py     title page HTML: meta tags, Open Graph, JSON-LD; the generic shell and the 404 stub
+│   │   ├── title_cache.py      the title page cache (aviev_title_pages), the page address, backfill from the catalog
+│   │   ├── seo.py              /sitemap.xml and /robots.txt
 │   │   ├── profile_pages.py    public profile API and SSR shell
 │   │   └── player/routes.py    same-origin player proxy, Shield, iframe bridge
 │   ├── functions/

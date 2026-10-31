@@ -9,7 +9,8 @@ FastAPI wiring. The heavy lifting lives in the core package (started with python
     classes/http.py              — Jikan/AniList/Shiki/translate/img with shared disk cache
     classes/db.py                — DB bridge + auth (/auth/*)
     api/sections/account.py      — authenticated favorites/history/progress/ratings (/account/*)
-    modules/title_pages.py       — canonical /anime/{id}-{slug}/ SSR + sitemap + robots
+    modules/title_pages.py       — canonical /anime/{id}-{slug}/ SSR (HTML: title_render, cache: title_cache)
+    modules/seo.py               — sitemap + robots
     classes/sources/animevost.py — native client to api.animevost.org
     classes/sources/oldyummy.py  — native client to old.yummyani.me/api
 
@@ -54,7 +55,7 @@ from core.functions import (
 from core.functions.player_hosts import (
     VK_SCORE, iframe_preference_score, is_disabled_player_url, vk_video_ref,
 )
-from core.modules import profile_pages, title_pages
+from core.modules import profile_pages, seo, title_pages
 from core.modules.player import routes as player_proxy
 
 
@@ -951,6 +952,7 @@ app.include_router(profile_pages.router)
 app.include_router(player_proxy.router)
 app.include_router(player_proxy.kodik_router)
 app.include_router(title_pages.router)
+app.include_router(seo.router)
 app.include_router(video_reports.router)
 app.include_router(admin_router.router)
 app.add_exception_handler(admin_auth.AdminError, admin_auth.error_response)

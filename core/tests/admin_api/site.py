@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 from core.classes import as_sessions, http_cache
 from core.classes.jikan import catalog as jikan_catalog
 from core.functions import site_settings
-from core.modules import title_pages
+from core.modules import title_cache, title_render
 from core import core as main
 
 
@@ -49,8 +49,8 @@ class SiteEffectTests(unittest.TestCase):
             self.assertEqual(client.get("/src/search", params={"q": "Naruto", "source": "anilibria"}).json(), [])
 
     def test_the_hidden_page_stays_for_people_but_not_for_search_engines(self):
-        with patch.object(title_pages, "_load_cached", return_value={"slug": "death-note"}), \
-                patch.object(title_pages, "_render_title_page", side_effect=lambda info: HTMLResponse("page")):
+        with patch.object(title_cache, "load_cached", return_value={"slug": "death-note"}), \
+                patch.object(title_render, "render_title_page", side_effect=lambda info: HTMLResponse("page")):
             resp = TestClient(main.app).get("/anime/1535-death-note", follow_redirects=False)
             self.assertEqual((resp.status_code, resp.headers["x-robots-tag"]), (451, "noindex"))
             self.assertEqual(TestClient(main.app).get("/anime/3-x", follow_redirects=False).status_code, 301)

@@ -19,7 +19,7 @@ from core.admin import titles as admin_titles
 from core.classes import http_cache
 from core.classes.jikan import catalog as jikan_catalog
 from core.functions import site_settings
-from core.modules import title_pages
+from core.modules import title_cache
 
 from core.tests.admin_api.lib import PanelCase
 
@@ -50,7 +50,7 @@ class TitleTests(PanelCase):
     def test_a_title_is_found_by_its_link_on_asoplay(self):
         async def lookup(mal_id):
             return {"title_ru": "Тетрадь смерти"} if mal_id == 1535 else None
-        with patch.object(title_pages, "lookup", side_effect=lookup), patch.object(admin_titles, "_flags_for", return_value={}):
+        with patch.object(title_cache, "lookup", side_effect=lookup), patch.object(admin_titles, "_flags_for", return_value={}):
             path = "/api/admin/titles?q=" + quote("https://play.animesocial.online/anime/1535-death-note/")
             items = self.panel.call("GET", path).json()["data"]["items"]
             self.assertEqual([(i["mal_id"], i["title"], i["hidden"]) for i in items], [(1535, "Тетрадь смерти", False)])
@@ -59,7 +59,7 @@ class TitleTests(PanelCase):
     def test_only_the_sent_flags_change_and_the_tabs_hear_it(self):
         async def lookup(mal_id):
             return {"title_ru": "Тетрадь смерти"}
-        with patch.object(title_pages, "lookup", side_effect=lookup):
+        with patch.object(title_cache, "lookup", side_effect=lookup):
             resp = self.panel.call("PUT", "/api/admin/titles/1535", {"hidden": True, "note": "Жалоба\tправообладателя"})
         self.assertEqual(resp.status_code, 200, resp.text)
         self.assertEqual(saved_row := self.cursor.sql("INSERT INTO aviev_title_flags")[0][1][:6],
@@ -75,7 +75,7 @@ class TitleTests(PanelCase):
     def test_the_panel_sends_all_four_fields_and_only_changes_are_logged(self):
         async def lookup(mal_id):
             return {"title_ru": "Тетрадь смерти"}
-        with patch.object(title_pages, "lookup", side_effect=lookup):
+        with patch.object(title_cache, "lookup", side_effect=lookup):
             resp = self.panel.call("PUT", "/api/admin/titles/1535", {"hidden": False, "pinned": True, "adult": True, "note": ""})
             self.assertEqual(json.loads(self.cursor.sql("INSERT INTO aviev_admin_audit")[0][1][3]), {"adult": True})
             self.assertEqual(self.announced, [{"titles"}])
@@ -97,7 +97,7 @@ class TitleTests(PanelCase):
             elapsed = time.monotonic() - started
             await asyncio.sleep(0.4)                                               # фоновый запрос доходит до конца
             return name, elapsed
-        with patch.object(admin_titles, "CATALOG_WAIT", 0.05), patch.object(title_pages, "lookup", side_effect=slow):
+        with patch.object(admin_titles, "CATALOG_WAIT", 0.05), patch.object(title_cache, "lookup", side_effect=slow):
             name, elapsed = asyncio.run(scenario())
         self.assertEqual(name, "")
         self.assertLess(elapsed, 0.25)
@@ -105,14 +105,14 @@ class TitleTests(PanelCase):
     def test_a_title_that_is_not_in_mal_cannot_be_flagged(self):
         async def lookup(mal_id):
             return None
-        with patch.object(title_pages, "lookup", side_effect=lookup):
+        with patch.object(title_cache, "lookup", side_effect=lookup):
             resp = self.panel.call("PUT", "/api/admin/titles/2", {"hidden": True})
         self.assertEqual((resp.status_code, resp.json()["error"]["code"]), (404, "title_not_found"))
 
     def test_resetting_the_cache_drops_the_card_and_the_page(self):
         with patch.object(jikan_catalog, "forget_title", return_value=2) as card, \
                 patch.object(http_cache, "forget_shiki_title", return_value=True), \
-                patch.object(title_pages, "forget") as page:
+                patch.object(title_cache, "forget") as page:
             resp = self.panel.call("POST", "/api/admin/titles/1535/purge")
         self.assertEqual(resp.json(), {"ok": True, "data": {"mal_id": 1535, "removed": 3}})
         card.assert_called_once_with(1535)

@@ -24,7 +24,7 @@ from core.classes.db import connect
 from core.classes.jikan import catalog as jikan_catalog
 from core.config.config import SITE_URL
 from core.functions import site_settings, video_reports
-from core.modules import title_pages
+from core.modules import title_cache
 
 router = APIRouter()
 
@@ -115,7 +115,7 @@ async def _title_name(mal_id: int) -> str | None:
     """Название тайтла; None — такого тайтла в MAL нет. Каталог недоступен или не успел — пустое название:
     пометить тайтл (например, скрыть по жалобе) можно и тогда."""
     try:
-        info = await _catalog(title_pages.lookup(mal_id))
+        info = await _catalog(title_cache.lookup(mal_id))
     except (HTTPException, asyncio.TimeoutError):
         return ""
     if info is None:
@@ -212,7 +212,7 @@ async def titles_put(mal_id: int, body: TitleIn, admin: int = Depends(admin_user
 def _purge(mal_id: int, admin: int) -> dict[str, Any]:
     """Сбросить кеш тайтла везде, где он есть, и записать это в журнал."""
     removed = jikan_catalog.forget_title(mal_id) + int(http_cache.forget_shiki_title(mal_id))
-    title_pages.forget(mal_id)
+    title_cache.forget(mal_id)
     with connect() as conn:
         cur = conn.cursor()
         audit(cur, admin, "title.purge", f"title:{mal_id}", {"removed": removed})

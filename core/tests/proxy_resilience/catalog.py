@@ -14,28 +14,28 @@ from unittest.mock import AsyncMock, patch
 from fastapi import HTTPException
 from core.api.sections import catalog as catalog_routes
 from core.classes import http_cache
-from core.modules import title_pages
+from core.modules import title_cache, title_pages
 
 
 class TitleCatalogTests(unittest.IsolatedAsyncioTestCase):
     async def test_embedded_catalog_keeps_mal_id(self):
         media = {"mal_id": 1535, "title": "Death Note", "score": 8.5, "genres": [{"mal_id": 7, "name": "Mystery"}]}
         fetch = AsyncMock(return_value=(json.dumps({"data": media}).encode(), "application/json", 200))
-        with patch.object(title_pages.jikan_catalog, "fetch", fetch), patch.object(title_pages, "_store_title", side_effect=lambda p: p):
-            result = await title_pages._fetch_and_store(1535)
+        with patch.object(title_cache.jikan_catalog, "fetch", fetch), patch.object(title_cache, "store_title", side_effect=lambda p: p):
+            result = await title_cache.fetch_and_store(1535)
         self.assertEqual(result["mal_id"], 1535)
         self.assertEqual(result["score"], 8.5)
         self.assertEqual(result["title_en"], "Death Note")
 
     async def test_confirmed_404_is_not_replaced_with_reserve(self):
         fetch = AsyncMock(return_value=(b"{}", "application/json", 404))
-        with patch.object(title_pages.jikan_catalog, "fetch", fetch):
-            self.assertIsNone(await title_pages._fetch_and_store(2))
+        with patch.object(title_cache.jikan_catalog, "fetch", fetch):
+            self.assertIsNone(await title_cache.fetch_and_store(2))
         fetch.assert_awaited_once()
 
     async def test_provider_outage_returns_503_not_false_404(self):
-        with patch.object(title_pages, "_load_cached", return_value=None), \
-             patch.object(title_pages, "_fetch_and_store", new=AsyncMock(side_effect=HTTPException(503))):
+        with patch.object(title_cache, "load_cached", return_value=None), \
+             patch.object(title_cache, "fetch_and_store", new=AsyncMock(side_effect=HTTPException(503))):
             result = await title_pages.canonical_title("1535")
         self.assertEqual(result.status_code, 503)
         self.assertEqual(result.headers["X-Robots-Tag"], "noindex")

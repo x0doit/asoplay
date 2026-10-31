@@ -932,9 +932,6 @@
  "TTL_FRESH": [
   "= 1a50418c7d7f"
  ],
- "TTL_STALE": [
-  "= b57b703d8b01"
- ],
  "Tab": [
   "class()"
  ],
@@ -1311,12 +1308,6 @@
  "_cached_matches": [
   "def(q: str) -> dict[int, str]"
  ],
- "_canonical_path": [
-  "def(mal_id: int, slug: str) -> str"
- ],
- "_canonical_url": [
-  "def(mal_id: int, slug: str) -> str"
- ],
  "_catalog": [
   "async def(coro: Any) -> Any"
  ],
@@ -1373,9 +1364,6 @@
  ],
  "_fetch": [
   "async def(request: Request, url: str, base: str | None, *, frame: bool=False, referer: str | None=None) -> Response"
- ],
- "_fetch_and_store": [
-  "async def(mal_id: int) -> dict[str, Any] | None"
  ],
  "_fetch_native": [
   "async def(path: str, params: dict) -> dict"
@@ -1519,9 +1507,6 @@
  "_load": [
   "def(session: str) -> dict[str, Any] | None"
  ],
- "_load_cached": [
-  "def(mal_id: int) -> dict[str, Any] | None"
- ],
  "_load_raw": [
   "def() -> dict[str, Any]"
  ],
@@ -1580,9 +1565,6 @@
  ],
  "_origin_ok": [
   "def(ws: WebSocket) -> bool"
- ],
- "_override_head": [
-  "def(shell: str, *, title: str | None=None, description: str | None=None, robots: str | None=None) -> str"
  ],
  "_page": [
   "def(items: list, page: int, limit: int, has_next: bool) -> dict",
@@ -1648,9 +1630,6 @@
  "_rank": [
   "def(item: dict[str, Any]) -> tuple"
  ],
- "_read_shell": [
-  "def() -> str"
- ],
  "_redact_url": [
   "def(url: str) -> str"
  ],
@@ -1663,17 +1642,8 @@
  "_register_url": [
   "def() -> str"
  ],
- "_render_generic": [
-  "def() -> HTMLResponse"
- ],
- "_render_missing_title": [
-  "def(mal_id: int, slug: str) -> HTMLResponse"
- ],
  "_render_shell": [
   "def(head_extra: str, noscript: str, *, title: str | None=None, description: str | None=None, robots: str | None=None) -> HTMLResponse"
- ],
- "_render_title_page": [
-  "def(info: dict[str, Any]) -> HTMLResponse"
  ],
  "_report": [
   "def(row: tuple) -> dict[str, Any]"
@@ -1797,9 +1767,6 @@
  ],
  "_stop": [
   "= 65ca2c3f8054"
- ],
- "_store_title": [
-  "def(payload: dict[str, Any]) -> dict[str, Any]"
  ],
  "_strip_ad_payload": [
   "def(value)"
@@ -2080,8 +2047,14 @@
   "async def(payload: dict) -> dict",
   "def(method: str, path: str, *, token: str | None=None, body: dict[str, Any] | None=None, user_ip: str='', user_agent: str='') -> Any"
  ],
+ "canonical_path": [
+  "def(mal_id: int, slug: str) -> str"
+ ],
  "canonical_title": [
   "@router.get('/anime/{stub}/', response_class=HTMLResponse) @router.get('/anime/{stub}', response_class=HTMLResponse) async def(stub: str)"
+ ],
+ "canonical_url": [
+  "def(mal_id: int, slug: str) -> str"
  ],
  "catalog": [
   "async def(path: str, params: dict | None=None) -> dict"
@@ -2197,6 +2170,9 @@
  ],
  "fetch": [
   "async def(path: str, params: dict | None=None, *, timeout: float=25) -> tuple[bytes, str, int]"
+ ],
+ "fetch_and_store": [
+  "async def(mal_id: int) -> dict[str, Any] | None"
  ],
  "fetch_entry": [
   "def(conn, user_id: int, mal_id: int) -> dict[str, Any] | None"
@@ -2415,6 +2391,9 @@
  "load": [
   "def() -> None"
  ],
+ "load_cached": [
+  "def(mal_id: int) -> dict[str, Any] | None"
+ ],
  "loaded_sources": [
   "= 42186eaf8b75"
  ],
@@ -2430,7 +2409,6 @@
   "= 3acb6a6c60f8",
   "= 48bd8c61a38f",
   "= 48bd8c61a38f",
-  "= 8a1db55198b6",
   "= 96797f0c7e5f",
   "= 96ff858b959b",
   "= 9a6a5b08b0f5",
@@ -2494,6 +2472,9 @@
  ],
  "ospanel_dir": [
   "def() -> Path"
+ ],
+ "override_head": [
+  "def(shell: str, *, title: str | None=None, description: str | None=None, robots: str | None=None) -> str"
  ],
  "parse_json": [
   "def(value: Any) -> Any"
@@ -2622,6 +2603,9 @@
  "read_privacy": [
   "def(user_id: int) -> dict[str, bool]"
  ],
+ "read_shell": [
+  "def() -> str"
+ ],
  "realtime_social.status_provider": [
   "= b57e0c80e95c"
  ],
@@ -2654,6 +2638,15 @@
  ],
  "remember_route": [
   "def(host: str, route: str) -> None"
+ ],
+ "render_generic": [
+  "def() -> HTMLResponse"
+ ],
+ "render_missing_title": [
+  "def(mal_id: int, slug: str) -> HTMLResponse"
+ ],
+ "render_title_page": [
+  "def(info: dict[str, Any]) -> HTMLResponse"
  ],
  "report_create": [
   "@router.post('') def(body: ReportIn, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
@@ -2697,6 +2690,7 @@
   "= 2350873edac3",
   "= 38a8009d6ab6",
   "= 603dd6e11367",
+  "= 82e1a4f1c862",
   "= 82e1a4f1c862",
   "= 82e1a4f1c862",
   "= 82e1a4f1c862",
@@ -2860,6 +2854,9 @@
  ],
  "stop_watchdog": [
   "def() -> None"
+ ],
+ "store_title": [
+  "def(payload: dict[str, Any]) -> dict[str, Any]"
  ],
  "summary": [
   "@router.get('/summary') def(_admin: int=Depends(admin_user)) -> dict[str, Any]"
