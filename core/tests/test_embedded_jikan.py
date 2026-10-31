@@ -14,7 +14,7 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx
 from fastapi import HTTPException
-from core.classes import http
+from core.classes import http, http_cache
 from core.classes.jikan import catalog as j, php_bridge
 
 
@@ -22,7 +22,7 @@ class CatalogTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         php_bridge._workers = asyncio.Semaphore(4)
         j._network = asyncio.Semaphore(2)
-        http._MAL_LIMIT = http._RateLimiter(rps=1000)
+        http.MAL_LIMIT = http._RateLimiter(rps=1000)
         j._retry_after = 0
         j._pending.clear()
         saved = (j._hidden, j._visible)
@@ -113,7 +113,7 @@ class CatalogTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_concurrent_callers_share_parser_and_cache_write(self):
         native = AsyncMock(return_value={"data": [1]})
-        with patch.object(http, "_cache_get", return_value=None), patch.object(http, "_cache_put") as put, \
+        with patch.object(http_cache, "cache_get", return_value=None), patch.object(http_cache, "cache_put") as put, \
              patch.object(j, "_fetch_native", native):
             results = await asyncio.gather(*[j._native("anime", {}) for _ in range(8)])
         self.assertEqual(results, [{"data": [1]}] * 8)
@@ -125,7 +125,7 @@ class CatalogTests(unittest.IsolatedAsyncioTestCase):
         async def native(*args):
             await gate.wait()
             return {"data": [1]}
-        with patch.object(http, "_cache_get", return_value=None), patch.object(http, "_cache_put"), \
+        with patch.object(http_cache, "cache_get", return_value=None), patch.object(http_cache, "cache_put"), \
              patch.object(j, "_fetch_native", new=AsyncMock(side_effect=native)) as fetch:
             first = asyncio.create_task(j._native("anime", {}))
             second = asyncio.create_task(j._native("anime", {}))
@@ -139,7 +139,7 @@ class CatalogTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_stale_same_mal_data_survives_temporary_failure(self):
         cached = (b'{"data":[1]}', "application/json", 200)
-        with patch.object(http, "_cache_get", side_effect=[None, cached]), patch.object(http, "_cache_put") as put, \
+        with patch.object(http_cache, "cache_get", side_effect=[None, cached]), patch.object(http_cache, "cache_put") as put, \
              patch.object(j, "_fetch_native", new=AsyncMock(side_effect=HTTPException(503))):
             self.assertEqual(await j._native("anime", {}), {"data": [1]})
         put.assert_not_called()

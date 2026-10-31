@@ -39,8 +39,8 @@ env.load()  # до остальных импортов: настройки в co
 # FastAPI startup event below. Importing the module is cheap and side-effect
 # free.
 from core.admin import auth as admin_auth, router as admin_router, summary as admin_summary
-from core.api.sections import account, activity, lists
-from core.classes import db, http
+from core.api.sections import account, activity, catalog, lists
+from core.classes import db, http, http_cache
 from core.classes.adblock import engine as adblock
 from core.classes.jikan import catalog as jikan_catalog
 from core.classes.sources.animevost import Animevost
@@ -164,7 +164,7 @@ async def _startup() -> None:
     vpn_bridge.start_watchdog()
     admin_summary.STARTED_AT = time.time()
     await asyncio.to_thread(site_settings.state.load)
-    await http.startup()
+    await jikan_catalog.startup()
     await adblock.startup()
     await player_proxy.startup()
     await presence.startup()
@@ -179,6 +179,8 @@ async def _shutdown() -> None:
     await presence.shutdown()
     await player_proxy.shutdown()
     await adblock.shutdown()
+    await jikan_catalog.shutdown()
+    await http_cache.shutdown()
     await http.shutdown()
     for _proxy, client in list(_vpn_natives.values()):
         await client.close()
@@ -935,7 +937,7 @@ async def _random_watchable():
 
 
 # ---------- register sibling routers ----------
-app.include_router(http.router)
+app.include_router(catalog.router)
 app.include_router(db.router)
 app.include_router(social_login.router)
 app.include_router(account.router)

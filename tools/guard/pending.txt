@@ -10,7 +10,6 @@ styles.css
 # Python: делится на шаге 5, docblock — там же
 core/core.py
 core/classes/db.py
-core/classes/http.py
 core/functions/presence.py
 core/functions/realtime.py
 core/functions/social_login.py

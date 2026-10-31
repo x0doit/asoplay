@@ -25,6 +25,7 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import HTTPException
 
+from core.classes import http, http_cache
 from core.classes.jikan import php_bridge
 
 log = logging.getLogger("asoplay.catalog")
@@ -81,7 +82,6 @@ async def shutdown() -> None:
 async def _fetch_native(path: str, params: dict) -> dict:
     """Страница MAL через парсер: bridge.php описывает запрос (только https://myanimelist.net), страница качается
     под общим лимитом MAL, bridge.php разбирает HTML. После 403 или 429 — 30 секунд без новых запросов."""
-    from core.classes import http
     global _retry_after
     description = await php_bridge.call({"mode": "describe", "path": path, "params": params})
     url = description["url"]
@@ -89,7 +89,7 @@ async def _fetch_native(path: str, params: dict) -> dict:
     if parsed.scheme != "https" or parsed.netloc != "myanimelist.net":
         raise HTTPException(502, "Invalid parser request URL")
     async with _network:
-        await http._MAL_LIMIT.wait()
+        await http.MAL_LIMIT.wait()
         if time.monotonic() < _retry_after:
             raise HTTPException(503, "MyAnimeList rate limit; retry shortly")
         try:
@@ -115,12 +115,11 @@ async def _fetch_native(path: str, params: dict) -> dict:
 async def _native(path: str, params: dict) -> dict:
     """Разобранная страница MAL из кеша на диске или новым запросом. Кеш: карточка — час, жанры — сутки, остальное —
     15 минут. Одинаковые запросы ждут одну задачу (не больше 64 сразу); при сбое 5xx — устаревший кеш до 7 дней."""
-    from core.classes import http
-    key = http._cache_key("PARSE", f"{_VERSION}/{path}", params)
+    key = http_cache.cache_key("PARSE", f"{_VERSION}/{path}", params)
     ttl = 3600 if re.fullmatch(r"anime/\d+(?:/full)?", path) else 900
     if path == "genres/anime":
         ttl = 86400
-    cached = http._cache_get(key, ttl)
+    cached = http_cache.cache_get(key, ttl)
     if cached:
         return json.loads(cached[0])
     task = _pending.get(key)
@@ -134,10 +133,10 @@ async def _native(path: str, params: dict) -> dict:
                     result = await asyncio.wait_for(_fetch_native(path, params), 30)
                 except asyncio.TimeoutError as exc:
                     raise HTTPException(504, "Catalog worker timed out") from exc
-                http._cache_put(key, json.dumps(result).encode(), "application/json")
+                http_cache.cache_put(key, json.dumps(result).encode(), "application/json")
                 return result
             except HTTPException as exc:
-                stale = http._cache_get(key, 86400 * 7)
+                stale = http_cache.cache_get(key, 86400 * 7)
                 if stale and exc.status_code >= 500:
                     return json.loads(stale[0])
                 raise
@@ -274,8 +273,7 @@ async def search_titles(q: str, limit: int = 10) -> list[dict]:
 def forget_title(mal_id: int) -> int:
     """Удалить с диска кеш карточки тайтла, его персонажей, рекомендаций и списка серий (кнопка «Сбросить кеш»
     в панели Anime Social). Сколько записей было."""
-    from core.classes import http
-    keys = [http._cache_key("PARSE", f"{_VERSION}/anime/{mal_id}/{part}", {})
+    keys = [http_cache.cache_key("PARSE", f"{_VERSION}/anime/{mal_id}/{part}", {})
             for part in ("full", "characters", "recommendations")]
-    keys += [http._cache_key("PARSE", f"{_VERSION}/anime/{mal_id}/episodes", {"page": n}) for n in range(1, 21)]
-    return sum(http.cache_drop(key) for key in keys)
+    keys += [http_cache.cache_key("PARSE", f"{_VERSION}/anime/{mal_id}/episodes", {"page": n}) for n in range(1, 21)]
+    return sum(http_cache.cache_drop(key) for key in keys)

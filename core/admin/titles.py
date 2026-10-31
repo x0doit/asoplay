@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from core.admin import auth
 from core.admin.audit import audit, unix
 from core.admin.auth import AdminError, _after, admin_user, ok
-from core.classes import http
+from core.classes import http_cache
 from core.classes.clock import utc_now
 from core.classes.db import connect
 from core.classes.jikan import catalog as jikan_catalog
@@ -211,7 +211,7 @@ async def titles_put(mal_id: int, body: TitleIn, admin: int = Depends(admin_user
 
 def _purge(mal_id: int, admin: int) -> dict[str, Any]:
     """Сбросить кеш тайтла везде, где он есть, и записать это в журнал."""
-    removed = jikan_catalog.forget_title(mal_id) + int(http.forget_shiki_title(mal_id))
+    removed = jikan_catalog.forget_title(mal_id) + int(http_cache.forget_shiki_title(mal_id))
     title_pages.forget(mal_id)
     with connect() as conn:
         cur = conn.cursor()

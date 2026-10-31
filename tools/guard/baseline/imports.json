@@ -4,7 +4,5 @@
  "ВВЕРХ ПО СЛОЯМ: core.classes.db → core.functions.realtime",
  "ВВЕРХ ПО СЛОЯМ: core.classes.db → core.functions.site_settings",
  "ВВЕРХ ПО СЛОЯМ: core.classes.db → core.functions.social_login",
- "ВВЕРХ ПО СЛОЯМ: core.classes.http → core.functions.site_settings",
- "ЦИКЛ: core.classes.as_realtime → core.classes.db → core.functions.presence → core.functions.realtime → core.functions.site_settings → core.functions.social_login",
- "ЦИКЛ: core.classes.http → core.classes.jikan.catalog"
+ "ЦИКЛ: core.classes.as_realtime → core.classes.db → core.functions.presence → core.functions.realtime → core.functions.site_settings → core.functions.social_login"
 ]

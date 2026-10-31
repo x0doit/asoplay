@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 from fastapi.responses import HTMLResponse
 from fastapi.testclient import TestClient
-from core.classes import http
+from core.classes import http_cache
 from core.classes.jikan import catalog as jikan_catalog
 from core.functions import site_settings, social_login
 from core.modules import title_pages
@@ -59,7 +59,7 @@ class SiteEffectTests(unittest.TestCase):
         async def fetch(*args, **kwargs):
             return json.dumps([{"id": 1535, "russian": "Тетрадь смерти"}, {"id": 1, "russian": "Ковбой Бибоп"}]).encode(), \
                 "application/json", 200
-        with patch.object(http, "cached_fetch", side_effect=fetch):
+        with patch.object(http_cache, "cached_fetch", side_effect=fetch):
             found = TestClient(main.app).get("/shiki/search", params={"q": "тетрадь"}).json()
         self.assertEqual([x["id"] for x in found], [1])
 

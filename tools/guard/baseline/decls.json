@@ -447,6 +447,9 @@
  "LoginIn.password": [
   "str = a6d6270fa4a4"
  ],
+ "MAL_LIMIT": [
+  "= 9f2e8f4238a7"
+ ],
  "MAL_MAX": [
   "= 9dfdd483be2b",
   "= 9dfdd483be2b"
@@ -494,6 +497,9 @@
   "= 88945ee3c648",
   "= 91e8488f217e",
   "= bf21a9e8fbc5"
+ ],
+ "NETWORK_ERRORS": [
+  "= bb2a3e218dcc"
  ],
  "NOTICE_MAX": [
   "= f83a383c0fa8"
@@ -1092,12 +1098,6 @@
   "= 6aa6c39ae4ae",
   "= 7d56bf911333"
  ],
- "_MAL_LIMIT": [
-  "= 9f2e8f4238a7"
- ],
- "_NETWORK_ERRORS": [
-  "= bb2a3e218dcc"
- ],
  "_NONCE": [
   "= 0ee1b477c91d"
  ],
@@ -1296,20 +1296,11 @@
  "_brief": [
   "def(user: dict[str, Any]) -> dict[str, Any]"
  ],
- "_cache_get": [
-  "def(key: str, ttl: float) -> tuple[bytes, str, int] | None"
- ],
  "_cache_get_any": [
   "def(key: str) -> tuple[bytes, str, int] | None"
  ],
- "_cache_key": [
-  "def(method: str, url: str, params: dict | None=None, body: Any=None) -> str"
- ],
  "_cache_path": [
   "def(key: str) -> Path"
- ],
- "_cache_put": [
-  "def(key: str, body: bytes, content_type: str, status: int=200) -> None"
  ],
  "_cached_matches": [
   "def(q: str) -> dict[int, str]"
@@ -2134,6 +2125,15 @@
  "cache_drop": [
   "def(key: str) -> bool"
  ],
+ "cache_get": [
+  "def(key: str, ttl: float) -> tuple[bytes, str, int] | None"
+ ],
+ "cache_key": [
+  "def(method: str, url: str, params: dict | None=None, body: Any=None) -> str"
+ ],
+ "cache_put": [
+  "def(key: str, body: bytes, content_type: str, status: int=200) -> None"
+ ],
  "cached_fetch": [
   "async def(method: str, url: str, *, params: dict | None=None, json_body: Any=None, ttl: float, timeout: float=15.0, headers: dict | None=None) -> tuple[bytes, str, int]"
  ],
@@ -2473,6 +2473,7 @@
   "= e8debe1c1a68",
   "= ea77bb90f150",
   "= eae50792383d",
+  "= eae50792383d",
   "= ee32d4684644"
  ],
  "login_url": [
@@ -2767,9 +2768,6 @@
  "shiki_batch": [
   "@router.get('/shiki/batch') async def(ids: str=Query(..., description='comma-separated MAL ids'))"
  ],
- "shiki_cache": [
-  "= bf21a9e8fbc5"
- ],
  "shiki_search": [
   "@router.get('/shiki/search') async def(q: str=Query(..., min_length=1), limit: int=Query(default=24, ge=1, le=50), page: int=Query(default=1, ge=1, le=50))"
  ],
@@ -2777,6 +2775,7 @@
   "def(url: str) -> tuple[bool, str | None]"
  ],
  "shutdown": [
+  "async def() -> None",
   "async def() -> None",
   "async def() -> None",
   "async def() -> None",
@@ -2830,7 +2829,6 @@
   "def() -> None"
  ],
  "startup": [
-  "async def() -> None",
   "async def() -> None",
   "async def() -> None",
   "async def() -> None",

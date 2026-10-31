@@ -179,7 +179,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── account/            /account/…: вход __init__.py подключает части в порядке маршрутов —
 │   │   │                       favorites, history, progress, ratings, settings, import_storage
 │   │   ├── lists/              /account/lists/…: entries (записи), progress_event (события плеера)
-│   │   └── activity.py         /account/activity: график и лента активности
+│   │   ├── activity.py         /account/activity: график и лента активности
+│   │   └── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, перевод, картинки
 │   ├── admin/                  админ-API для раздела «AsoPlay» в /cpanel AnimeSocial (HMAC)
 │   │   ├── router.py           вход: подключает части в порядке маршрутов
 │   │   ├── auth.py             подпись, повторы, ошибки, обёртка ответов, страницы
@@ -210,7 +211,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── as_api.py           клиент API v2 AnimeSocial
 │   │   ├── as_realtime.py      соединение сервер–сервер с realtime AnimeSocial
 │   │   ├── token_box.py        шифрование токенов соцсети в базе (AES-GCM)
-│   │   ├── http.py             Jikan/AniList/Shiki/translate/image proxies
+│   │   ├── http.py             клиенты (напрямую и через VPN-мост), маршрут для хоста, темп запросов к MAL
+│   │   ├── http_cache.py       кеш апстримов на диске, повторы и паузы апстримов, один запрос на одинаковые
 │   │   ├── jikan/              каталог MAL: catalog.py (запросы, кеш, лимит, фильтры), php_bridge.py (запуск PHP)
 │   │   ├── jikan/php/          PHP-мост, Composer manifest и lockfile
 │   │   ├── adblock/            блокировщик плеера: rules.py (разбор фильтров AdGuard), engine.py (списки, проверка)
@@ -686,7 +688,8 @@ Key capabilities:
 │   │   ├── account/            /account/…: the __init__.py entry includes the parts in route order —
 │   │   │                       favorites, history, progress, ratings, settings, import_storage
 │   │   ├── lists/              /account/lists/…: entries, progress_event (player events)
-│   │   └── activity.py         /account/activity: the activity graph and feed
+│   │   ├── activity.py         /account/activity: the activity graph and feed
+│   │   └── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, translate, images
 │   ├── admin/                  admin API for the «AsoPlay» section in AnimeSocial /cpanel (HMAC)
 │   │   ├── router.py           entry: includes the parts in route order
 │   │   ├── auth.py             signature, replays, errors, response envelope, pages
@@ -717,7 +720,8 @@ Key capabilities:
 │   │   ├── as_api.py           AnimeSocial API v2 client
 │   │   ├── as_realtime.py      server-to-server link with AnimeSocial realtime
 │   │   ├── token_box.py        encryption of social network tokens at rest (AES-GCM)
-│   │   ├── http.py             Jikan/AniList/Shiki/translate/image proxies
+│   │   ├── http.py             clients (direct and through the VPN bridge), route per host, MAL pacing
+│   │   ├── http_cache.py       upstream disk cache, retries and upstream pauses, one request for equal ones
 │   │   ├── jikan/              MAL catalog: catalog.py (requests, cache, rate limit, filters), php_bridge.py (PHP runs)
 │   │   ├── jikan/php/          PHP bridge, Composer manifest and lockfile
 │   │   ├── adblock/            player ad-block: rules.py (AdGuard filter parsing), engine.py (lists, checks)

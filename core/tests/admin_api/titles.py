@@ -16,7 +16,7 @@ from urllib.parse import quote
 
 from core.admin import reports as admin_reports
 from core.admin import titles as admin_titles
-from core.classes import http
+from core.classes import http_cache
 from core.classes.jikan import catalog as jikan_catalog
 from core.functions import site_settings
 from core.modules import title_pages
@@ -111,7 +111,7 @@ class TitleTests(PanelCase):
 
     def test_resetting_the_cache_drops_the_card_and_the_page(self):
         with patch.object(jikan_catalog, "forget_title", return_value=2) as card, \
-                patch.object(http, "forget_shiki_title", return_value=True), \
+                patch.object(http_cache, "forget_shiki_title", return_value=True), \
                 patch.object(title_pages, "forget") as page:
             resp = self.panel.call("POST", "/api/admin/titles/1535/purge")
         self.assertEqual(resp.json(), {"ok": True, "data": {"mal_id": 1535, "removed": 3}})

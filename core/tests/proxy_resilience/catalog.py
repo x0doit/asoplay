@@ -12,7 +12,8 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from fastapi import HTTPException
-from core.classes import http
+from core.api.sections import catalog as catalog_routes
+from core.classes import http_cache
 from core.modules import title_pages
 
 
@@ -48,10 +49,10 @@ class RussianSearchTests(unittest.IsolatedAsyncioTestCase):
             (json.dumps([media]).encode(), "application/json", 200),
             (json.dumps([media]).encode(), "application/json", 200),
         ])
-        with patch.object(http, "cached_fetch", fetch):
-            detail = await http.shiki_anime(42310)
-            batch = await http.shiki_batch("42310")
-            search = await http.shiki_search(q="Title", limit=24, page=1)
+        with patch.object(http_cache, "cached_fetch", fetch):
+            detail = await catalog_routes.shiki_anime(42310)
+            batch = await catalog_routes.shiki_batch("42310")
+            search = await catalog_routes.shiki_search(q="Title", limit=24, page=1)
         self.assertEqual(json.loads(detail.body)["id"], 42310)
         self.assertEqual(batch["42310"]["russian"], "Title")
         self.assertEqual(json.loads(search.body)[0]["id"], 42310)
@@ -63,11 +64,11 @@ class RussianSearchTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_shiki_image_proxy_accepts_current_host_but_not_lookalikes(self):
         fetch = AsyncMock(return_value=(b"image", "image/jpeg", 200))
-        with patch.object(http, "cached_fetch", fetch):
-            image = await http.proxy_img("https://shikimori.io/system/animes/preview/42310.jpg")
+        with patch.object(http_cache, "cached_fetch", fetch):
+            image = await catalog_routes.proxy_img("https://shikimori.io/system/animes/preview/42310.jpg")
             self.assertEqual(image.body, b"image")
             with self.assertRaises(HTTPException) as error:
-                await http.proxy_img("https://shikimori.io.evil.example/image.jpg")
+                await catalog_routes.proxy_img("https://shikimori.io.evil.example/image.jpg")
             self.assertEqual(error.exception.status_code, 403)
         fetch.assert_awaited_once()
 
@@ -77,8 +78,8 @@ class RussianSearchTests(unittest.IsolatedAsyncioTestCase):
                              {"anime_id": 1000, "title": "No MAL identity"}]}
         reserve = (json.dumps(body).encode(), "application/json", 200)
         fetch = AsyncMock(side_effect=[HTTPException(503), reserve])
-        with patch.object(http, "cached_fetch", fetch):
-            result = await http.shiki_search(q="Title", limit=2, page=3)
+        with patch.object(http_cache, "cached_fetch", fetch):
+            result = await catalog_routes.shiki_search(q="Title", limit=2, page=3)
         self.assertEqual(result["data"][0]["id"], 1535)
         self.assertEqual(result["data"][0]["russian"], "Title")
         self.assertEqual(len(result["data"]), 1)
@@ -88,6 +89,6 @@ class RussianSearchTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_broken_reserve_is_not_an_empty_search(self):
         fetch = AsyncMock(return_value=(b"{}", "application/json", 503))
-        with patch.object(http, "cached_fetch", fetch):
+        with patch.object(http_cache, "cached_fetch", fetch):
             with self.assertRaises(HTTPException):
-                await http._yummy_search("Title", 24, 1)
+                await catalog_routes._yummy_search("Title", 24, 1)
