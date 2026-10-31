@@ -1,32 +1,29 @@
-# -*- coding: utf-8 -*-
 """
-Lightweight ad-block layer for player URLs.
+Блокировщик рекламы для адресов плеера: списки AdGuard из сети с кешем и проверка адреса до отдачи во фронтенд.
 
-This is intentionally not a full browser-extension-grade AdGuard engine. A web
-page cannot inspect or rewrite the network requests made inside a cross-origin
-iframe. What we can safely do in this app:
+Автор: Чепела Даниил Максимович.
+AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
-* load official AdGuard-generated filter lists at runtime and cache them;
-* reject ad/tracker iframe or video URLs before sending them to the frontend;
-* keep a small built-in fallback while the lists are loading or unavailable.
-
-The filter files are not vendored into the proprietary repository. They are
-downloaded at runtime from AdGuard's public distribution URLs and cached under
-core/config/cache/adblock, which is ignored by git.
+Это не полноценный движок AdGuard из расширения браузера: страница не видит и не переписывает запросы внутри чужого
+iframe. Что можно сделать в приложении:
+    - загружать официальные списки AdGuard при работе и держать их в кеше;
+    - отбрасывать адреса iframe и видео рекламы и трекеров, прежде чем отдать их фронтенду;
+    - пока списки грузятся или недоступны — держаться встроенного запасного набора.
+Списки не лежат в репозитории: они скачиваются с адресов AdGuard и кешируются в core/config/cache/adblock (вне git).
+Разбор правил — core/classes/adblock/rules.py, через модуль.
 """
 from __future__ import annotations
 
 import asyncio
 import hashlib
 import logging
-import re
 import time
-from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 
+from core.classes.adblock import rules
 from core.config import config
 
 log = logging.getLogger("asoplay.adblock")
@@ -43,213 +40,21 @@ _DEFAULT_FILTER_URLS = (
     "https://filters.adtidy.org/extension/chromium/filters/19.txt",
 )
 
-_FALLBACK_BLOCK_HOSTS = frozenset({
-    "2mdn.net",
-    "adfox.ru",
-    "adnxs.com",
-    "adskeeper.co.uk",
-    "adskeeper.com",
-    "adservice.google.com",
-    "adtrafficquality.google",
-    "adtrue.com",
-    "advmaker.ru",
-    "betweendigital.com",
-    "bdbdqbdkdb.com",
-    "bs.serving-sys.ru",
-    "doubleclick.net",
-    "exoclick.com",
-    "googleadservices.com",
-    "googlesyndication.com",
-    "googletagmanager.com",
-    "googletagservices.com",
-    "mgid.com",
-    "popads.net",
-    "propellerads.com",
-    "revcontent.com",
-    "serving-sys.ru",
-    "taboola.com",
-    "trafficbass.com",
-    "trafficjunky.net",
-    "umwiba.com",
-    "yandexadexchange.net",
-})
-
-_FALLBACK_SNIPPETS = (
-    "/adfox/",
-    "/adserver/",
-    "/ads/",
-    "/advert/",
-    "/banner/",
-    "/banners/",
-    "/popunder",
-    "://ads.",
-    "://adserver.",
-    "ad_type=",
-    "adunit",
-    "doubleclick",
-    "googlesyndication",
-    "google-ima",
-    "ima3",
-    "pre-roll",
-    "preroll",
-    "rollad",
-    "/vast/",
-    "vast.xml",
-    "vast?",
-    "/vpaid/",
-    "vpaid",
-)
-
-_TYPE_MODIFIERS = {
-    "document",
-    "subdocument",
-    "popup",
-    "script",
-    "image",
-    "stylesheet",
-    "font",
-    "media",
-    "object",
-    "xmlhttprequest",
-    "websocket",
-    "ping",
-    "other",
-}
-_DOCUMENT_TYPES = {"document", "subdocument", "popup"}
-_UNSUPPORTED_MODIFIERS = {
-    "badfilter",
-    "csp",
-    "cookie",
-    "denyallow",
-    "extension",
-    "hls",
-    "inline-font",
-    "inline-script",
-    "jsonprune",
-    "method",
-    "permissions",
-    "redirect",
-    "redirect-rule",
-    "removeheader",
-    "removeparam",
-    "replace",
-    "stealth",
-    "to",
-    "urltransform",
-}
-
-
-def _host_suffixes(host: str) -> list[str]:
-    host = host.lower().strip(".")
-    if not host:
-        return []
-    parts = host.split(".")
-    return [".".join(parts[i:]) for i in range(len(parts))]
-
-
-def _domain_from_anchor(pattern: str) -> str | None:
-    if not pattern.startswith("||"):
-        return None
-    rest = pattern[2:]
-    m = re.match(r"^([a-z0-9][a-z0-9.-]*[a-z0-9])(?:[\^/:?*]|$)", rest, re.I)
-    if not m:
-        return None
-    domain = m.group(1).lower().strip(".")
-    if "." not in domain or "*" in domain:
-        return None
-    return domain
-
-
-def _pattern_to_regex(pattern: str) -> re.Pattern[str] | None:
-    if not pattern or len(pattern) < 4:
-        return None
-    if pattern.startswith("/") and pattern.endswith("/") and len(pattern) > 2:
-        return None
-    anchored_start = pattern.startswith("|") and not pattern.startswith("||")
-    anchored_end = pattern.endswith("|")
-    if anchored_start:
-        pattern = pattern[1:]
-    if anchored_end:
-        pattern = pattern[:-1]
-    if pattern.startswith("||"):
-        domain = _domain_from_anchor(pattern)
-        if not domain:
-            return None
-        rest = pattern[2 + len(domain):]
-        prefix = r"^[a-z][a-z0-9+.-]*://([^/?#]+\.)?"
-        body = re.escape(domain) + _wildcard_to_regex(rest)
-        regex = prefix + body
-    else:
-        regex = _wildcard_to_regex(pattern)
-        if anchored_start:
-            regex = "^" + regex
-    if anchored_end:
-        regex += "$"
-    try:
-        return re.compile(regex, re.I)
-    except re.error:
-        return None
-
-
-def _wildcard_to_regex(pattern: str) -> str:
-    out: list[str] = []
-    for ch in pattern:
-        if ch == "*":
-            out.append(".*")
-        elif ch == "^":
-            out.append(r"(?:[^A-Za-z0-9_.%-]|$)")
-        else:
-            out.append(re.escape(ch))
-    return "".join(out)
-
-
-def _rule_applies_to_player_url(modifiers: str) -> bool:
-    if not modifiers:
-        return True
-    mods = [m.strip().lower() for m in modifiers.split(",") if m.strip()]
-    names = {m[1:] if m.startswith("~") else m for m in mods}
-    if names & _UNSUPPORTED_MODIFIERS:
-        return False
-    if "first-party" in names:
-        return False
-    for m in mods:
-        if m in {"~document", "~subdocument", "~popup"}:
-            return False
-    type_mods = names & _TYPE_MODIFIERS
-    if type_mods and not (type_mods & _DOCUMENT_TYPES):
-        return False
-    # Site-specific domain rules usually depend on the source page. The player
-    # checker sees only the candidate iframe URL, so skipping them avoids broad
-    # false positives.
-    if any(m.startswith("domain=") for m in mods):
-        return False
-    return True
-
-
-@dataclass
-class _CompiledRules:
-    block_hosts: set[str] = field(default_factory=lambda: set(_FALLBACK_BLOCK_HOSTS))
-    allow_hosts: set[str] = field(default_factory=set)
-    block_snippets: set[str] = field(default_factory=lambda: set(_FALLBACK_SNIPPETS))
-    allow_snippets: set[str] = field(default_factory=set)
-    block_regexes: list[re.Pattern[str]] = field(default_factory=list)
-    allow_regexes: list[re.Pattern[str]] = field(default_factory=list)
-    loaded_filters: int = 0
-    parsed_rules: int = 0
-    updated_at: float = 0.0
-
 
 class AdblockEngine:
+    """Блокировщик адресов плеера: списки AdGuard из сети с кешем на диске и проверка адреса по правилам."""
     def __init__(self) -> None:
+        """Настройки из окружения и запасной набор правил до загрузки списков."""
         self.enabled = config.adblock_enabled()
         urls = config.adblock_filter_urls()
         self.filter_urls = urls or _DEFAULT_FILTER_URLS
         self.cache_ttl = config.adblock_cache_ttl()
         self.allow_hosts = set(h.lower().strip(".") for h in config.adblock_allow_hosts())
-        self.rules = _CompiledRules()
+        self.rules = rules.CompiledRules()
         self._refresh_task: asyncio.Task[None] | None = None
 
     async def startup(self) -> None:
+        """Правила из кеша — сразу, свежие списки — в фоне."""
         if not self.enabled:
             log.info("adblock disabled")
             return
@@ -257,6 +62,7 @@ class AdblockEngine:
         self._refresh_task = asyncio.create_task(self._refresh())
 
     async def shutdown(self) -> None:
+        """Остановить фоновую загрузку списков."""
         if self._refresh_task and not self._refresh_task.done():
             self._refresh_task.cancel()
             try:
@@ -265,6 +71,7 @@ class AdblockEngine:
                 pass
 
     async def wait_ready(self, timeout: float = 1.5) -> None:
+        """Подождать загрузку списков (до timeout секунд), если правил из сети ещё нет."""
         task = self._refresh_task
         if not task or task.done() or self.rules.loaded_filters:
             return
@@ -274,6 +81,7 @@ class AdblockEngine:
             return
 
     async def filter_videos(self, videos: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Убрать из найденных видео адреса, которые блокируются; остальные — как были."""
         if not self.enabled:
             return videos
         await self.wait_ready()
@@ -288,6 +96,7 @@ class AdblockEngine:
         return out
 
     def should_block(self, url: str) -> tuple[bool, str | None]:
+        """Блокировать ли адрес: (да или нет, причина); свои и разрешающие правила — раньше блокирующих."""
         if not self.enabled or not url:
             return False, None
         try:
@@ -298,16 +107,16 @@ class AdblockEngine:
         normalized = url.lower()
         if not host:
             return False, None
-        if host in self.allow_hosts or any(s in self.allow_hosts for s in _host_suffixes(host)):
+        if host in self.allow_hosts or any(s in self.allow_hosts for s in rules.host_suffixes(host)):
             return False, "allow-host"
-        for suffix in _host_suffixes(host):
+        for suffix in rules.host_suffixes(host):
             if suffix in self.rules.allow_hosts:
                 return False, "allow-filter-host"
         if any(s in normalized for s in self.rules.allow_snippets):
             return False, "allow-filter-snippet"
         if any(rx.search(normalized) for rx in self.rules.allow_regexes):
             return False, "allow-filter-regex"
-        for suffix in _host_suffixes(host):
+        for suffix in rules.host_suffixes(host):
             if suffix in self.rules.block_hosts:
                 return True, f"host:{suffix}"
         for snippet in self.rules.block_snippets:
@@ -319,6 +128,7 @@ class AdblockEngine:
         return False, None
 
     def status(self) -> dict[str, Any]:
+        """Состояние блокировщика для /adblock/status и /health."""
         task = self._refresh_task
         return {
             "enabled": self.enabled,
@@ -333,6 +143,7 @@ class AdblockEngine:
         }
 
     async def _refresh(self) -> None:
+        """Взять списки (из кеша, пока он свежий, или из сети) и собрать правила заново."""
         if not self.enabled:
             return
         texts: list[str] = []
@@ -345,7 +156,7 @@ class AdblockEngine:
         except Exception as exc:
             log.warning("adblock refresh failed: %s", exc)
         if texts:
-            self.rules = self._compile(texts)
+            self.rules = rules.compile_rules(texts)
             log.info(
                 "adblock ready: filters=%s rules=%s hosts=%s regex=%s",
                 self.rules.loaded_filters,
@@ -355,6 +166,7 @@ class AdblockEngine:
             )
 
     async def _get_filter_text(self, client: httpx.AsyncClient, url: str) -> str | None:
+        """Текст списка: из кеша на диске, пока он моложе cache_ttl, иначе из сети с записью в кеш."""
         config.ADBLOCK_CACHE_DIR.mkdir(parents=True, exist_ok=True)
         cache_file = config.ADBLOCK_CACHE_DIR / f"{hashlib.sha256(url.encode('utf-8')).hexdigest()[:16]}.txt"
         now = time.time()
@@ -367,6 +179,7 @@ class AdblockEngine:
         return text
 
     async def _load_cached(self) -> None:
+        """Правила из всех списков в кеше на диске — при старте, до загрузки из сети."""
         if not config.ADBLOCK_CACHE_DIR.exists():
             return
         texts: list[str] = []
@@ -376,69 +189,11 @@ class AdblockEngine:
             except OSError:
                 continue
         if texts:
-            self.rules = self._compile(texts)
-
-    def _compile(self, filter_texts: list[str]) -> _CompiledRules:
-        rules = _CompiledRules(loaded_filters=len(filter_texts), updated_at=time.time())
-        regex_limit = config.adblock_regex_limit()
-        snippet_limit = config.adblock_snippet_limit()
-        for text in filter_texts:
-            for raw in text.splitlines():
-                self._parse_line(raw, rules, regex_limit=regex_limit, snippet_limit=snippet_limit)
-        return rules
-
-    def _parse_line(
-        self,
-        raw: str,
-        rules: _CompiledRules,
-        *,
-        regex_limit: int,
-        snippet_limit: int,
-    ) -> None:
-        line = raw.strip()
-        if not line or line.startswith("!") or line.startswith("["):
-            return
-        if any(marker in line for marker in ("##", "#@#", "#?#", "#$#", "#%#", "$$")):
-            return
-        allow = line.startswith("@@")
-        if allow:
-            line = line[2:]
-        if "$" in line:
-            pattern, modifiers = line.rsplit("$", 1)
-            if not _rule_applies_to_player_url(modifiers):
-                return
-        else:
-            pattern = line
-        pattern = pattern.strip()
-        if not pattern or pattern == "*":
-            return
-        domain = _domain_from_anchor(pattern)
-        target_hosts = rules.allow_hosts if allow else rules.block_hosts
-        target_snippets = rules.allow_snippets if allow else rules.block_snippets
-        target_regexes = rules.allow_regexes if allow else rules.block_regexes
-        if domain and pattern in {f"||{domain}", f"||{domain}^"}:
-            target_hosts.add(domain)
-            rules.parsed_rules += 1
-            return
-        simple = pattern.strip("|").replace("^", "")
-        if (
-            "*" not in simple
-            and simple
-            and len(simple) >= 5
-            and "://" not in simple
-            and len(target_snippets) < snippet_limit
-        ):
-            target_snippets.add(simple.lower())
-            rules.parsed_rules += 1
-            return
-        if len(target_regexes) < regex_limit:
-            rx = _pattern_to_regex(pattern)
-            if rx is not None:
-                target_regexes.append(rx)
-                rules.parsed_rules += 1
+            self.rules = rules.compile_rules(texts)
 
 
 def _redact_url(url: str) -> str:
+    """Адрес для журнала: без строки запроса, путь обрезан."""
     try:
         parsed = urlparse(url)
         return f"{parsed.scheme}://{parsed.netloc}{parsed.path[:80]}"
@@ -450,20 +205,25 @@ engine = AdblockEngine()
 
 
 async def startup() -> None:
+    """Запустить общий блокировщик (обработчик старта FastAPI)."""
     await engine.startup()
 
 
 async def shutdown() -> None:
+    """Остановить общий блокировщик."""
     await engine.shutdown()
 
 
 async def filter_videos(videos: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Отфильтровать видео общим блокировщиком."""
     return await engine.filter_videos(videos)
 
 
 def should_block(url: str) -> tuple[bool, str | None]:
+    """Проверить адрес общим блокировщиком."""
     return engine.should_block(url)
 
 
 def status() -> dict[str, Any]:
+    """Состояние общего блокировщика."""
     return engine.status()

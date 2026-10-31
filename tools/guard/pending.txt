@@ -9,7 +9,6 @@ styles.css
 
 # Python: делится на шаге 5, docblock — там же
 core/core.py
-core/classes/adblock/engine.py
 core/classes/db.py
 core/classes/http.py
 core/classes/jikan/catalog.py

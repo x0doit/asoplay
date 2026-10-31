@@ -213,7 +213,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── http.py             Jikan/AniList/Shiki/translate/image proxies
 │   │   ├── jikan/catalog.py    встроенный каталог MAL, кэш и лимит запросов
 │   │   ├── jikan/php/          PHP-мост, Composer manifest и lockfile
-│   │   ├── adblock/engine.py   AdGuard-backed request filtering
+│   │   ├── adblock/            блокировщик плеера: rules.py (разбор фильтров AdGuard), engine.py (списки, проверка)
 │   │   ├── vpn/                VPN-мост: xray.py (конфиг и процесс xray), bridge.py (жизненный цикл, сторож)
 │   │   ├── sources/animevost.py native AnimeVost source adapter
 │   │   └── sources/oldyummy.py native old.yummyani source adapter
@@ -720,7 +720,7 @@ Key capabilities:
 │   │   ├── http.py             Jikan/AniList/Shiki/translate/image proxies
 │   │   ├── jikan/catalog.py    embedded MAL catalog, cache and rate limiting
 │   │   ├── jikan/php/          PHP bridge, Composer manifest and lockfile
-│   │   ├── adblock/engine.py   AdGuard-backed request filtering
+│   │   ├── adblock/            player ad-block: rules.py (AdGuard filter parsing), engine.py (lists, checks)
 │   │   ├── vpn/                VPN bridge: xray.py (xray config and process), bridge.py (lifecycle, watchdog)
 │   │   ├── sources/animevost.py native AnimeVost source adapter
 │   │   └── sources/oldyummy.py native old.yummyani source adapter

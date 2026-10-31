@@ -35,17 +35,11 @@
  "AdblockEngine.__init__": [
   "def(self) -> None"
  ],
- "AdblockEngine._compile": [
-  "def(self, filter_texts: list[str]) -> _CompiledRules"
- ],
  "AdblockEngine._get_filter_text": [
   "async def(self, client: httpx.AsyncClient, url: str) -> str | None"
  ],
  "AdblockEngine._load_cached": [
   "async def(self) -> None"
- ],
- "AdblockEngine._parse_line": [
-  "def(self, raw: str, rules: _CompiledRules, *, regex_limit: int, snippet_limit: int) -> None"
  ],
  "AdblockEngine._refresh": [
   "async def(self) -> None"
@@ -128,6 +122,36 @@
  ],
  "COOLDOWN_SECONDS": [
   "= df1f005bd0e9"
+ ],
+ "CompiledRules": [
+  "class()"
+ ],
+ "CompiledRules.allow_hosts": [
+  "set[str] = 798a99d7c583"
+ ],
+ "CompiledRules.allow_regexes": [
+  "list[re.Pattern[str]] = b1e8f0f90a08"
+ ],
+ "CompiledRules.allow_snippets": [
+  "set[str] = 798a99d7c583"
+ ],
+ "CompiledRules.block_hosts": [
+  "set[str] = adac6bc4d64b"
+ ],
+ "CompiledRules.block_regexes": [
+  "list[re.Pattern[str]] = b1e8f0f90a08"
+ ],
+ "CompiledRules.block_snippets": [
+  "set[str] = b9507b5013de"
+ ],
+ "CompiledRules.loaded_filters": [
+  "int = b6589fc6ab0d"
+ ],
+ "CompiledRules.parsed_rules": [
+  "int = b6589fc6ab0d"
+ ],
+ "CompiledRules.updated_at": [
+  "float = 38f6d7875e31"
  ],
  "Conn": [
   "class()"
@@ -1007,36 +1031,6 @@
   "= 2dd2fd8dc46d",
   "= 98758fa8f853"
  ],
- "_CompiledRules": [
-  "class()"
- ],
- "_CompiledRules.allow_hosts": [
-  "set[str] = 798a99d7c583"
- ],
- "_CompiledRules.allow_regexes": [
-  "list[re.Pattern[str]] = b1e8f0f90a08"
- ],
- "_CompiledRules.allow_snippets": [
-  "set[str] = 798a99d7c583"
- ],
- "_CompiledRules.block_hosts": [
-  "set[str] = adac6bc4d64b"
- ],
- "_CompiledRules.block_regexes": [
-  "list[re.Pattern[str]] = b1e8f0f90a08"
- ],
- "_CompiledRules.block_snippets": [
-  "set[str] = b9507b5013de"
- ],
- "_CompiledRules.loaded_filters": [
-  "int = b6589fc6ab0d"
- ],
- "_CompiledRules.parsed_rules": [
-  "int = b6589fc6ab0d"
- ],
- "_CompiledRules.updated_at": [
-  "float = 38f6d7875e31"
- ],
  "_DEAD_SESSION": [
   "= b1eb27577455"
  ],
@@ -1466,9 +1460,6 @@
  ],
  "_hls_quality_sources": [
   "def(master_url: str, playlist: str) -> list[dict[str, str]]"
- ],
- "_host_suffixes": [
-  "def(host: str) -> list[str]"
  ],
  "_http_client": [
   "= 6eef6648406c"
@@ -2167,6 +2158,9 @@
  "client_ip": [
   "def(request: Request) -> str"
  ],
+ "compile_rules": [
+  "def(filter_texts: list[str]) -> CompiledRules"
+ ],
  "configured": [
   "def() -> bool"
  ],
@@ -2358,6 +2352,9 @@
  "history_upsert": [
   "@router.put('/history/{mal_id}') def(mal_id: int, payload: HistoryIn, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
  ],
+ "host_suffixes": [
+  "def(host: str) -> list[str]"
+ ],
  "hub": [
   "= fd86d7ebf9ab"
  ],
@@ -2505,6 +2502,9 @@
  ],
  "parse_json": [
   "def(value: Any) -> Any"
+ ],
+ "parse_line": [
+  "def(raw: str, rules: CompiledRules, *, regex_limit: int, snippet_limit: int) -> None"
  ],
  "password_login": [
   "def(email: str, password: str, request: Request) -> tuple[str, dict[str, Any]] | None",
