@@ -94,10 +94,19 @@ const report = [];
 let shotN = 0;
 const STATUS = { ok: true, sources: [], vpn: false };  // запуск дописывает его из /health
 
+// Известные нестабильные проверки: их падение помечается задачей, чтобы его не приняли за новое, но провалом остаётся.
+// QA-FLAKY-1 (после шага 5 рефакторинга): плеер под нагрузкой ждёт по времени, а не признака готовности (CODEX)
+const KNOWN_FLAKY = new Map([
+  ["dub choice changes the label and closes the menu", "QA-FLAKY-1"],
+  ["landscape 844: player head and video fit between the bars", "QA-FLAKY-1"],
+  ["landscape 740: player head and video fit between the bars", "QA-FLAKY-1"],
+]);
+
 async function check(page, name, cond, detail = "") {
   const ok = !!cond;
-  report.push({ name, ok, detail });
-  console.log(ok ? "  ok  " : "  FAIL", name, detail ? `(${detail})` : "");
+  const flaky = ok ? null : KNOWN_FLAKY.get(name) || null;
+  report.push({ name, ok, detail, ...(flaky ? { flaky } : {}) });
+  console.log(ok ? "  ok  " : flaky ? `  FAIL [известная нестабильность ${flaky}]` : "  FAIL", name, detail ? `(${detail})` : "");
 }
 
 async function shot(page, name, full = false) {

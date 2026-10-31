@@ -59,7 +59,7 @@ const ONLY = asked.length ? new Set(asked.flatMap(name => byName[name])) : null;
   console.log(`\nчужие iframe: ${foreign.length - noAddress}, без адреса: ${noAddress}`);
   for (const f of foreign) console.log(`  ${f.scenario} | ${f.page} | ${f.source || "без адреса"} | ${f.text}`);
   console.log(`\n${report.length - failed.length}/${report.length} checks passed`);
-  for (const f of failed) console.log("FAIL:", f.name, f.detail);
+  for (const f of failed) console.log(f.flaky ? `FAIL [известная нестабильность ${f.flaky}]:` : "FAIL:", f.name, f.detail);
   if (!report.length) console.log("FAIL: ни одной проверки — нечего считать зелёным");
   process.exitCode = failed.length || !report.length ? 1 : 0;
 })();
