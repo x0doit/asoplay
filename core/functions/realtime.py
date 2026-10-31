@@ -1,29 +1,13 @@
-# -*- coding: utf-8 -*-
 """
-AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
-All rights reserved. See /COPYRIGHT for full terms.
+Живое соединение вкладок с AsoPlay: хаб соединений — подключение, кадры вкладок, отправка, фон.
 
-Живое соединение браузера с AsoPlay — WebSocket /ws — вместо опроса сервера по таймеру.
+Автор: Чепела Даниил Максимович.
+AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
-  браузер → сервер  {"type": "visible", "value": true}                  вкладка на экране / в фоне
-                    {"type": "watching", "mal_id": 52991, "title": "…"}  плеер заиграл; mal_id null — перестал
-                    {"type": "ping"}                                     → {"type": "pong"}
-  сервер → браузер  {"type": "hello", "user_id": 17 | null, "status": {...}}   сразу после подключения
-                    {"type": "status", "status": {...}}                 изменились источники или VPN
-                    {"type": "presence", "user": {...}, "on_asoplay": true, "watching": {...} | null}
-                    {"type": "social_presence", "user_id": 17, "online_where": "site", "last_seen": …}  друг в соцсети
-                    {"type": "friendship", "user_id": 17, "status": "friends"}   изменилась дружба
-
-Присутствие — по соединению (core/functions/presence.py, Presence): человек на AsoPlay, пока хоть одна его
-вкладка открыта и на экране. Событие о нём сразу уходит его друзьям из Anime Social, которые сейчас на
-сайте, и самой соцсети (core/classes/as_realtime.py) — с учётом его настроек (hide_presence, show_watching).
-Обратно соцсеть присылает события людям AsoPlay: друг зашёл в соцсеть или вышел, изменилась дружба,
-страницу заблокировали. Состояние сервера (`status` — то, что раньше вкладки спрашивали у /health раз в
-30 секунд) приходит при подключении и при изменении.
-
-Подключаться можно только со страниц самого AsoPlay (заголовок Origin): иначе чужой сайт по cookie
-человека слушал бы, кто из его друзей где. Обрыв соединения и «вышел» сервер замечает по ping-кадрам
-WebSocket (uvicorn, раз в 25 секунд) — других регулярных запросов нет.
+Hub собран из трёх частей: соединения и кадры — здесь, присутствие друзьям — HubPresence
+(core/functions/realtime_presence.py), соцсеть и состояние сервера — HubSocial (core/functions/realtime_social.py).
+Маршрут /ws и протокол кадров — core/api/sections/realtime.py. Из обычных обработчиков (потоков) хаб зовут
+функции модуля: privacy_changed, status_changed, lists_changed, drop_session.
 """
 from __future__ import annotations
 
@@ -34,20 +18,16 @@ import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
-from urllib.parse import urlsplit
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import WebSocket
 
-from core.classes import as_realtime, as_sessions
+from core.classes import as_realtime
 from core.config import animesocial
-from core.functions import (
-    friends as friend_data, presence, presence_batch, privacy as privacy_rules, rate_limit, sessions,
-)
-from core.config.config import SITE_URL
+from core.functions import friends as friend_data, presence, presence_batch, privacy as privacy_rules, sessions
+from core.functions.realtime_presence import HubPresence
+from core.functions.realtime_social import HubSocial
 
 log = logging.getLogger("asoplay.realtime")
-
-router = APIRouter()
 
 MAX_FRAME = 4096
 # Не больше 30 кадров за 10 секунд от вкладки; лишние не обрабатываются
@@ -57,16 +37,12 @@ MAX_GUESTS_PER_IP = 30
 SWEEP_EVERY = 5
 # Раз в 5 минут — сверка сессий: выход в другой вкладке или с другого устройства закрывает соединение
 SESSION_CHECK_EVERY = 300
-PRIVACY_TTL = 60
 SEND_TIMEOUT = 5
-
-# Задаёт core/core.py: состояние сервера для вкладок и адреса страниц, которым можно подключаться
-status_provider: Callable[[], dict[str, Any]] = lambda: {"ok": True, "sources": [], "vpn": False}
-extra_origins: set[str] = set()
 
 
 @dataclass(eq=False)
 class Conn:
+    """Одно соединение вкладки: кто, с какого адреса, на экране ли, что смотрит, и её последние кадры."""
     ws: WebSocket
     id: int
     user_id: int
@@ -79,6 +55,7 @@ class Conn:
     frames: list[float] = field(default_factory=list)
 
     def allow_frame(self, now: float) -> bool:
+        """Не больше FRAME_LIMIT кадров за FRAME_WINDOW секунд; лишний кадр — False."""
         self.frames = [t for t in self.frames if now - t < FRAME_WINDOW]
         if len(self.frames) >= FRAME_LIMIT:
             return False
@@ -86,20 +63,8 @@ class Conn:
         return True
 
 
-def _origin_ok(ws: WebSocket) -> bool:
-    """Страница того же адреса, что и сервер (заголовок Host проходит nginx как есть), или адрес из
-    AV_ALLOWED_ORIGINS — фронтенд для разработки на другом порту."""
-    origin = (ws.headers.get("origin") or "").strip()
-    if not origin:
-        return False
-    parts = urlsplit(origin)
-    if parts.scheme not in ("http", "https") or not parts.netloc:
-        return False
-    host = (ws.headers.get("host") or "").strip().lower()
-    return parts.netloc.lower() == host or origin.rstrip("/") in extra_origins
-
-
-def _session_user(session: str) -> dict[str, Any] | None:
+def session_user(session: str) -> dict[str, Any] | None:
+    """Человек по сессии AsoPlay или None: сессии нет, она закрыта или база недоступна — тогда гость."""
     if not session:
         return None
     try:
@@ -118,8 +83,11 @@ def _brief(user: dict[str, Any]) -> dict[str, Any]:
             "profile_path": user.get("profile_path") or f"/@profile{uid}"}
 
 
-class Hub:
+class Hub(HubPresence, HubSocial):
+    """Живые соединения вкладок: кто подключён, их кадры, отправка и фон. Присутствие друзьям — HubPresence
+    (realtime_presence.py), соцсеть и состояние сервера — HubSocial (realtime_social.py)."""
     def __init__(self, clock: Callable[[], float] = time.monotonic):
+        """Пустой хаб: соединения, друзья тех, кто на сайте, что им уже сообщено, кеши и связь с realtime соцсети."""
         self._clock = clock
         self._ids = itertools.count(1)
         self.conns: dict[int, Conn] = {}
@@ -142,17 +110,21 @@ class Hub:
         self.social = as_realtime.SocialLink(self.social_snapshot, self.on_social_event)
 
     def spawn(self, coro) -> None:
+        """Фоновая задача с сохранённой ссылкой, чтобы asyncio не собрал её на полпути."""
         task = asyncio.create_task(coro)
         self._background.add(task)
         task.add_done_callback(self._background.discard)
 
     # ----- подключение -----
     def has_room(self, user: dict[str, Any] | None, ip: str) -> bool:
+        """Есть ли место ещё для одной вкладки: у человека — до MAX_TABS_PER_USER, у гостей с адреса — до
+        MAX_GUESTS_PER_IP."""
         if user:
             return len(self.by_user.get(int(user["id"]), ())) < MAX_TABS_PER_USER
         return self.guests_by_ip.get(ip, 0) < MAX_GUESTS_PER_IP
 
     def join(self, ws: WebSocket, user: dict[str, Any] | None, session: str, ip: str) -> Conn:
+        """Принять соединение: у человека — запомнить вкладку и кто он, гостя — посчитать по адресу."""
         conn = Conn(ws, next(self._ids), int(user["id"]) if user else 0, session if user else "", ip,
                     _brief(user) if user else None)
         self.conns[conn.id] = conn
@@ -164,6 +136,8 @@ class Hub:
         return conn
 
     async def leave(self, conn: Conn) -> None:
+        """Соединение закрылось: вкладку — из присутствия, друзьям — что изменилось; ушла последняя вкладка
+        человека — забыть его друзей."""
         if self.conns.pop(conn.id, None) is None:
             return
         if not conn.user_id:
@@ -182,40 +156,10 @@ class Hub:
         presence.presence.close(conn.user_id, conn.id)
         await self.publish(conn.user_id)
 
-    async def load_friends(self, conn: Conn) -> None:
-        """Друзья из соцсети — по токену сессии соцсети этого человека; без неё друзей нет."""
-        ua = conn.ws.headers.get("user-agent") or ""
-        try:
-            token = await asyncio.to_thread(as_sessions.access_token, conn.session, conn.ip, ua) if as_sessions.enabled() else None
-            if token:
-                # friend_data.friend_ids сам сообщит id через friend_listeners
-                await asyncio.to_thread(friend_data.friend_ids, conn.user_id, token, conn.ip, ua)
-        except Exception as exc:  # noqa: BLE001 — без друзей соединение всё равно работает
-            log.info("Could not load friends for realtime: %s", exc)
-
-    def set_friends(self, user_id: int, ids: frozenset[int]) -> None:
-        if ids and user_id not in self.by_user:
-            return
-        old = self.friends.get(user_id, frozenset())
-        for fid in old - ids:
-            watchers = self.followers.get(fid)
-            if watchers:
-                watchers.discard(user_id)
-                if not watchers:
-                    self.followers.pop(fid, None)
-        for fid in ids - old:
-            self.followers.setdefault(fid, set()).add(user_id)
-        if ids:
-            self.friends[user_id] = ids
-        else:
-            self.friends.pop(user_id, None)
-
-    def friends_from_thread(self, user_id: int, ids: list[int]) -> None:
-        if self._loop is not None:
-            self._loop.call_soon_threadsafe(self.set_friends, user_id, frozenset(ids))
-
     # ----- кадры браузера -----
     async def handle(self, conn: Conn, text: str) -> None:
+        """Кадр вкладки: ping — pong; visible и watching — в присутствие и друзьям.
+        Длинный, лишний или испорченный кадр — мимо."""
         if len(text) > MAX_FRAME or not conn.allow_frame(self._clock()):
             return
         try:
@@ -240,140 +184,16 @@ class Hub:
         presence.presence.tab(conn.user_id, conn.id, conn.visible, conn.mal_id, conn.title)
         await self.publish(conn.user_id)
 
-    # ----- события друзьям -----
-    async def _rules(self, user_id: int) -> privacy_rules.Privacy:
-        hit = self._privacy.get(user_id)
-        if hit and hit[0] > self._clock():
-            return hit[1]
-        try:
-            rules = (await asyncio.to_thread(privacy_rules.for_users, [user_id])).get(user_id, privacy_rules.Privacy())
-        except Exception:  # noqa: BLE001 — база недоступна: никому не показываем
-            return privacy_rules.Privacy(hide_presence=True)
-        self._privacy[user_id] = (self._clock() + PRIVACY_TTL, rules)
-        return rules
-
-    async def _title(self, mal_id: int, fallback: str) -> tuple[str, str]:
-        """Название и постер тайтла из кеша страниц тайтлов; нет строки — название из вкладки."""
-        if mal_id not in self._titles:
-            try:
-                found = (await asyncio.to_thread(presence.title_cards, [mal_id])).get(mal_id)
-            except Exception:  # noqa: BLE001
-                found = None
-            if len(self._titles) > 5000:
-                self._titles.clear()
-            if found:
-                self._titles[mal_id] = found
-            title, poster = found or ("", "")
-            return title or fallback, poster
-        title, poster = self._titles[mal_id]
-        return title or fallback, poster
-
-    async def publish(self, user_id: int) -> None:
-        """Сообщить друзьям, если для них что-то изменилось: зашёл, вышел, начал или перестал смотреть."""
-        mark = presence.presence.current().get(user_id)
-        rules = await self._rules(user_id) if mark else privacy_rules.Privacy()
-        here = mark is not None and not rules.hide_presence
-        watching = None
-        if here and rules.show_watching and mark.mal_id:
-            title, poster = await self._title(mark.mal_id, mark.title)
-            if title:
-                watching = {"mal_id": mark.mal_id, "title": title, "poster": poster, "path": f"/anime/{mark.mal_id}"}
-        state = (here, (watching["mal_id"], watching["title"]) if watching else None)
-        if self.published.get(user_id, (False, None)) == state:
-            return
-        self.social.presence(user_id, here, {"title": watching["title"], "url": SITE_URL + watching["path"]} if watching else None)
-        brief = self.briefs.get(user_id)
-        if here:
-            self.published[user_id] = state
-        else:
-            self.published.pop(user_id, None)
-            if user_id not in self.by_user:
-                self.briefs.pop(user_id, None)
-        if not brief:
-            return
-        event = {"type": "presence", "user": brief, "on_asoplay": here, "watching": watching}
-        for viewer in list(self.followers.get(user_id, ())):
-            for conn_id in list(self.by_user.get(viewer, ())):
-                conn = self.conns.get(conn_id)
-                if conn:
-                    await self.send(conn, event)
-
-    async def privacy_changed(self, user_id: int) -> None:
-        self._privacy.pop(user_id, None)
-        await self.publish(user_id)
-
-    # ----- соцсеть -----
-    async def social_snapshot(self) -> dict[str, Any]:
-        """Снимок для соцсети при каждом подключении — то же, что запасной пакет: кто на AsoPlay, что смотрит."""
-        return await asyncio.to_thread(presence_batch.build_batch)
-
-    async def _to_people(self, user_ids: list[int], frame: dict[str, Any]) -> None:
-        for uid in user_ids:
-            for conn_id in list(self.by_user.get(uid, ())):
-                conn = self.conns.get(conn_id)
-                if conn:
-                    await self.send(conn, frame)
-
-    async def on_social_event(self, name: str, data: dict[str, Any], to: list[int]) -> None:
-        """Событие соцсети людям AsoPlay (clients.md, 9.2). Кому — решила соцсеть (`to`)."""
-        if name == "presence":
-            uid = data.get("user_id")
-            if not isinstance(uid, int):
-                return
-            await self._to_people(to, {"type": "social_presence", "user_id": uid,
-                                       "online_where": data.get("online_where"), "last_seen": data.get("last_seen")})
-        elif name == "profile_friend":
-            other, status = data.get("user_id"), data.get("status")
-            if not isinstance(other, int) or status not in ("friends", "incoming", "outgoing", "none"):
-                return
-            for viewer in to:
-                if viewer == other:
-                    continue
-                friend_data.forget_friends(viewer)
-                if viewer not in self.by_user:
-                    continue
-                ids = set(self.friends.get(viewer, frozenset()))
-                if status == "friends":
-                    ids.add(other)
-                else:
-                    ids.discard(other)
-                self.set_friends(viewer, frozenset(ids))
-                await self._to_people([viewer], {"type": "friendship", "user_id": other, "status": status})
-        elif name == "account_banned":
-            uid = data.get("user_id")
-            if not isinstance(uid, int):
-                return
-            try:
-                await asyncio.to_thread(sessions.revoke_user_sessions, uid)
-            except Exception:  # noqa: BLE001 — вкладки закроем всё равно; сессии закроет сверка
-                log.exception("Could not revoke the sessions of a banned account")
-            for conn_id in list(self.by_user.get(uid, ())):
-                conn = self.conns.get(conn_id)
-                if conn:
-                    await self.close(conn, 4001)
-        # notify и account_state — для значка соцсети в шапке, client_comment — для веток комментариев:
-        # их у AsoPlay пока нет
-
-    def privacy_changed_from_thread(self, user_id: int) -> None:
-        if self._loop is not None:
-            asyncio.run_coroutine_threadsafe(self.privacy_changed(user_id), self._loop)
-
-    async def lists_changed(self, user_id: int, items: list[dict[str, Any]]) -> None:
-        """Правило 30 дней перенесло тайтлы человека: кадр «lists» во все его вкладки."""
-        await self._to_people([user_id], {"type": "lists", "items": items})
-
-    def lists_changed_from_thread(self, user_id: int, items: list[dict[str, Any]]) -> None:
-        if self._loop is not None:
-            asyncio.run_coroutine_threadsafe(self.lists_changed(user_id, items), self._loop)
-
     # ----- отправка и закрытие -----
     async def send(self, conn: Conn, data: dict[str, Any]) -> None:
+        """Отправить кадр вкладке; не принимает за SEND_TIMEOUT — закрыть, она переподключится."""
         try:
             await asyncio.wait_for(conn.ws.send_json(data), SEND_TIMEOUT)
         except Exception:  # noqa: BLE001 — вкладка не принимает: закрываем, она переподключится
             await self.close(conn, 1011)
 
     async def close(self, conn: Conn, code: int) -> None:
+        """Закрыть соединение с кодом; ошибка закрытия не важна."""
         try:
             await conn.ws.close(code=code)
         except Exception:  # noqa: BLE001
@@ -385,41 +205,26 @@ class Hub:
             await self.close(conn, 4001)
 
     def drop_session_from_thread(self, session: str) -> None:
+        """drop_session из обычного обработчика (поток)."""
         if self._loop is not None:
             asyncio.run_coroutine_threadsafe(self.drop_session(session), self._loop)
 
-    def status(self) -> dict[str, Any]:
-        try:
-            return status_provider()
-        except Exception:  # noqa: BLE001
-            log.exception("Could not read the server status for realtime")
-            return {"ok": True, "sources": [], "vpn": False}
-
     # ----- фон: «вышел» по истечении паузы, состояние сервера, сверка сессий -----
     async def sweep(self) -> None:
+        """«Вышел» тем, у кого истекла пауза, и состояние сервера, если оно поменялось."""
         current = presence.presence.current()
         for user_id in [uid for uid in self.published if uid not in current]:
             await self.publish(user_id)
         await self.broadcast_status()
 
-    async def broadcast_status(self) -> None:
-        """Состояние сервера и решения панели Anime Social — всем вкладкам, если что-то поменялось."""
-        status = self.status()
-        if self._status is not None and status != self._status:
-            for conn in list(self.conns.values()):
-                await self.send(conn, {"type": "status", "status": status})
-        self._status = status
-
-    def status_changed_from_thread(self) -> None:
-        if self._loop is not None:
-            asyncio.run_coroutine_threadsafe(self.broadcast_status(), self._loop)
-
     async def check_sessions(self) -> None:
+        """Сверка сессий: закрытая в другой вкладке или на другом устройстве — её вкладки переподключаются гостями."""
         for session in {c.session for c in self.conns.values() if c.session}:
-            if await asyncio.to_thread(_session_user, session) is None:
+            if await asyncio.to_thread(session_user, session) is None:
                 await self.drop_session(session)
 
     async def _loop_forever(self) -> None:
+        """Фон хаба: sweep раз в SWEEP_EVERY секунд, сверка сессий раз в SESSION_CHECK_EVERY; сбой — в журнал."""
         last_check = self._clock()
         while True:
             await asyncio.sleep(SWEEP_EVERY)
@@ -432,6 +237,7 @@ class Hub:
                 log.exception("Realtime sweep failed")
 
     async def start(self) -> None:
+        """Запуск при старте сервера: цикл событий, состояние сервера, фон и связь с соцсетью."""
         self._loop = asyncio.get_running_loop()
         self._status = self.status()
         if self._task is None:
@@ -439,6 +245,7 @@ class Hub:
         self.social.start()
 
     async def stop(self) -> None:
+        """Остановка: связь с соцсетью, фон и все вкладки — с кодом 1012, они переподключатся сами."""
         await self.social.stop()
         if self._task is not None:
             self._task.cancel()
@@ -455,10 +262,12 @@ presence_batch.batch_needed = lambda: not hub.social.connected
 
 
 async def startup() -> None:
+    """Запустить хаб (обработчик старта FastAPI)."""
     await hub.start()
 
 
 async def shutdown() -> None:
+    """Остановить хаб."""
     await hub.stop()
 
 
@@ -480,30 +289,3 @@ def lists_changed(user_id: int, items: list[dict[str, Any]]) -> None:
 def drop_session(session: str) -> None:
     """Из обычного обработчика (поток): выход из AsoPlay."""
     hub.drop_session_from_thread(session)
-
-
-@router.websocket("/ws")
-async def ws_endpoint(ws: WebSocket) -> None:
-    if not _origin_ok(ws):
-        await ws.close(code=1008)
-        return
-    ip = rate_limit.client_ip(ws)
-    session = ws.cookies.get(sessions.COOKIE_NAME) or ""
-    user = await asyncio.to_thread(_session_user, session) if session else None
-    if not hub.has_room(user, ip):
-        await ws.close(code=1013)
-        return
-    await ws.accept()
-    conn = hub.join(ws, user, session, ip)
-    try:
-        await hub.send(conn, {"type": "hello", "user_id": conn.user_id or None, "status": hub.status()})
-        if conn.user_id:
-            hub.spawn(hub.load_friends(conn))
-        while True:
-            await hub.handle(conn, await ws.receive_text())
-    except WebSocketDisconnect:
-        pass
-    except Exception:  # noqa: BLE001 — сломанный кадр или обрыв: соединение закрывается, вкладка переподключится
-        log.debug("Realtime connection %s ended with an error", conn.id, exc_info=True)
-    finally:
-        await hub.leave(conn)

@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 """
-AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
-All rights reserved. See /COPYRIGHT for full terms.
-
 Соединение сервер–сервер с realtime Anime Social (socialnetwork.local/docs/api/clients.md, раздел 9).
+
+Автор: Чепела Даниил Максимович.
+AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
 Сервер AsoPlay держит один WebSocket к realtime.url соцсети: входит ключами клиента, при каждом
 подключении присылает снимок — кто сейчас на AsoPlay и что смотрит, — дальше presence в момент изменения
@@ -53,6 +52,8 @@ class SocialLink:
     def __init__(self, snapshot: Callable[[], Awaitable[dict[str, Any]]],
                  on_event: Callable[[str, dict[str, Any], list[int]], Awaitable[None]],
                  connect: Callable[..., Any] = websockets.connect):
+        """snapshot — кто сейчас на AsoPlay (соцсети при каждом подключении), on_event — куда отдавать её события;
+        connect — подключение (в проверках — своё)."""
         self._snapshot = snapshot
         self._on_event = on_event
         self._connect = connect
@@ -77,6 +78,7 @@ class SocialLink:
 
     # ----- соединение -----
     async def _realtime_url(self) -> str:
+        """Адрес realtime соцсети из её /system/config (realtime.url); нет или не ws(s) — ASApiError bad_response."""
         config = await asyncio.to_thread(as_api.call, "GET", "/system/config")
         url = str(((config or {}).get("realtime") or {}).get("url") or "") if isinstance(config, dict) else ""
         if not url.startswith(("wss://", "ws://")):
@@ -107,11 +109,14 @@ class SocialLink:
         return "closed"
 
     async def _send_loop(self, ws) -> None:
+        """Кадры из очереди — соцсети, пока соединение живо."""
         while True:
             frame = await self._queue.get()
             await ws.send(json.dumps(frame, ensure_ascii=False))
 
     async def _handle(self, message: Any) -> str | None:
+        """Кадр соцсети: error — конец соединения (invalid_client или closed), ready и snapshot_ok — в журнал,
+        event — людям AsoPlay. None — соединение продолжается."""
         try:
             frame = json.loads(message)
         except (TypeError, ValueError):
@@ -138,6 +143,8 @@ class SocialLink:
         return None
 
     async def _loop(self) -> None:
+        """Соединение с повторами: вход через соцсеть выключен — ждать; обрыв — снова через 1, 2, 4… до BACKOFF_MAX
+        секунд; ключи не приняты — через BAD_KEYS_WAIT."""
         failures = 0
         while True:
             if not as_sessions.enabled():
@@ -166,10 +173,12 @@ class SocialLink:
                 await asyncio.sleep(1 if failures == 0 else min(BACKOFF_MAX, 2 ** (failures - 1)))
 
     def start(self) -> None:
+        """Запустить соединение с realtime соцсети, если оно ещё не запущено."""
         if self._task is None:
             self._task = asyncio.create_task(self._loop())
 
     async def stop(self) -> None:
+        """Остановить соединение."""
         if self._task is not None:
             self._task.cancel()
             self._task = None

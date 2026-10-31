@@ -13,7 +13,8 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
-from core.functions import presence, privacy as privacy_rules, realtime, sessions
+from core.api.sections import realtime as realtime_ws
+from core.functions import presence, privacy as privacy_rules, realtime, realtime_social, sessions
 
 
 class FakeClock:
@@ -169,7 +170,7 @@ class HubTests(unittest.TestCase):
         _, guest_ws = self.connect(0, "")
         _, sakura_ws = self.connect(1, "Сакура")
         status = {"ok": True, "sources": ["kodik"], "vpn": False}
-        with patch.object(realtime, "status_provider", lambda: dict(status)):
+        with patch.object(realtime_social, "status_provider", lambda: dict(status)):
             self.run_async(self.hub.sweep())
             self.run_async(self.hub.sweep())
             self.assertEqual(guest_ws.events("status"), [])
@@ -194,7 +195,7 @@ class HubTests(unittest.TestCase):
         naruto, naruto_ws = self.connect(2, "Наруто")
         self.run_async(self.hub.drop_session("s1"))
         self.assertEqual((sakura_ws.closed, naruto_ws.closed), (4001, None))
-        with patch.object(realtime, "_session_user", side_effect=lambda s: None):
+        with patch.object(realtime, "session_user", side_effect=lambda s: None):
             self.run_async(self.hub.check_sessions())
         self.assertEqual(naruto_ws.closed, 4001)
 
@@ -214,7 +215,7 @@ class HubTests(unittest.TestCase):
 class EndpointTests(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
-        app.include_router(realtime.router)
+        app.include_router(realtime_ws.router)
         self.client = TestClient(app)
         self.store = presence.Presence(clock=FakeClock())
         self.hub = realtime.Hub()
@@ -223,8 +224,8 @@ class EndpointTests(unittest.TestCase):
             patch.object(realtime, "hub", self.hub),
             patch.object(presence, "presence", self.store),
             patch.object(privacy_rules, "for_users", return_value={}),
-            patch.object(realtime, "_session_user", side_effect=lambda s: self.users.get(s)),
-            patch.object(realtime, "status_provider", lambda: {"ok": True, "sources": ["kodik"], "vpn": False}),
+            patch.object(realtime, "session_user", side_effect=lambda s: self.users.get(s)),
+            patch.object(realtime_social, "status_provider", lambda: {"ok": True, "sources": ["kodik"], "vpn": False}),
             # Друзей здесь не грузим: фоновую задачу закрываем, не запуская
             patch.object(realtime.Hub, "spawn", lambda self, coro: coro.close()),
         ]
@@ -236,7 +237,7 @@ class EndpointTests(unittest.TestCase):
         for headers in ({}, {"origin": "https://evil.test"}, {"origin": "null"}):
             with self.assertRaises(WebSocketDisconnect), self.client.websocket_connect("/ws", headers=headers) as ws:
                 ws.receive_json()
-        with patch.object(realtime, "extra_origins", {"http://127.0.0.1:5500"}), \
+        with patch.object(realtime_ws, "extra_origins", {"http://127.0.0.1:5500"}), \
                 self.client.websocket_connect("/ws", headers={"origin": "http://127.0.0.1:5500"}) as ws:
             self.assertEqual(ws.receive_json()["type"], "hello")
 

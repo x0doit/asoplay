@@ -298,24 +298,12 @@
   "str = f8ee4cc99729"
  ],
  "Hub": [
-  "class()"
+  "class(HubPresence, HubSocial)"
  ],
  "Hub.__init__": [
   "def(self, clock: Callable[[], float]=time.monotonic)"
  ],
  "Hub._loop_forever": [
-  "async def(self) -> None"
- ],
- "Hub._rules": [
-  "async def(self, user_id: int) -> privacy_rules.Privacy"
- ],
- "Hub._title": [
-  "async def(self, mal_id: int, fallback: str) -> tuple[str, str]"
- ],
- "Hub._to_people": [
-  "async def(self, user_ids: list[int], frame: dict[str, Any]) -> None"
- ],
- "Hub.broadcast_status": [
   "async def(self) -> None"
  ],
  "Hub.check_sessions": [
@@ -330,9 +318,6 @@
  "Hub.drop_session_from_thread": [
   "def(self, session: str) -> None"
  ],
- "Hub.friends_from_thread": [
-  "def(self, user_id: int, ids: list[int]) -> None"
- ],
  "Hub.handle": [
   "async def(self, conn: Conn, text: str) -> None"
  ],
@@ -345,35 +330,8 @@
  "Hub.leave": [
   "async def(self, conn: Conn) -> None"
  ],
- "Hub.lists_changed": [
-  "async def(self, user_id: int, items: list[dict[str, Any]]) -> None"
- ],
- "Hub.lists_changed_from_thread": [
-  "def(self, user_id: int, items: list[dict[str, Any]]) -> None"
- ],
- "Hub.load_friends": [
-  "async def(self, conn: Conn) -> None"
- ],
- "Hub.on_social_event": [
-  "async def(self, name: str, data: dict[str, Any], to: list[int]) -> None"
- ],
- "Hub.privacy_changed": [
-  "async def(self, user_id: int) -> None"
- ],
- "Hub.privacy_changed_from_thread": [
-  "def(self, user_id: int) -> None"
- ],
- "Hub.publish": [
-  "async def(self, user_id: int) -> None"
- ],
  "Hub.send": [
   "async def(self, conn: Conn, data: dict[str, Any]) -> None"
- ],
- "Hub.set_friends": [
-  "def(self, user_id: int, ids: frozenset[int]) -> None"
- ],
- "Hub.social_snapshot": [
-  "async def(self) -> dict[str, Any]"
  ],
  "Hub.spawn": [
   "def(self, coro) -> None"
@@ -381,17 +339,65 @@
  "Hub.start": [
   "async def(self) -> None"
  ],
- "Hub.status": [
-  "def(self) -> dict[str, Any]"
- ],
- "Hub.status_changed_from_thread": [
-  "def(self) -> None"
- ],
  "Hub.stop": [
   "async def(self) -> None"
  ],
  "Hub.sweep": [
   "async def(self) -> None"
+ ],
+ "HubPresence": [
+  "class()"
+ ],
+ "HubPresence._rules": [
+  "async def(self, user_id: int) -> privacy_rules.Privacy"
+ ],
+ "HubPresence._title": [
+  "async def(self, mal_id: int, fallback: str) -> tuple[str, str]"
+ ],
+ "HubPresence.friends_from_thread": [
+  "def(self, user_id: int, ids: list[int]) -> None"
+ ],
+ "HubPresence.load_friends": [
+  "async def(self, conn: Conn) -> None"
+ ],
+ "HubPresence.privacy_changed": [
+  "async def(self, user_id: int) -> None"
+ ],
+ "HubPresence.privacy_changed_from_thread": [
+  "def(self, user_id: int) -> None"
+ ],
+ "HubPresence.publish": [
+  "async def(self, user_id: int) -> None"
+ ],
+ "HubPresence.set_friends": [
+  "def(self, user_id: int, ids: frozenset[int]) -> None"
+ ],
+ "HubSocial": [
+  "class()"
+ ],
+ "HubSocial._to_people": [
+  "async def(self, user_ids: list[int], frame: dict[str, Any]) -> None"
+ ],
+ "HubSocial.broadcast_status": [
+  "async def(self) -> None"
+ ],
+ "HubSocial.lists_changed": [
+  "async def(self, user_id: int, items: list[dict[str, Any]]) -> None"
+ ],
+ "HubSocial.lists_changed_from_thread": [
+  "def(self, user_id: int, items: list[dict[str, Any]]) -> None"
+ ],
+ "HubSocial.on_social_event": [
+  "async def(self, name: str, data: dict[str, Any], to: list[int]) -> None"
+ ],
+ "HubSocial.social_snapshot": [
+  "async def(self) -> dict[str, Any]"
+ ],
+ "HubSocial.status": [
+  "def(self) -> dict[str, Any]"
+ ],
+ "HubSocial.status_changed_from_thread": [
+  "def(self) -> None"
  ],
  "ImportBlob": [
   "class(BaseModel)"
@@ -1747,9 +1753,6 @@
  "_server_error": [
   "@app.exception_handler(Exception) async def(request: Request, exc: Exception)"
  ],
- "_session_user": [
-  "def(session: str) -> dict[str, Any] | None"
- ],
  "_settings_view": [
   "def() -> dict[str, Any]"
  ],
@@ -2418,6 +2421,9 @@
  "log": [
   "= 097e77fd8975",
   "= 09e04af44e51",
+  "= 09e04af44e51",
+  "= 09e04af44e51",
+  "= 09e04af44e51",
   "= 1775a40410d5",
   "= 32d06339fc74",
   "= 3acb6a6c60f8",
@@ -2616,11 +2622,11 @@
  "read_privacy": [
   "def(user_id: int) -> dict[str, bool]"
  ],
- "realtime.extra_origins": [
-  "= 4641e5957bc3"
- ],
- "realtime.status_provider": [
+ "realtime_social.status_provider": [
   "= b57e0c80e95c"
+ ],
+ "realtime_ws.extra_origins": [
+  "= 4641e5957bc3"
  ],
  "record_event": [
   "def(conn, user_id: int, *, kind: str, mal_id: int | None=None, meta: str | None=None) -> None"
@@ -2739,6 +2745,7 @@
   "def(row: dict[str, Any]) -> dict[str, Any]"
  ],
  "session_user": [
+  "def(session: str) -> dict[str, Any] | None",
   "def(session: str) -> dict[str, Any] | None"
  ],
  "set_favorite": [
