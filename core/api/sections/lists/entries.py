@@ -14,9 +14,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, constr
 
 from core.classes.clock import utc_now
-from core.classes.db import connect, current_user_required
+from core.classes.db import connect
 from core.functions.activity import record_event
 from core.functions.lists import STATUSES, fetch_entry, mal_id_exists, row_to_public, upsert_status
+from core.functions.sessions import current_user_required
 
 router = APIRouter()
 

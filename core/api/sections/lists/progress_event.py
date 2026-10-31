@@ -17,11 +17,12 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, conint
 
 from core.classes.clock import utc_now
-from core.classes.db import connect, current_user_required
+from core.classes.db import connect
 from core.functions import lists_sweep
 from core.functions.activity import record_event
 from core.functions.lists import auto_add_enabled, fetch_entry, sweep_dropped_after_30_days, upsert_status
 from core.functions.progress import auto_watching_qualified, history_qualified
+from core.functions.sessions import current_user_required
 from core.functions.watch_time import watched_seconds
 
 log = logging.getLogger("asoplay.user_lists")

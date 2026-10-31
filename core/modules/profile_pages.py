@@ -24,9 +24,9 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.responses import HTMLResponse, Response
 
-from core.classes.db import (
-    connect, current_user_optional, resolve_handle, _serialize_user,
-)
+from core.classes.accounts import resolve_handle
+from core.classes.db import connect
+from core.functions.sessions import current_user_optional
 from core.functions.privacy import read_privacy
 from core.functions.activity_feed import graph_for_user_public, fetch_recent_paged
 from core.config.config import SITE_NAME, SITE_URL

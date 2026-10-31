@@ -1332,9 +1332,6 @@
  "_clean_video_frame": [
   "def(source_url: str, base_url: str, poster_url: str='', *, element_id: str='av-clean-video', sources: list[dict[str, str]] | None=None) -> Response"
  ],
- "_clear_cookie": [
-  "def(resp: Response) -> None"
- ],
  "_client": [
   "= 6eef6648406c"
  ],
@@ -1477,14 +1474,8 @@
  "_int_or_none": [
   "def(value: Any) -> int | None"
  ],
- "_introspect_schema": [
-  "def() -> dict[str, Any]"
- ],
  "_is_alloha_base": [
   "def(base: str) -> bool"
- ],
- "_is_banned": [
-  "def(status_col_name: str | None, value: Any) -> bool"
  ],
  "_is_cvh_iframe_url": [
   "def(url: str) -> bool"
@@ -1560,9 +1551,6 @@
  ],
  "_looks_textual": [
   "def(content_type: str) -> bool"
- ],
- "_lookup_user": [
-  "def(identity: str) -> dict[str, Any] | None"
  ],
  "_loop": [
   "async def(at: tuple[int, int], sleep: Callable[[float], Any]=asyncio.sleep) -> None"
@@ -1792,9 +1780,6 @@
  "_seen": [
   "= 5af8cc004a97"
  ],
- "_serialize_user": [
-  "def(row: dict[str, Any]) -> dict[str, Any]"
- ],
  "_server_error": [
   "@app.exception_handler(Exception) async def(request: Request, exc: Exception)"
  ],
@@ -1911,9 +1896,6 @@
  ],
  "_validation_error": [
   "@app.exception_handler(RequestValidationError) async def(request: Request, exc: RequestValidationError)"
- ],
- "_verify_password": [
-  "def(plain: str, stored_hash: str, salt: str | None) -> bool"
  ],
  "_version": [
   "@lru_cache(maxsize=1) def() -> str"
@@ -2060,10 +2042,10 @@
   "@router.get('/start') def(request: Request, next: str='/') -> RedirectResponse"
  ],
  "as_to_social": [
-  "@router.get('/to-social') def(request: Request, next: str='/', nonce: str='', session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> RedirectResponse"
+  "@router.get('/to-social') def(request: Request, next: str='/', nonce: str='', session: str | None=Cookie(default=None, alias=sessions.COOKIE_NAME)) -> RedirectResponse"
  ],
  "as_whoami": [
-  "@router.get('/whoami') def(request: Request, user: dict[str, Any] | None=Depends(db.current_user_optional)) -> JSONResponse"
+  "@router.get('/whoami') def(request: Request, user: dict[str, Any] | None=Depends(sessions.current_user_optional)) -> JSONResponse"
  ],
  "asoplay_shield_js": [
   "@router.get('/asoplay-shield.js', include_in_schema=False) def()"
@@ -2081,10 +2063,10 @@
   "@router.post('/login') def(payload: LoginIn, request: Request, response: Response) -> dict[str, Any]"
  ],
  "auth_logout": [
-  "@router.post('/logout') def(request: Request, response: Response, token: str | None=Cookie(default=None, alias=COOKIE_NAME)) -> dict[str, Any]"
+  "@router.post('/logout') def(request: Request, response: Response, token: str | None=Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]"
  ],
  "auth_me": [
-  "@router.get('/me') def(user: dict[str, Any] | None=Depends(current_user_optional)) -> dict[str, Any]"
+  "@router.get('/me') def(user: dict[str, Any] | None=Depends(sessions.current_user_optional)) -> dict[str, Any]"
  ],
  "auth_register_redirect": [
   "@router.get('/register') def() -> Response"
@@ -2158,6 +2140,9 @@
  ],
  "clear_env": [
   "def() -> None"
+ ],
+ "clear_session_cookie": [
+  "def(resp: Response) -> None"
  ],
  "client_id": [
   "def() -> str"
@@ -2284,31 +2269,31 @@
   "@router.get('/frame') async def(request: Request, url: str=Query(..., min_length=8))"
  ],
  "friend_accept": [
-  "@router.post('/friends/{peer_id}/accept') def(peer_id: int, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+  "@router.post('/friends/{peer_id}/accept') def(peer_id: int, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]"
  ],
  "friend_add": [
-  "@router.post('/friends/{peer_id}') def(peer_id: int, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+  "@router.post('/friends/{peer_id}') def(peer_id: int, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]"
  ],
  "friend_decline": [
-  "@router.post('/friends/{peer_id}/decline') def(peer_id: int, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+  "@router.post('/friends/{peer_id}/decline') def(peer_id: int, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]"
  ],
  "friend_listeners": [
   "= 97d170e1550e"
  ],
  "friend_remove": [
-  "@router.delete('/friends/{peer_id}') def(peer_id: int, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+  "@router.delete('/friends/{peer_id}') def(peer_id: int, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]"
  ],
  "friend_requests": [
-  "@router.get('/friends/requests') def(request: Request, type: str='incoming', cursor: str='', user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+  "@router.get('/friends/requests') def(request: Request, type: str='incoming', cursor: str='', user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]"
  ],
  "friend_suggestions": [
-  "@router.get('/friends/suggestions') def(request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+  "@router.get('/friends/suggestions') def(request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]"
  ],
  "friends": [
-  "@router.get('/friends') def(request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+  "@router.get('/friends') def(request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]"
  ],
  "friends_on_title": [
-  "@router.get('/friends/title/{mal_id}') def(mal_id: int, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+  "@router.get('/friends/title/{mal_id}') def(mal_id: int, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]"
  ],
  "from_local_proxy": [
   "def(request: Request) -> bool"
@@ -2374,11 +2359,17 @@
  "import_marks": [
   "@router.get('/import-marks') def(user: dict[str, Any]=Depends(current_user_required)) -> dict[str, str]"
  ],
+ "introspect_schema": [
+  "def() -> dict[str, Any]"
+ ],
  "is_active": [
   "def() -> bool"
  ],
  "is_available": [
   "def(source: str) -> bool"
+ ],
+ "is_banned": [
+  "def(status_col_name: str | None, value: Any) -> bool"
  ],
  "is_disabled_player_url": [
   "def(url: str) -> bool"
@@ -2455,6 +2446,7 @@
   "= 1775a40410d5",
   "= 32d06339fc74",
   "= 3acb6a6c60f8",
+  "= 3acb6a6c60f8",
   "= 48bd8c61a38f",
   "= 48bd8c61a38f",
   "= 8a1db55198b6",
@@ -2484,6 +2476,9 @@
  ],
  "lookup": [
   "async def(mal_id: int) -> dict[str, Any] | None"
+ ],
+ "lookup_user": [
+  "def(identity: str) -> dict[str, Any] | None"
  ],
  "main": [
   "def() -> None"
@@ -2743,7 +2738,10 @@
   "def(now: datetime, at: tuple[int, int]) -> float"
  ],
  "send_message": [
-  "@router.post('/messages/{peer_id}') def(peer_id: int, payload: MessageIn, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]"
+  "@router.post('/messages/{peer_id}') def(peer_id: int, payload: MessageIn, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]"
+ ],
+ "serialize_user": [
+  "def(row: dict[str, Any]) -> dict[str, Any]"
  ],
  "set_favorite": [
   "@router.put('/{mal_id}/favorite') async def(mal_id: int, payload: FavoriteIn, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
@@ -2908,6 +2906,9 @@
  ],
  "utc_now": [
   "def() -> datetime"
+ ],
+ "verify_password": [
+  "def(plain: str, stored_hash: str, salt: str | None) -> bool"
  ],
  "videos": [
   "@app.get('/src/videos') async def(key: str, source: str='anilibria')"

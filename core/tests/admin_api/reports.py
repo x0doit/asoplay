@@ -13,8 +13,7 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from core.admin import auth as admin_auth, reports as admin_reports
-from core.classes import db
-from core.functions import video_reports
+from core.functions import sessions, video_reports
 
 from core.tests.admin_api.lib import ScriptCursor, FakeConn, PanelCase, REPORT_ROW
 
@@ -60,7 +59,7 @@ class PublicReportTests(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
         app.include_router(video_reports.router)
-        app.dependency_overrides[db.current_user_required] = lambda: {"id": 9}
+        app.dependency_overrides[sessions.current_user_required] = lambda: {"id": 9}
         self.client = TestClient(app)
         self.cursor = ScriptCursor({"FROM aviev_title_pages": [("Тетрадь смерти", "Death Note")]})
         for p in (patch.object(video_reports, "connect", side_effect=lambda: FakeConn(self.cursor)),

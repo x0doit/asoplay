@@ -13,8 +13,8 @@ from urllib.parse import parse_qs, urlsplit
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from core.classes import as_api, db
-from core.functions import presence, social_login
+from core.classes import as_api
+from core.functions import presence, sessions, social_login
 
 from core.tests.presence.lib import NOW, FakeClock, person, SocialFake
 
@@ -23,9 +23,9 @@ class FriendsTests(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
         app.include_router(presence.router)
-        app.dependency_overrides[db.current_user_required] = lambda: {"id": 7}
+        app.dependency_overrides[sessions.current_user_required] = lambda: {"id": 7}
         self.client = TestClient(app)
-        self.client.cookies.set(db.COOKIE_NAME, "s" * 64)
+        self.client.cookies.set(sessions.COOKIE_NAME, "s" * 64)
         self.store = presence.Presence(clock=FakeClock())
         self.privacy = {}
         self.statuses = {}

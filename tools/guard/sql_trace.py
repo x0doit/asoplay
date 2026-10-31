@@ -34,6 +34,17 @@ import importlib
 from core.classes import db
 from core.functions import activity
 
+def _first_attr(candidates, attr):
+    """Объект из первого модуля, где он есть: в коде до шага и после он может лежать в разных местах."""
+    for name in candidates:
+        try:
+            module = importlib.import_module(name)
+        except ModuleNotFoundError:
+            continue
+        if hasattr(module, attr):
+            return getattr(module, attr)
+    raise SystemExit(f"нет {attr}: {candidates}")
+
 def _router_module(candidates):
     """Модуль с роутером раздела: в коде до шага и после он может лежать в разных местах."""
     for name in candidates:
@@ -119,7 +130,8 @@ realtime.privacy_changed = lambda user_id: trace.append(["privacy_changed", user
 
 app = FastAPI()
 app.include_router(section.router)
-app.dependency_overrides[db.current_user_required] = lambda: {"id": 999999999}  # такого человека нет
+current_user_required = _first_attr(("core.functions.sessions", "core.classes.db"), "current_user_required")
+app.dependency_overrides[current_user_required] = lambda: {"id": 999999999}  # такого человека нет
 client = TestClient(app, raise_server_exceptions=False)  # ошибка сервера — тоже ответ, сравнивается как есть
 out = []
 for method, path, body in REQUESTS:

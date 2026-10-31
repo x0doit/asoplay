@@ -1,8 +1,4 @@
 [
  "ВВЕРХ ПО СЛОЯМ: core.classes.as_realtime → core.functions.social_login",
- "ВВЕРХ ПО СЛОЯМ: core.classes.db → core.functions.rate_limit",
- "ВВЕРХ ПО СЛОЯМ: core.classes.db → core.functions.realtime",
- "ВВЕРХ ПО СЛОЯМ: core.classes.db → core.functions.site_settings",
- "ВВЕРХ ПО СЛОЯМ: core.classes.db → core.functions.social_login",
- "ЦИКЛ: core.classes.as_realtime → core.classes.db → core.functions.presence → core.functions.realtime → core.functions.site_settings → core.functions.social_login"
+ "ЦИКЛ: core.functions.site_settings → core.functions.social_login"
 ]

@@ -10,8 +10,8 @@ import json
 import unittest
 from unittest.mock import patch
 
-from core.classes import as_api, as_realtime, db
-from core.functions import presence, realtime
+from core.classes import as_api, as_realtime
+from core.functions import presence, realtime, sessions
 from core.modules.title_pages import SITE_URL
 
 
@@ -61,7 +61,7 @@ class HubSocialTests(unittest.TestCase):
             patch.object(presence, "presence", self.store),
             patch.object(presence, "_privacy", side_effect=lambda ids: {u: self.privacy[u] for u in ids if u in self.privacy}),
             patch.object(presence, "_titles", side_effect=lambda ids: {52991: ("Фрирен", "")} if 52991 in ids else {}),
-            patch.object(db, "revoke_user_sessions", side_effect=self.revoked.append),
+            patch.object(sessions, "revoke_user_sessions", side_effect=self.revoked.append),
         ]
         for p in patches:
             p.start()

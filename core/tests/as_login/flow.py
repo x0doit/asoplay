@@ -15,8 +15,8 @@ from urllib.parse import parse_qs, urlsplit
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from core.classes import as_api, db
-from core.functions import social_login
+from core.classes import as_api
+from core.functions import sessions, social_login
 
 from core.tests.as_login.lib import TOKENS
 
@@ -32,7 +32,7 @@ class FlowTests(unittest.TestCase):
             patch.object(social_login, "enabled", return_value=True),
             patch.object(social_login, "_flows", social_login._FlowStore(600)),
             patch.object(social_login, "_insert", side_effect=lambda *a: self.inserted.append(a)),
-            patch.object(db, "create_session", return_value="s" * 64),
+            patch.object(sessions, "create_session", return_value="s" * 64),
             patch.object(as_api, "exchange_code", side_effect=lambda *a: self.exchange(*a)),
             patch.object(as_api, "logout", side_effect=lambda token, *_: self.logged_out.append(token)),
             patch.object(as_api, "base_url", return_value="https://social.test/api/v2"),
@@ -77,7 +77,7 @@ class FlowTests(unittest.TestCase):
         resp = self.callback(state, state, code="a" * 64)
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(resp.headers["location"], "/anime/52991")
-        self.assertIn(f"{db.COOKIE_NAME}={'s' * 64}", resp.headers.get("set-cookie", ""))
+        self.assertIn(f"{sessions.COOKIE_NAME}={'s' * 64}", resp.headers.get("set-cookie", ""))
         self.assertEqual(self.inserted, [("s" * 64, 17, TOKENS)])
 
     def test_a_state_works_once_and_only_with_its_own_cookie(self):
@@ -121,13 +121,13 @@ class FlowTests(unittest.TestCase):
     def test_a_storage_failure_opens_no_session_and_ends_the_social_one(self):
         revoked = []
         with patch.object(social_login, "_insert", side_effect=RuntimeError("table aviev_as_sessions is missing")), \
-                patch.object(db, "revoke_session", side_effect=revoked.append), \
+                patch.object(sessions, "revoke_session", side_effect=revoked.append), \
                 self.assertLogs("asoplay.as_login", level="ERROR"):
             _, query = self.start()
             state = query["state"][0]
             resp = self.callback(state, state, code="a" * 64)
         self.assertEqual(resp.headers["location"], "/login?as=error")
-        self.assertNotIn(db.COOKIE_NAME, resp.headers.get("set-cookie", ""))
+        self.assertNotIn(sessions.COOKIE_NAME, resp.headers.get("set-cookie", ""))
         self.assertEqual(self.logged_out, ["asa_access"])
         self.assertEqual(revoked, ["s" * 64])
 
@@ -138,8 +138,8 @@ class FlowTests(unittest.TestCase):
 
     def signed_in(self, uid):
         """В AsoPlay уже вошли (по почте) аккаунтом uid."""
-        self.client.cookies.set(db.COOKIE_NAME, "c" * 64)
-        p = patch.object(db, "touch_session", side_effect=lambda token: {"id": uid} if token == "c" * 64 else None)
+        self.client.cookies.set(sessions.COOKIE_NAME, "c" * 64)
+        p = patch.object(sessions, "touch_session", side_effect=lambda token: {"id": uid} if token == "c" * 64 else None)
         p.start()
         self.addCleanup(p.stop)
         linked = []
@@ -152,10 +152,10 @@ class FlowTests(unittest.TestCase):
         linked = self.signed_in(17)
         _, query = self.start("/my/friends")
         state = query["state"][0]
-        with patch.object(db, "create_session", side_effect=AssertionError("no new session expected")):
+        with patch.object(sessions, "create_session", side_effect=AssertionError("no new session expected")):
             resp = self.callback(state, state, code="a" * 64)
         self.assertEqual(resp.headers["location"], "/my/friends")
-        self.assertNotIn(db.COOKIE_NAME, resp.headers.get("set-cookie", ""))
+        self.assertNotIn(sessions.COOKIE_NAME, resp.headers.get("set-cookie", ""))
         self.assertEqual(linked, [("c" * 64, 17, TOKENS)])
         self.assertEqual(self.logged_out, [])
 
@@ -165,7 +165,7 @@ class FlowTests(unittest.TestCase):
         state = query["state"][0]
         resp = self.callback(state, state, code="a" * 64)
         self.assertEqual(resp.headers["location"], "/my/friends?tab=online&as=other")
-        self.assertNotIn(db.COOKIE_NAME, resp.headers.get("set-cookie", ""))
+        self.assertNotIn(sessions.COOKIE_NAME, resp.headers.get("set-cookie", ""))
         self.assertEqual((linked, self.inserted, self.logged_out), ([], [], ["asa_access"]))
 
     def test_a_signed_in_person_sees_errors_on_the_page_they_came_from(self):

@@ -12,8 +12,8 @@ from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from core.classes import as_api, db
-from core.functions import presence, social_login
+from core.classes import as_api
+from core.functions import presence, sessions, social_login
 
 from core.tests.presence.lib import FakeClock, person, SocialFake
 
@@ -24,9 +24,9 @@ class FriendPageTests(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
         app.include_router(presence.router)
-        app.dependency_overrides[db.current_user_required] = lambda: {"id": 7}
+        app.dependency_overrides[sessions.current_user_required] = lambda: {"id": 7}
         self.client = TestClient(app)
-        self.client.cookies.set(db.COOKIE_NAME, "s" * 64)
+        self.client.cookies.set(sessions.COOKIE_NAME, "s" * 64)
         self.social = SocialFake([11], [person(11, where="site")])
         patches = [
             patch.object(presence, "presence", presence.Presence(clock=FakeClock())),
@@ -88,9 +88,9 @@ class WriteTests(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
         app.include_router(presence.router)
-        app.dependency_overrides[db.current_user_required] = lambda: {"id": 7}
+        app.dependency_overrides[sessions.current_user_required] = lambda: {"id": 7}
         self.client = TestClient(app)
-        self.client.cookies.set(db.COOKIE_NAME, "s" * 64)
+        self.client.cookies.set(sessions.COOKIE_NAME, "s" * 64)
         self.token = "asa_token"
         self.sent = []
         self.error = None

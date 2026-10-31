@@ -38,9 +38,9 @@ from urllib.parse import urlsplit
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from core.classes import as_realtime, db
+from core.classes import as_realtime
 from core.config import animesocial
-from core.functions import presence, rate_limit, social_login
+from core.functions import presence, rate_limit, sessions, social_login
 from core.config.config import SITE_URL
 
 log = logging.getLogger("asoplay.realtime")
@@ -101,7 +101,7 @@ def _session_user(session: str) -> dict[str, Any] | None:
     if not session:
         return None
     try:
-        return db.touch_session(session)
+        return sessions.touch_session(session)
     except Exception:  # noqa: BLE001 — база недоступна: подключаем как гостя
         return None
 
@@ -342,7 +342,7 @@ class Hub:
             if not isinstance(uid, int):
                 return
             try:
-                await asyncio.to_thread(db.revoke_user_sessions, uid)
+                await asyncio.to_thread(sessions.revoke_user_sessions, uid)
             except Exception:  # noqa: BLE001 — вкладки закроем всё равно; сессии закроет сверка
                 log.exception("Could not revoke the sessions of a banned account")
             for conn_id in list(self.by_user.get(uid, ())):
@@ -486,7 +486,7 @@ async def ws_endpoint(ws: WebSocket) -> None:
         await ws.close(code=1008)
         return
     ip = rate_limit.client_ip(ws)
-    session = ws.cookies.get(db.COOKIE_NAME) or ""
+    session = ws.cookies.get(sessions.COOKIE_NAME) or ""
     user = await asyncio.to_thread(_session_user, session) if session else None
     if not hub.has_room(user, ip):
         await ws.close(code=1013)

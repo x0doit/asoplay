@@ -45,7 +45,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from core.classes import as_api, db, token_box
 from core.classes.clock import utc_now
 from core.config import animesocial, config
-from core.functions import rate_limit
+from core.functions import rate_limit, sessions
 
 log = logging.getLogger("asoplay.as_login")
 
@@ -133,7 +133,7 @@ def _session_user(session: str) -> dict[str, Any] | None:
     if not session:
         return None
     try:
-        return db.touch_session(session)
+        return sessions.touch_session(session)
     except Exception:  # noqa: BLE001 — база недоступна: дальше вход всё равно не откроется
         return None
 
@@ -169,7 +169,7 @@ def as_callback(request: Request, code: str = "", state: str = "", error: str = 
         return _finish("/login?as=expired")
     # Уже вошедший в AsoPlay (по почте) связывает с соцсетью ту же сессию — например, со страницы
     # «Друзья»; неудача возвращает его туда же, а не на страницу входа
-    current = request.cookies.get(db.COOKIE_NAME) or ""
+    current = request.cookies.get(sessions.COOKIE_NAME) or ""
     signed_in = _session_user(current)
 
     def fail(outcome: str) -> RedirectResponse:
@@ -206,7 +206,7 @@ def as_callback(request: Request, code: str = "", state: str = "", error: str = 
     if session is None:
         return _finish("/login?as=error")
     resp = _finish(flow["next"])
-    db.set_session_cookie(resp, session)
+    sessions.set_session_cookie(resp, session)
     return resp
 
 
@@ -227,7 +227,7 @@ def _open_session(uid: int, tokens: dict[str, Any], request: Request, user_ip: s
     """Сессия AsoPlay с привязанной сессией соцсети. Не вышло — None, сессия соцсети отозвана."""
     session = None
     try:
-        session = db.create_session(uid, request)
+        session = sessions.create_session(uid, request)
         _insert(session, uid, tokens)
         return session
     except Exception:  # noqa: BLE001 — база недоступна или нет таблицы: вход не открываем, хвосты убираем
@@ -235,7 +235,7 @@ def _open_session(uid: int, tokens: dict[str, Any], request: Request, user_ip: s
         _logout_quietly(str(tokens["access_token"]), user_ip, user_agent)
         if session:
             try:
-                db.revoke_session(session)
+                sessions.revoke_session(session)
             except Exception:  # noqa: BLE001
                 log.exception("Could not revoke the half-open session")
         return None
@@ -275,7 +275,7 @@ def password_login(email: str, password: str, request: Request) -> tuple[str, di
         # Аккаунта соцсети нет в базе AsoPlay: такой вход не открываем
         log.error("Anime Social account %s is missing from the AsoPlay database", uid)
         end_session(session, user_ip, user_agent)
-        db.revoke_session(session)
+        sessions.revoke_session(session)
     if not profile:
         raise HTTPException(503, "Anime Social is unavailable")
     return session, profile
@@ -295,7 +295,7 @@ def _social_origins() -> set[str]:
 
 
 @router.get("/whoami")
-def as_whoami(request: Request, user: dict[str, Any] | None = Depends(db.current_user_optional)) -> JSONResponse:
+def as_whoami(request: Request, user: dict[str, Any] | None = Depends(sessions.current_user_optional)) -> JSONResponse:
     """Кто вошёл в AsoPlay в этом браузере. Читать ответ из другого сайта (CORS с cookie) можно
     только сайту Anime Social; в ответе имя и аватар, без почты и логина."""
     if not enabled():
@@ -320,7 +320,7 @@ _NONCE = re.compile(r"^[A-Za-z0-9._~\-]{16,128}$")
 
 @router.get("/to-social")
 def as_to_social(request: Request, next: str = "/", nonce: str = "",
-                 session: str | None = Cookie(default=None, alias=db.COOKIE_NAME)) -> RedirectResponse:
+                 session: str | None = Cookie(default=None, alias=sessions.COOKIE_NAME)) -> RedirectResponse:
     """«Продолжить под этим аккаунтом» на сайте Anime Social: вход на сайт тем аккаунтом, которым
     браузер вошёл в AsoPlay (POST /me/web-login токеном его сессии). Нет сессии или связи с
     соцсетью — просто на ту же страницу сайта."""
@@ -329,7 +329,7 @@ def as_to_social(request: Request, next: str = "/", nonce: str = "",
     path = _safe_next(next)
     target = as_api.site_url() + path
     user_ip, user_agent = rate_limit.client_ip(request), request.headers.get("user-agent") or ""
-    user = db.touch_session(session) if session else None
+    user = sessions.touch_session(session) if session else None
     token = access_token(session, user_ip, user_agent) if user else None
     if token:
         try:

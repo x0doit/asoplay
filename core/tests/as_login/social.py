@@ -13,8 +13,8 @@ from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from core.classes import as_api, db
-from core.functions import social_login
+from core.classes import as_api
+from core.functions import sessions, social_login
 
 from core.tests.as_login.lib import make_request
 
@@ -26,7 +26,7 @@ class SocialSideTests(unittest.TestCase):
         app = FastAPI()
         app.include_router(social_login.router)
         self.user = None
-        app.dependency_overrides[db.current_user_optional] = lambda: self.user
+        app.dependency_overrides[sessions.current_user_optional] = lambda: self.user
         self.client = TestClient(app, follow_redirects=False)
         patches = [
             patch.object(social_login, "enabled", return_value=True),
@@ -55,23 +55,23 @@ class SocialSideTests(unittest.TestCase):
         self.assertIsNone(self.client.get("/auth/as/whoami").json()["user"]["avatar"])
 
     def go(self, **params):
-        self.client.cookies.set(db.COOKIE_NAME, "s" * 64)
+        self.client.cookies.set(sessions.COOKIE_NAME, "s" * 64)
         return self.client.get("/auth/as/to-social", params=params).headers["location"]
 
     def test_to_social_signs_in_with_the_session_token(self):
         link = "https://social.test/auth/app/web?code=" + "c" * 64
-        with patch.object(db, "touch_session", return_value={"id": 17}), \
+        with patch.object(sessions, "touch_session", return_value={"id": 17}), \
                 patch.object(social_login, "access_token", return_value="asa_live"), \
                 patch.object(as_api, "web_login", return_value={"url": link, "expires_in": 60}) as web_login:
             self.assertEqual(self.go(next="/news", nonce="n" * 24), link)
         web_login.assert_called_once_with("asa_live", "/news", "n" * 24, "testclient", "testclient")
 
     def test_to_social_without_a_session_just_opens_the_page(self):
-        with patch.object(db, "touch_session", return_value=None):
+        with patch.object(sessions, "touch_session", return_value=None):
             self.assertEqual(self.go(next="/news"), "https://social.test/news")
 
     def test_to_social_drops_a_foreign_link_a_bad_nonce_and_a_bad_path(self):
-        with patch.object(db, "touch_session", return_value={"id": 17}), \
+        with patch.object(sessions, "touch_session", return_value={"id": 17}), \
                 patch.object(social_login, "access_token", return_value="asa_live"), \
                 patch.object(as_api, "web_login", return_value={"url": "https://evil.test/steal"}) as web_login:
             self.assertEqual(self.go(next="//evil.test", nonce="short"), "https://social.test/")

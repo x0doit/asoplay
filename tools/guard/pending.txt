@@ -9,7 +9,6 @@ styles.css
 
 # Python: делится на шаге 5, docblock — там же
 core/core.py
-core/classes/db.py
 core/functions/presence.py
 core/functions/realtime.py
 core/functions/social_login.py
@@ -17,6 +16,7 @@ core/functions/video_reports.py
 core/modules/player/routes.py
 core/modules/profile_pages.py
 core/modules/title_pages.py
+# После части K: решить, поднимать ли cookie и current_user_* из core/functions/sessions.py в core/auth.py
 
 # Python: переехал без деления, ждёт только docblock (шаг 5)
 core/classes/as_api.py

@@ -18,8 +18,7 @@ from fastapi.testclient import TestClient
 
 from core.api.sections import lists as lists_section
 from core.api.sections.lists import progress_event
-from core.classes import db
-from core.functions import lists, lists_sweep, realtime
+from core.functions import lists, lists_sweep, realtime, sessions
 
 NOW = datetime(2026, 10, 31, 4, 30, 15, 123456)
 SECONDS = NOW.replace(microsecond=0)
@@ -251,7 +250,7 @@ class ManualSweepTests(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
         app.include_router(lists_section.router)
-        app.dependency_overrides[db.current_user_required] = lambda: {"id": 5}
+        app.dependency_overrides[sessions.current_user_required] = lambda: {"id": 5}
         self.client = TestClient(app)
 
     def call(self, auto_add, moved=2):

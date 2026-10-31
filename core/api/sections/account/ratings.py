@@ -14,8 +14,9 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, conint
 
 from core.classes.clock import utc_now
-from core.classes.db import connect, current_user_required
+from core.classes.db import connect
 from core.functions.activity import record_event
+from core.functions.sessions import current_user_required
 
 router = APIRouter()
 

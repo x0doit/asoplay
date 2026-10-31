@@ -180,6 +180,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   │                       favorites, history, progress, ratings, settings, import_storage
 │   │   ├── lists/              /account/lists/…: entries (записи), progress_event (события плеера)
 │   │   ├── activity.py         /account/activity: график и лента активности
+│   │   ├── auth.py             /auth/login, logout, me, register, config: вход паролем и настройки соцсети
 │   │   └── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, перевод, картинки
 │   ├── admin/                  админ-API для раздела «AsoPlay» в /cpanel AnimeSocial (HMAC)
 │   │   ├── router.py           вход: подключает части в порядке маршрутов
@@ -191,6 +192,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   └── player/routes.py    same-origin player proxy, Shield, iframe bridge
 │   ├── functions/
 │   │   ├── social_login.py     вход через AnimeSocial (OAuth 2.0 + PKCE) и его сессии
+│   │   ├── sessions.py         сессии AsoPlay: создать, проверить, закрыть; cookie и текущий пользователь
 │   │   ├── presence.py         присутствие на AsoPlay и друзья из AnimeSocial
 │   │   ├── realtime.py         WebSocket /ws: вкладки, события друзьям, состояние сервера
 │   │   ├── site_settings.py    что решила панель: пометки тайтлов, плашка, функции, источники
@@ -207,7 +209,9 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── source_health.py    source failure/cooldown state
 │   │   └── player_hosts.py     политика плееров: VK, неиграющие плееры
 │   ├── classes/
-│   │   ├── db.py               AnimeSocial DB auth bridge и sessions
+│   │   ├── db.py               подключение к базе AnimeSocial: настройки, соединение, проверка для /health
+│   │   ├── accounts.py         аккаунты соцсети: схема таблицы, поиск, @handle, бан
+│   │   ├── passwords.py        проверка пароля по хешу: bcrypt, argon2, sha*, md5, DLE
 │   │   ├── as_api.py           клиент API v2 AnimeSocial
 │   │   ├── as_realtime.py      соединение сервер–сервер с realtime AnimeSocial
 │   │   ├── token_box.py        шифрование токенов соцсети в базе (AES-GCM)
@@ -689,6 +693,7 @@ Key capabilities:
 │   │   │                       favorites, history, progress, ratings, settings, import_storage
 │   │   ├── lists/              /account/lists/…: entries, progress_event (player events)
 │   │   ├── activity.py         /account/activity: the activity graph and feed
+│   │   ├── auth.py             /auth/login, logout, me, register, config: password sign-in, social settings
 │   │   └── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, translate, images
 │   ├── admin/                  admin API for the «AsoPlay» section in AnimeSocial /cpanel (HMAC)
 │   │   ├── router.py           entry: includes the parts in route order
@@ -700,6 +705,7 @@ Key capabilities:
 │   │   └── player/routes.py    same-origin player proxy, Shield, iframe bridge
 │   ├── functions/
 │   │   ├── social_login.py     sign-in with AnimeSocial (OAuth 2.0 + PKCE) and its sessions
+│   │   ├── sessions.py         AsoPlay sessions: create, check, revoke; the cookie and the current user
 │   │   ├── presence.py         presence on AsoPlay and friends from AnimeSocial
 │   │   ├── realtime.py         WebSocket /ws: tabs, events to friends, server status
 │   │   ├── site_settings.py    what the panel decided: title flags, notice, features, sources
@@ -716,7 +722,9 @@ Key capabilities:
 │   │   ├── source_health.py    source failure/cooldown state
 │   │   └── player_hosts.py     player policy: VK, players that do not play
 │   ├── classes/
-│   │   ├── db.py               AnimeSocial DB auth bridge and sessions
+│   │   ├── db.py               AnimeSocial DB connection: settings, connect, the /health probe
+│   │   ├── accounts.py         social network accounts: table layout, lookup, @handle, ban
+│   │   ├── passwords.py        password check against the stored hash: bcrypt, argon2, sha*, md5, DLE
 │   │   ├── as_api.py           AnimeSocial API v2 client
 │   │   ├── as_realtime.py      server-to-server link with AnimeSocial realtime
 │   │   ├── token_box.py        encryption of social network tokens at rest (AES-GCM)

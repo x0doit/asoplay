@@ -39,7 +39,7 @@ env.load()  # до остальных импортов: настройки в co
 # FastAPI startup event below. Importing the module is cheap and side-effect
 # free.
 from core.admin import auth as admin_auth, router as admin_router, summary as admin_summary
-from core.api.sections import account, activity, catalog, lists
+from core.api.sections import account, activity, auth, catalog, lists
 from core.classes import db, http, http_cache
 from core.classes.adblock import engine as adblock
 from core.classes.jikan import catalog as jikan_catalog
@@ -938,7 +938,7 @@ async def _random_watchable():
 
 # ---------- register sibling routers ----------
 app.include_router(catalog.router)
-app.include_router(db.router)
+app.include_router(auth.router)
 app.include_router(social_login.router)
 app.include_router(account.router)
 app.include_router(presence.router)

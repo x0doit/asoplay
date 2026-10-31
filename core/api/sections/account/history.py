@@ -14,8 +14,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, conint
 
 from core.classes.clock import utc_now
-from core.classes.db import connect, current_user_required
+from core.classes.db import connect
 from core.functions.progress import upsert_episode_progress
+from core.functions.sessions import current_user_required
 from core.functions.watch_history import sync_watch_history_from_progress
 
 router = APIRouter()

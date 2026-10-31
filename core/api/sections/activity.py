@@ -13,8 +13,8 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 
-from core.classes.db import current_user_required
 from core.functions.activity_feed import DEFAULT_DAYS, fetch_recent_paged, graph_for_user
+from core.functions.sessions import current_user_required
 
 router = APIRouter(prefix="/account/activity")
 

@@ -13,8 +13,7 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
-from core.classes import db
-from core.functions import presence, realtime
+from core.functions import presence, realtime, sessions
 
 
 class FakeClock:
@@ -249,7 +248,7 @@ class EndpointTests(unittest.TestCase):
             self.assertEqual(ws.receive_json(), {"type": "pong"})
 
     def test_a_signed_in_tab_marks_its_person_and_leaving_starts_the_grace(self):
-        self.client.cookies.set(db.COOKIE_NAME, "t" * 64)
+        self.client.cookies.set(sessions.COOKIE_NAME, "t" * 64)
         with self.client.websocket_connect("/ws", headers={"origin": "http://testserver"}) as ws:
             self.assertEqual(ws.receive_json()["user_id"], 1)
             ws.send_json({"type": "visible", "value": True})
@@ -261,7 +260,7 @@ class EndpointTests(unittest.TestCase):
         self.assertIn(1, self.store.current())                           # ещё GRACE секунд после закрытия
 
     def test_a_full_house_is_refused(self):
-        self.client.cookies.set(db.COOKIE_NAME, "t" * 64)
+        self.client.cookies.set(sessions.COOKIE_NAME, "t" * 64)
         with patch.object(realtime, "MAX_TABS_PER_USER", 1), \
                 self.client.websocket_connect("/ws", headers={"origin": "http://testserver"}) as first:
             first.receive_json()

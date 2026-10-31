@@ -23,7 +23,8 @@ from pydantic import BaseModel, Field
 
 from core.classes.clock import utc_now
 from core.functions import rate_limit
-from core.classes.db import connect, current_user_required
+from core.classes.db import connect
+from core.functions.sessions import current_user_required
 
 log = logging.getLogger("asoplay.reports")
 

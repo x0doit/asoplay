@@ -14,8 +14,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from core.api.sections import account
 from core.api.sections.account import settings as account_settings
-from core.classes import db
-from core.functions import presence, privacy
+from core.functions import presence, privacy, sessions
 
 from core.tests.presence.lib import FakeCursor, FakeConn
 
@@ -40,7 +39,7 @@ class PrivacyApiTests(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
         app.include_router(account.router)
-        app.dependency_overrides[db.current_user_required] = lambda: {"id": 5}
+        app.dependency_overrides[sessions.current_user_required] = lambda: {"id": 5}
         self.client = TestClient(app)
         self.cursor = FakeCursor([])
         # Маршруты приватности пишут из раздела настроек аккаунта, читают — через core/functions/privacy.py

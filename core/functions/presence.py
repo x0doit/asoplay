@@ -40,11 +40,12 @@ from urllib.parse import quote
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from core.classes import as_api, db
+from core.classes import as_api
 from core.config import animesocial
-from core.functions import rate_limit, social_login
-from core.classes.db import connect, current_user_required
+from core.functions import rate_limit, sessions, social_login
+from core.classes.db import connect
 from core.config.config import SITE_URL
+from core.functions.sessions import current_user_required
 
 log = logging.getLogger("asoplay.presence")
 
@@ -385,7 +386,7 @@ def _rank(item: dict[str, Any]) -> tuple:
 
 @router.get("/friends")
 def friends(request: Request, user: dict[str, Any] = Depends(current_user_required),
-            session: str | None = Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]:
+            session: str | None = Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]:
     unlinked = {"connected": False, "items": [], "total": 0, "online": 0}
     token, user_ip, user_agent = _social_session(request, session)
     if not token:
@@ -427,7 +428,7 @@ def friends(request: Request, user: dict[str, Any] = Depends(current_user_requir
 
 @router.get("/friends/title/{mal_id}")
 def friends_on_title(mal_id: int, request: Request, user: dict[str, Any] = Depends(current_user_required),
-                     session: str | None = Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]:
+                     session: str | None = Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]:
     """Друзья на странице тайтла: кто смотрит его прямо сейчас (если разрешил) и у кого он в списках
     (если списки не скрыты)."""
     if not 0 < mal_id < MAL_MAX:
@@ -498,7 +499,7 @@ def _listed(user: dict[str, Any], **extra: Any) -> dict[str, Any]:
 @router.get("/friends/requests")
 def friend_requests(request: Request, type: str = "incoming", cursor: str = "",
                     user: dict[str, Any] = Depends(current_user_required),
-                    session: str | None = Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]:
+                    session: str | None = Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]:
     """Вкладки «Заявки» и «Исходящие» — новые сверху, по 30."""
     if type not in ("incoming", "outgoing"):
         raise HTTPException(400, "type must be incoming or outgoing")
@@ -513,7 +514,7 @@ def friend_requests(request: Request, type: str = "incoming", cursor: str = "",
 
 @router.get("/friends/suggestions")
 def friend_suggestions(request: Request, user: dict[str, Any] = Depends(current_user_required),
-                       session: str | None = Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]:
+                       session: str | None = Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]:
     """«Возможные друзья», как на странице друзей соцсети: пять человек."""
     data = _social_call(request, session, "GET", "/friends/suggestions?limit=5")
     items = (data or {}).get("items") if isinstance(data, dict) else None
@@ -533,26 +534,26 @@ def _friend_action(request: Request, session: str | None, user: dict[str, Any], 
 
 @router.post("/friends/{peer_id}")
 def friend_add(peer_id: int, request: Request, user: dict[str, Any] = Depends(current_user_required),
-               session: str | None = Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]:
+               session: str | None = Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]:
     """«Добавить в друзья»: заявка; лимит 50 в сутки и чёрный список — как на сайте соцсети."""
     return _friend_action(request, session, user, "POST", peer_id)
 
 
 @router.post("/friends/{peer_id}/accept")
 def friend_accept(peer_id: int, request: Request, user: dict[str, Any] = Depends(current_user_required),
-                  session: str | None = Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]:
+                  session: str | None = Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]:
     return _friend_action(request, session, user, "POST", peer_id, "/accept")
 
 
 @router.post("/friends/{peer_id}/decline")
 def friend_decline(peer_id: int, request: Request, user: dict[str, Any] = Depends(current_user_required),
-                   session: str | None = Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]:
+                   session: str | None = Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]:
     return _friend_action(request, session, user, "POST", peer_id, "/decline")
 
 
 @router.delete("/friends/{peer_id}")
 def friend_remove(peer_id: int, request: Request, user: dict[str, Any] = Depends(current_user_required),
-                  session: str | None = Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]:
+                  session: str | None = Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]:
     """«Отменить заявку» и «Удалить из друзей»."""
     return _friend_action(request, session, user, "DELETE", peer_id)
 
@@ -564,7 +565,7 @@ class MessageIn(BaseModel):
 @router.post("/messages/{peer_id}")
 def send_message(peer_id: int, payload: MessageIn, request: Request,
                  user: dict[str, Any] = Depends(current_user_required),
-                 session: str | None = Cookie(default=None, alias=db.COOKIE_NAME)) -> dict[str, Any]:
+                 session: str | None = Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]:
     """«Написать» у друга: сообщение уходит в переписку Anime Social, как из окна «Написать» на сайте
     соцсети. Кто может писать и антифлуд (40 сообщений в минуту) — по правилам соцсети."""
     text = payload.text.strip()
