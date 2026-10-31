@@ -19,7 +19,7 @@ from fastapi import HTTPException
 from core import core
 from core.classes import http
 from core.classes.sources import oldyummy
-from core.classes.vpn import bridge as vpn_bridge
+from core.classes.vpn import xray as vpn_xray
 from core.functions import source_health
 
 
@@ -30,8 +30,8 @@ class VpnBridgeConfigTests(unittest.TestCase):
     SS = {"SS_ADDRESS": "198.51.100.9", "SS_PASSWORD": "secret", "SS_PORT": "8388"}
 
     def build(self, env):
-        with patch.dict(os.environ, env, clear=True), patch.object(vpn_bridge, "_LEGACY_PATHS", []):
-            return vpn_bridge._build_config()
+        with patch.dict(os.environ, env, clear=True), patch.object(vpn_xray, "_LEGACY_PATHS", []):
+            return vpn_xray.build_config()
 
     def test_vless_link_replaces_shadowsocks_as_first_outbound(self):
         cfg = self.build({"AV_VPN_URL": self.LINK, **self.SS})

@@ -214,7 +214,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── jikan/catalog.py    встроенный каталог MAL, кэш и лимит запросов
 │   │   ├── jikan/php/          PHP-мост, Composer manifest и lockfile
 │   │   ├── adblock/engine.py   AdGuard-backed request filtering
-│   │   ├── vpn/bridge.py       optional xray runtime bridge
+│   │   ├── vpn/                VPN-мост: xray.py (конфиг и процесс xray), bridge.py (жизненный цикл, сторож)
 │   │   ├── sources/animevost.py native AnimeVost source adapter
 │   │   └── sources/oldyummy.py native old.yummyani source adapter
 │   ├── config/
@@ -721,7 +721,7 @@ Key capabilities:
 │   │   ├── jikan/catalog.py    embedded MAL catalog, cache and rate limiting
 │   │   ├── jikan/php/          PHP bridge, Composer manifest and lockfile
 │   │   ├── adblock/engine.py   AdGuard-backed request filtering
-│   │   ├── vpn/bridge.py       optional xray runtime bridge
+│   │   ├── vpn/                VPN bridge: xray.py (xray config and process), bridge.py (lifecycle, watchdog)
 │   │   ├── sources/animevost.py native AnimeVost source adapter
 │   │   └── sources/oldyummy.py native old.yummyani source adapter
 │   ├── config/

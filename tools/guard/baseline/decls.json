@@ -943,6 +943,7 @@
   "= ba8074100d1f"
  ],
  "VPN_PROXY_URL": [
+  "= 9f26ba892910",
   "= abcb8f01dc03"
  ],
  "VPN_SOCKS_PORT": [
@@ -991,7 +992,7 @@
   "= 5890bf19f0fb"
  ],
  "_BRIDGE_PROXY_VALUES": [
-  "= 03b1810cafa5"
+  "= bba23692572e"
  ],
  "_CACHE": [
   "= bf21a9e8fbc5"
@@ -1304,9 +1305,6 @@
  "_brief": [
   "def(user: dict[str, Any]) -> dict[str, Any]"
  ],
- "_build_config": [
-  "def() -> dict | None"
- ],
  "_cache_get": [
   "def(key: str, ttl: float) -> tuple[bytes, str, int] | None"
  ],
@@ -1545,9 +1543,6 @@
  "_last_points": [
   "= bf21a9e8fbc5"
  ],
- "_launch_xray": [
-  "def(config_path: Path) -> subprocess.Popen | None"
- ],
  "_limiter": [
   "= 4e3ce3681989"
  ],
@@ -1685,12 +1680,6 @@
  ],
  "_points_lock": [
   "= c6d6acc28078"
- ],
- "_port_alive": [
-  "def(host: str, port: int, timeout: float=1.0) -> bool"
- ],
- "_prepare_runtime": [
-  "def() -> Path | None"
  ],
  "_privacy": [
   "def(user_ids: Iterable[int]) -> dict[int, Privacy]"
@@ -2142,6 +2131,9 @@
  "build_batch": [
   "def() -> dict[str, Any]"
  ],
+ "build_config": [
+  "def() -> dict | None"
+ ],
  "cache_drop": [
   "def(key: str) -> bool"
  ],
@@ -2423,6 +2415,9 @@
  "last_slot": [
   "def(now: datetime, at: tuple[int, int]) -> datetime"
  ],
+ "launch": [
+  "def(config_path: Path) -> subprocess.Popen | None"
+ ],
  "list_all": [
   "@router.get('') def(status: str | None=Query(default=None), user: dict[str, Any]=Depends(current_user_required)) -> list[dict[str, Any]]"
  ],
@@ -2460,6 +2455,7 @@
   "= 8a1db55198b6",
   "= 96797f0c7e5f",
   "= 96ff858b959b",
+  "= 9a6a5b08b0f5",
   "= 9a6a5b08b0f5",
   "= 9d8fc02d77ae",
   "= a4c65cd75c4e",
@@ -2525,6 +2521,12 @@
  ],
  "player_module": [
   "@router.get('/modules/{scheme}/{host}/{path:path}') async def(request: Request, scheme: str, host: str, path: str)"
+ ],
+ "port_alive": [
+  "def(host: str, port: int, timeout: float=1.0) -> bool"
+ ],
+ "prepare_runtime": [
+  "def() -> Path | None"
  ],
  "presence": [
   "= fb958eb6a32b"
