@@ -2856,7 +2856,7 @@
   "def() -> None"
  ],
  "status_provider": [
-  "= 0cc4b4298a8b"
+  "= 6eef6648406c"
  ],
  "stop_watchdog": [
   "def() -> None"

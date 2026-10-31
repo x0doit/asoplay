@@ -45,6 +45,10 @@ def user(uid, name):
     return {"id": uid, "name": name, "avatar": f"https://social.test/a/{uid}.jpg", "profile_path": f"/@user{uid}"}
 
 
+def broken_status():
+    raise OSError("source registry is down")
+
+
 class HubTests(unittest.TestCase):
     """Сакура (1) и Наруто (2) — друзья, Хината (3) Сакуре не друг."""
 
@@ -58,6 +62,8 @@ class HubTests(unittest.TestCase):
             patch.object(presence, "presence", self.store),
             patch.object(privacy_rules, "for_users", side_effect=lambda ids: {u: self.privacy[u] for u in ids if u in self.privacy}),
             patch.object(presence, "title_cards", side_effect=lambda ids: {m: self.titles[m] for m in ids if m in self.titles}),
+            # Hub без core.py: состояние сервера связываем явно, как core.py
+            patch.object(realtime_social, "status_provider", lambda: {"ok": True, "sources": [], "vpn": False}),
         ]
         for p in patches:
             p.start()
@@ -178,6 +184,26 @@ class HubTests(unittest.TestCase):
             self.run_async(self.hub.sweep())
         for ws in (guest_ws, sakura_ws):
             self.assertEqual(ws.events("status"), [{"type": "status", "status": {"ok": True, "sources": ["kodik"], "vpn": True}}])
+
+    def test_status_without_binding_fails_clearly(self):
+        with patch.object(realtime_social, "status_provider", None):
+            with self.assertRaisesRegex(RuntimeError, "realtime_social.status_provider"):
+                self.hub.status()
+
+    def test_a_failing_status_keeps_the_last_known_state(self):
+        known = {"ok": True, "sources": ["kodik"], "vpn": True}
+        _, ws = self.connect(1, "Сакура")
+        with patch.object(realtime_social, "status_provider", lambda: dict(known)):
+            self.run_async(self.hub.sweep())
+        with patch.object(realtime_social, "status_provider", broken_status), self.assertLogs("asoplay.realtime"):
+            self.assertEqual(self.hub.status(), known)
+            self.run_async(self.hub.sweep())
+        # Ни «всё хорошо, источников нет», ни «всё плохо»: вкладкам ничего не пришло
+        self.assertEqual(ws.events("status"), [])
+
+    def test_a_status_failing_from_the_start_says_not_ok(self):
+        with patch.object(realtime_social, "status_provider", broken_status), self.assertLogs("asoplay.realtime"):
+            self.assertEqual(self.hub.status(), {"ok": False, "sources": [], "vpn": False})
 
     def test_records_moved_by_the_30_day_rule_reach_only_their_persons_tabs(self):
         _, tab1 = self.connect(1, "Сакура")

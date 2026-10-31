@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from core.classes import as_api, as_realtime
-from core.functions import presence, presence_batch, privacy as privacy_rules, realtime, sessions
+from core.functions import presence, presence_batch, privacy as privacy_rules, realtime, realtime_social, sessions
 from core.modules.title_pages import SITE_URL
 
 
@@ -62,6 +62,8 @@ class HubSocialTests(unittest.TestCase):
             patch.object(privacy_rules, "for_users", side_effect=lambda ids: {u: self.privacy[u] for u in ids if u in self.privacy}),
             patch.object(presence, "title_cards", side_effect=lambda ids: {52991: ("Фрирен", "")} if 52991 in ids else {}),
             patch.object(sessions, "revoke_user_sessions", side_effect=self.revoked.append),
+            # Hub без core.py: состояние сервера связываем явно, как core.py
+            patch.object(realtime_social, "status_provider", lambda: {"ok": True, "sources": [], "vpn": False}),
         ]
         for p in patches:
             p.start()

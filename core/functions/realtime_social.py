@@ -19,8 +19,9 @@ from core.functions import friends as friend_data, presence_batch, sessions
 
 log = logging.getLogger("asoplay.realtime")
 
-# Задаёт core/core.py: состояние сервера для вкладок
-status_provider: Callable[[], dict[str, Any]] = lambda: {"ok": True, "sources": [], "vpn": False}
+# Задаёт core/core.py: состояние сервера для вкладок. Не связан — status() бросает RuntimeError, а не отдаёт тихое
+# «всё хорошо, источников нет»
+status_provider: Callable[[], dict[str, Any]] | None = None
 
 
 class HubSocial:
@@ -92,13 +93,17 @@ class HubSocial:
             asyncio.run_coroutine_threadsafe(self.lists_changed(user_id, items), self._loop)
 
     def status(self) -> dict[str, Any]:
-        """Состояние сервера для вкладок — от status_provider (его связывает core.py); сбой — «всё хорошо,
-        источников нет»."""
+        """Состояние сервера для вкладок — от status_provider (его связывает core.py; не связан — RuntimeError).
+        Сбой поставщика — последнее известное состояние, а пока его нет — ok: False: случайный сбой не перекрашивает
+        вкладкам статус ни в «всё хорошо», ни в «всё плохо»."""
+        if status_provider is None:
+            raise RuntimeError("Server status is not bound: core.py sets realtime_social.status_provider = … "
+                               "before serving requests")
         try:
             return status_provider()
         except Exception:  # noqa: BLE001
             log.exception("Could not read the server status for realtime")
-            return {"ok": True, "sources": [], "vpn": False}
+            return self._status if self._status is not None else {"ok": False, "sources": [], "vpn": False}
 
     async def broadcast_status(self) -> None:
         """Состояние сервера и решения панели Anime Social — всем вкладкам, если что-то поменялось."""
