@@ -151,5 +151,6 @@ def set_session_cookie(resp: Response, token: str) -> None:
 
 
 def clear_session_cookie(resp: Response) -> None:
-    """Снять cookie сессии."""
-    resp.delete_cookie(COOKIE_NAME, path="/")
+    """Снять cookie сессии — с теми же атрибутами, что ставит set_session_cookie: Secure, HttpOnly, SameSite, путь /."""
+    resp.delete_cookie(COOKIE_NAME, path="/", secure=config.COOKIE_SECURE, httponly=True,
+                       samesite=config.COOKIE_SAMESITE)
