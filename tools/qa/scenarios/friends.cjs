@@ -6,6 +6,24 @@
  */
 const { SITE, USER, STATUS, accountMocks, check, shot, overflowing, settle, watchConsole } = require("../lib.cjs");
 
+// «был в сети 5 минут назад» — как пишет AnimeSocial: единицы от года до минуты и русские формы числа
+const AGO_UNITS = [[31_570_560, ["год", "года", "лет"]], [2_630_880, ["месяц", "месяца", "месяцев"]],
+  [604_800, ["неделю", "недели", "недель"]], [86_400, ["день", "дня", "дней"]], [3_600, ["час", "часа", "часов"]],
+  [60, ["минуту", "минуты", "минут"]]];
+const ruForm = (n, forms) => forms[n % 100 > 10 && n % 100 < 20 ? 2 : n % 10 === 1 ? 0 : n % 10 >= 2 && n % 10 <= 4 ? 1 : 2];
+const agoText = diff => {
+  for (const [len, forms] of AGO_UNITS) if (diff >= len) { const n = Math.floor(diff / len); return `${n} ${ruForm(n, forms)} назад`; }
+  return "только что";
+};
+// Подписи «был в сети …», верные хоть для одного мгновения между from и to (мс по часам страницы). Страница пишет подпись
+// по своим часам в миг отрисовки, а когда именно она рисовала, снаружи известно только с точностью до этого промежутка:
+// ни запаса на медленный прогон, ни застывших часов, от которых встал бы и остальной код страницы со временем
+const seenTexts = (lastSeen, word, from, to) => {
+  const out = new Set();
+  for (let s = Math.floor(from / 1000); s <= Math.floor(to / 1000); s++) out.add(`${word} в сети ${agoText(Math.max(0, s - lastSeen))}`);
+  return out;
+};
+
 module.exports = {
   // Friends from AnimeSocial: /my/friends with presence, the filter and every empty state, the «?as=» notice,
   // the presence switches in settings and the «Друзья» block on a title page — desktop (light) and phone (dark).
@@ -80,6 +98,7 @@ module.exports = {
       await check(page, `friends ${tag}: the tab opens the live connection and says it is on screen`,
         live.frames.some(f => f.type === "visible" && f.value === true), JSON.stringify(live.frames.slice(0, 3)));
 
+      const seenFrom = await page.evaluate(() => Date.now());          // часы страницы до того, как нарисован список
       await page.goto(SITE + "/my/friends", { waitUntil: "domcontentloaded" }); await settle(page, 1200);
       const friendRows = async () => page.$$eval(".friends__item", els => els.map(el => ({
         name: el.querySelector(".ed-user__text")?.textContent.trim(),
@@ -90,6 +109,7 @@ module.exports = {
         write: !!el.querySelector("[data-friend-write]"),
       })));
       const rows = await friendRows();
+      const seenTo = await page.evaluate(() => Date.now());            // и после того, как прочитаны подписи
       await check(page, `friends ${tag}: five friends in server order`, rows.length === 5 && rows[0].href === "/@friend1", JSON.stringify(rows.map(r => r.name)));
       await check(page, `friends ${tag}: «смотрит «…»» links to the title`, /^смотрит «Фрирен/.test(rows[0]?.status || "") && rows[0]?.watch === "/anime/52991", rows[0]?.status);
       await check(page, `friends ${tag}: AsoPlay and AnimeSocial presence in the social network's words`, rows[1]?.status === "в сети и на AsoPlay"
@@ -102,8 +122,9 @@ module.exports = {
         el.classList.contains("is-client") ? "line" : el.querySelector(".presence-also") ? "also" : ""));
       await check(page, `friends ${tag}: dots and lines in AnimeSocial colours — purple on AsoPlay, green in the social network, split for both`,
         dots.join(",") === "asoplay,both,social,," && purple.join(",") === "line,also,,,", `${dots.join(",")} | ${purple.join(",")}`);
-      await check(page, `friends ${tag}: last seen like on AnimeSocial`, rows[3]?.status === "был в сети 5 минут назад" && rows[4]?.status === "была в сети 3 дня назад",
-        `${rows[3]?.status} | ${rows[4]?.status}`);
+      const kakashi = seenTexts(sec - 300, "был", seenFrom, seenTo), ino = seenTexts(sec - 3 * 86400, "была", seenFrom, seenTo);
+      await check(page, `friends ${tag}: last seen like on AnimeSocial`, kakashi.has(rows[3]?.status) && ino.has(rows[4]?.status),
+        `${rows[3]?.status} | ${rows[4]?.status} (верно: ${[...kakashi].join(" / ")} | ${[...ino].join(" / ")})`);
       await check(page, `friends ${tag}: a green dot only for those online`, rows.map(r => r.dot).join() === "true,true,true,false,false");
       await check(page, `friends ${tag}: every friend has «Написать»`, rows.every(r => r.write));
       const look = await page.evaluate(() => {
