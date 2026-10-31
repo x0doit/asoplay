@@ -32,6 +32,7 @@ PROXY_HOSTS = (
     "kodikplayer.com", "kodikres.com", "solodcdn.com",  # Kodik: плеер, хранилище, видео, превью и проба CDN
     "fonts.googleapis.com", "fonts.gstatic.com", "www.gstatic.com",  # шрифты и Cast в плеере Kodik
     "alloha.yani.tv", "vkvideo.cloud",  # Alloha: плеер и потоки HLS
+    "cdn.plyr.io",  # Plyr в плеере Alloha: пустое видео blank.mp4, которым он останавливает загрузку
     "aksor.yani.tv", "aksor.tv",  # Aksor
     "cdnvideohub.com",  # CVH: API и плеер
     "okcdn.ru", "mycdn.me", "vkuser.net", "ok.ru",  # видео CVH и чистого кадра VK

@@ -26,6 +26,12 @@ class HostList(unittest.TestCase):
                     "https://cdn.vkvideo.cloud/0/abc/master.m3u8", "https://dv97.sibnet.ru/v.mp4"):
             self.assertIsNone(proxy_url_refusal(url), url)
 
+    def test_plyr_only_by_its_cdn_name(self):
+        # Заглушка Plyr в плеере Alloha; plyr.io целиком и похожие имена в список не входят
+        self.assertIsNone(proxy_url_refusal("https://cdn.plyr.io/static/blank.mp4"))
+        for url in ("https://plyr.io/", "https://evil.cdn.plyr.io.example/static/blank.mp4", "https://cdnplyr.io/"):
+            self.assertEqual(proxy_url_refusal(url), "host not allowed", url)
+
     def test_internal_foreign_and_tricky_addresses_are_refused(self):
         for url in INTERNAL + FOREIGN + ("file:///etc/passwd", "https:///x", "//kodikplayer.com/x"):
             self.assertIsNotNone(proxy_url_refusal(url), url)
