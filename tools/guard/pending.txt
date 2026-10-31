@@ -8,7 +8,6 @@ js/navigation.js
 styles.css
 
 # Python: делится на шаге 5, docblock — там же
-core/core.py
 core/functions/video_reports.py
 core/modules/player/routes.py
 # После части K: решить, поднимать ли cookie и current_user_* из core/functions/sessions.py в core/auth.py

@@ -1268,9 +1268,6 @@
  "_after": [
   "def(cursor: str) -> int"
  ],
- "_all_sources": [
-  "def() -> list[str]"
- ],
  "_allowed": [
   "= 65dd83d71744"
  ],
@@ -1355,9 +1352,6 @@
  "_expiry": [
   "def(tokens: dict[str, Any], field: str, lifetime: int) -> int"
  ],
- "_extractor": [
-  "def(source: str, route: str)"
- ],
  "_fetch": [
   "async def(request: Request, url: str, base: str | None, *, frame: bool=False, referer: str | None=None) -> Response"
  ],
@@ -1372,12 +1366,6 @@
  ],
  "_file_route": [
   "def(app: FastAPI, route: str, path: Path, media: str | None=None) -> None"
- ],
- "_filter_by_year": [
-  "def(results: list[dict], year: int | None) -> list[dict]"
- ],
- "_filter_source_videos": [
-  "async def(videos: list[dict]) -> list[dict]"
  ],
  "_find_xray": [
   "def() -> str | None"
@@ -1403,17 +1391,8 @@
  "_friend_lock": [
   "= c6d6acc28078"
  ],
- "_get": [
-  "def(key: str) -> Any"
- ],
  "_get_client": [
   "async def() -> httpx.AsyncClient"
- ],
- "_get_extractor": [
-  "def(source: str)"
- ],
- "_guard_source": [
-  "async def(source: str, op: str, awaitable, timeout: float)"
  ],
  "_guess_base": [
   "def(url: str, base: str | None) -> str"
@@ -1528,29 +1507,10 @@
   "def(cur: Any, ids: list[int]) -> dict[int, str]"
  ],
  "_native": [
-  "async def(path: str, params: dict) -> dict",
-  "def(source: str, route: str)"
- ],
- "_native_dubs": [
-  "async def(source: str, key: str)"
- ],
- "_native_episodes": [
-  "async def(source: str, key: str, route: str='direct')"
- ],
- "_native_search": [
-  "async def(source: str, q: str, mal_id: int | None=None, route: str='direct')"
- ],
- "_native_videos": [
-  "async def(source: str, key: str)"
+  "async def(path: str, params: dict) -> dict"
  ],
  "_network": [
   "= c50c2fdd5566"
- ],
- "_norm_dub_name": [
-  "def(name: str) -> str"
- ],
- "_on_route": [
-  "def(source: str, obj, route: str)"
  ],
  "_origin": [
   "def(url: str) -> str",
@@ -1593,9 +1553,6 @@
  "_player_proxy_null_origin_cors": [
   "@app.middleware('http') async def(request: Request, call_next)"
  ],
- "_player_sources": [
-  "def() -> list[str]"
- ],
  "_points_lock": [
   "= c6d6acc28078"
  ],
@@ -1604,9 +1561,6 @@
  ],
  "_purge": [
   "def(mal_id: int, admin: int) -> dict[str, Any]"
- ],
- "_put": [
-  "def(obj: Any) -> str"
  ],
  "_pymysql": [
   "= 6eef6648406c"
@@ -1692,9 +1646,6 @@
  "_rule_applies_to_player_url": [
   "def(modifiers: str) -> bool"
  ],
- "_run": [
-  "async def(fn, *args, **kwargs)"
- ],
  "_safe": [
   "def(item: dict) -> bool"
  ],
@@ -1736,9 +1687,6 @@
  ],
  "_social_origins": [
   "def() -> set[str]"
- ],
- "_source_call": [
-  "async def(source: str, op: str, run, timeout: float)"
  ],
  "_source_unavailable": [
   "def(source: str) -> HTTPException"
@@ -1787,9 +1735,6 @@
   "@functools.lru_cache(maxsize=4) def(ca: str) -> ssl.SSLContext | bool",
   "def(url: str) -> ssl.SSLContext | None"
  ],
- "_unplayable_player_url": [
-  "def(url: str) -> bool"
- ],
  "_unregistered": [
   "def(*_args, **_kwargs)"
  ],
@@ -1822,9 +1767,6 @@
  ],
  "_vk_frame": [
   "async def(request: Request, ref: dict[str, str]) -> Response"
- ],
- "_vk_last": [
-  "def(identities: list, scores: dict) -> list"
  ],
  "_vless_outbound": [
   "def(link: str) -> dict | None"
@@ -1890,7 +1832,7 @@
   "def() -> int"
  ],
  "adblock_check": [
-  "@app.get('/adblock/check') def(url: str=Query(..., min_length=4))"
+  "@router.get('/adblock/check') def(url: str=Query(..., min_length=4))"
  ],
  "adblock_enabled": [
   "def() -> bool"
@@ -1905,7 +1847,7 @@
   "def() -> int"
  ],
  "adblock_status": [
-  "@app.get('/adblock/status') def()"
+  "@router.get('/adblock/status') def()"
  ],
  "adjust_auto_list_status_after_unwatch": [
   "def(conn, user_id: int, mal_id: int, *, removed_episode: int, episodes_total: int) -> dict[str, Any] | None"
@@ -1914,13 +1856,16 @@
   "def() -> bytes"
  ],
  "admin_summary.loaded_sources": [
-  "= 2a7a41920a2e"
+  "= 098a3782a3ae"
  ],
  "admin_user": [
   "async def(request: Request) -> int"
  ],
  "adult": [
   "def(mal_id: Any) -> bool"
+ ],
+ "all_sources": [
+  "def() -> list[str]"
  ],
  "animesocial_site_url": [
   "def() -> str | None"
@@ -2037,6 +1982,7 @@
   "async def(method: str, url: str, *, params: dict | None=None, json_body: Any=None, ttl: float, timeout: float=15.0, headers: dict | None=None) -> tuple[bytes, str, int]"
  ],
  "call": [
+  "async def(fn, *args, **kwargs)",
   "async def(payload: dict) -> dict",
   "def(method: str, path: str, *, token: str | None=None, body: dict[str, Any] | None=None, user_ip: str='', user_agent: str='') -> Any"
  ],
@@ -2125,7 +2071,7 @@
   "@router.put('/dub-prefs/{mal_id}') def(mal_id: int, payload: DubPrefIn, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
  ],
  "dubs_for_episode": [
-  "@app.get('/src/dubs') async def(key: str, source: str='anilibria')"
+  "@router.get('/src/dubs') async def(key: str, source: str='anilibria')"
  ],
  "enabled": [
   "def() -> bool",
@@ -2141,7 +2087,7 @@
   "def(*, blocking: bool=True) -> bool"
  ],
  "episodes": [
-  "@app.get('/src/episodes') async def(key: str, source: str='anilibria')"
+  "@router.get('/src/episodes') async def(key: str, source: str='anilibria')"
  ],
  "error_response": [
   "def(_request: Request, exc: AdminError) -> JSONResponse"
@@ -2151,6 +2097,9 @@
  ],
  "extra_origins": [
   "= 9aadf8ef192d"
+ ],
+ "extractor": [
+  "def(source: str, route: str)"
  ],
  "favorite_add": [
   "@router.put('/favorites/{mal_id}') def(mal_id: int, payload: FavoriteIn, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
@@ -2175,6 +2124,12 @@
  ],
  "fetch_recent_paged": [
   "def(user_id: int, *, offset: int, limit: int, group: str | None, day: str | None=None) -> dict[str, Any]"
+ ],
+ "filter_by_year": [
+  "def(results: list[dict], year: int | None) -> list[dict]"
+ ],
+ "filter_source_videos": [
+  "async def(videos: list[dict]) -> list[dict]"
  ],
  "filter_videos": [
   "async def(videos: list[dict[str, Any]]) -> list[dict[str, Any]]"
@@ -2239,6 +2194,9 @@
  "from_local_proxy": [
   "def(request: Request) -> bool"
  ],
+ "get": [
+  "def(key: str) -> Any"
+ ],
  "get_animevost": [
   "def() -> Animevost"
  ],
@@ -2247,6 +2205,9 @@
  ],
  "get_config": [
   "@lru_cache(maxsize=1) def() -> dict[str, Any]"
+ ],
+ "get_extractor": [
+  "def(source: str)"
  ],
  "get_oldyummy": [
   "def() -> OldYummy"
@@ -2260,8 +2221,11 @@
  "graph_for_user_public": [
   "def(user_id: int, days: int=DEFAULT_DAYS) -> dict[str, Any]"
  ],
+ "guard_source": [
+  "async def(source: str, op: str, awaitable, timeout: float)"
+ ],
  "health": [
-  "@app.get('/health') def()",
+  "@router.get('/health') def()",
   "def() -> dict[str, Any]"
  ],
  "hidden": [
@@ -2413,6 +2377,10 @@
   "= 9a6a5b08b0f5",
   "= 9d8fc02d77ae",
   "= a4c65cd75c4e",
+  "= a4c65cd75c4e",
+  "= a4c65cd75c4e",
+  "= a4c65cd75c4e",
+  "= a4c65cd75c4e",
   "= b3b24f687743",
   "= b424f540bc0b",
   "= bd836eb04249",
@@ -2459,11 +2427,32 @@
  "mark_success": [
   "def(source: str, latency_ms: int | None=None) -> None"
  ],
+ "native": [
+  "def(source: str, route: str)"
+ ],
+ "native_dubs": [
+  "async def(source: str, key: str)"
+ ],
+ "native_episodes": [
+  "async def(source: str, key: str, route: str='direct')"
+ ],
+ "native_search": [
+  "async def(source: str, q: str, mal_id: int | None=None, route: str='direct')"
+ ],
+ "native_videos": [
+  "async def(source: str, key: str)"
+ ],
+ "norm_dub_name": [
+  "def(name: str) -> str"
+ ],
  "notice": [
   "def() -> dict[str, Any] | None"
  ],
  "ok": [
   "def(data: Any) -> dict[str, Any]"
+ ],
+ "on_route": [
+  "def(source: str, obj, route: str)"
  ],
  "open_session": [
   "def(uid: int, tokens: dict[str, Any], request: Request, user_ip: str, user_agent: str) -> str | None"
@@ -2501,6 +2490,9 @@
  ],
  "player_module": [
   "@router.get('/modules/{scheme}/{host}/{path:path}') async def(request: Request, scheme: str, host: str, path: str)"
+ ],
+ "player_sources": [
+  "def() -> list[str]"
  ],
  "port_alive": [
   "def(host: str, port: int, timeout: float=1.0) -> bool"
@@ -2586,8 +2578,11 @@
  "public_view": [
   "def() -> dict[str, Any]"
  ],
+ "put": [
+  "def(obj: Any) -> str"
+ ],
  "random_watchable": [
-  "@app.get('/random/watchable') async def()"
+  "@router.get('/random/watchable') async def()"
  ],
  "rating_clear": [
   "@router.delete('/ratings/{mal_id}') def(mal_id: int, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
@@ -2605,7 +2600,7 @@
   "def() -> str"
  ],
  "realtime_social.status_provider": [
-  "= b57e0c80e95c"
+  "= 189388ebf9b4"
  ],
  "realtime_ws.extra_origins": [
   "= 4641e5957bc3"
@@ -2708,6 +2703,11 @@
   "= 82e1a4f1c862",
   "= 82e1a4f1c862",
   "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
+  "= 82e1a4f1c862",
   "= f115762622b1",
   "= f115762622b1",
   "= f115762622b1",
@@ -2723,7 +2723,7 @@
   "def(text: str, context: str) -> bytes"
  ],
  "search": [
-  "@app.get('/src/search') async def(q: str=Query(..., min_length=1), source: str='anilibria', year: int | None=None, mal_id: int | None=None)"
+  "@router.get('/src/search') async def(q: str=Query(..., min_length=1), source: str='anilibria', year: int | None=None, mal_id: int | None=None)"
  ],
  "search_titles": [
   "async def(q: str, limit: int=10) -> list[dict]"
@@ -2779,6 +2779,7 @@
   "async def() -> None",
   "async def() -> None",
   "async def() -> None",
+  "async def() -> None",
   "def() -> None"
  ],
  "sign": [
@@ -2800,17 +2801,20 @@
  "social_session": [
   "def(request: Request, session: str | None) -> tuple[str | None, str, str]"
  ],
+ "source_call": [
+  "async def(source: str, op: str, run, timeout: float)"
+ ],
  "source_enabled": [
   "def(source: str) -> bool"
  ],
  "source_health_status": [
-  "@app.get('/source-health') def()"
+  "@router.get('/source-health') def()"
  ],
  "source_order": [
   "def() -> list[str]"
  ],
  "sources": [
-  "@app.get('/sources') def()"
+  "@router.get('/sources') def()"
  ],
  "sources_view": [
   "def() -> list[dict[str, Any]]"
@@ -2896,6 +2900,9 @@
  "unix": [
   "def(value: datetime | None) -> int | None"
  ],
+ "unplayable_player_url": [
+  "def(url: str) -> bool"
+ ],
  "unseal": [
   "def(blob: bytes, context: str) -> str | None"
  ],
@@ -2921,10 +2928,13 @@
   "def(plain: str, stored_hash: str, salt: str | None) -> bool"
  ],
  "videos": [
-  "@app.get('/src/videos') async def(key: str, source: str='anilibria')"
+  "@router.get('/src/videos') async def(key: str, source: str='anilibria')"
  ],
  "visible": [
   "def(items: list[Any], key: str='mal_id') -> list[Any]"
+ ],
+ "vk_last": [
+  "def(identities: list, scores: dict) -> list"
  ],
  "vk_video_ref": [
   "def(url: str) -> dict[str, str] | None"

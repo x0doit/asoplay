@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 from fastapi import HTTPException
-from core import core
+from core.functions import sources as source_registry
 from core.classes import http
 from core.classes.sources import oldyummy
 from core.classes.vpn import xray as vpn_xray
@@ -120,7 +120,7 @@ class SourceRouteTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         http._vpn_preferred_until.clear()
         source_health._STATES.pop(self.SOURCE, None)
-        self.bridge = patch.object(core.vpn_bridge, "proxy_url", return_value="http://127.0.0.1:20809")
+        self.bridge = patch.object(source_registry.vpn_bridge, "proxy_url", return_value="http://127.0.0.1:20809")
         self.bridge.start()
 
     async def asyncTearDown(self):
@@ -138,7 +138,7 @@ class SourceRouteTests(unittest.IsolatedAsyncioTestCase):
             return ["hit"]
 
         for _ in range(3):
-            self.assertEqual(await core._source_call(self.SOURCE, "search", run, timeout=2), ["hit"])
+            self.assertEqual(await source_registry.source_call(self.SOURCE, "search", run, timeout=2), ["hit"])
         self.assertEqual(calls, ["direct", "vpn", "vpn", "vpn"])
         self.assertTrue(source_health.is_available(self.SOURCE))
         self.assertEqual(source_health._STATES[self.SOURCE].consecutive_failures, 0)
@@ -150,7 +150,7 @@ class SourceRouteTests(unittest.IsolatedAsyncioTestCase):
             return ["hit"]
 
         start = time.monotonic()
-        self.assertEqual(await core._source_call(self.SOURCE, "search", run, timeout=0.8), ["hit"])
+        self.assertEqual(await source_registry.source_call(self.SOURCE, "search", run, timeout=0.8), ["hit"])
         self.assertLess(time.monotonic() - start, 0.8)
 
     async def test_both_routes_failing_is_a_502_and_counts_once(self):
@@ -158,7 +158,7 @@ class SourceRouteTests(unittest.IsolatedAsyncioTestCase):
             raise httpx.ConnectError(f"{route} down")
 
         with self.assertRaises(HTTPException) as error:
-            await core._source_call(self.SOURCE, "episodes", run, timeout=2)
+            await source_registry.source_call(self.SOURCE, "episodes", run, timeout=2)
         self.assertEqual(error.exception.status_code, 502)
         self.assertEqual(source_health._STATES[self.SOURCE].consecutive_failures, 1)
 

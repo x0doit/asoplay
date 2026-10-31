@@ -173,18 +173,21 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   └── trailer.js              окно трейлера
 ├── core/                       бэкенд, пакет Python: запуск python -m core
 │   ├── __main__.py             запуск uvicorn (адрес и порт — AV_BIND_HOST, AV_BIND_PORT)
-│   ├── core.py                 FastAPI wiring, static serving, sources
+│   ├── core.py                 сборка FastAPI: CORS, жизненный цикл, связи слоёв, роутеры, ошибки; статика до шага 6
 │   ├── requirements.txt        Python runtime dependencies
 │   ├── api/sections/           разделы API сайта
 │   │   ├── account/            /account/…: вход __init__.py подключает части в порядке маршрутов —
 │   │   │                       favorites, history, progress, ratings, settings, import_storage
 │   │   ├── lists/              /account/lists/…: entries (записи), progress_event (события плеера)
+│   │   ├── sources/            /src/…: search.py (поиск, серии), media.py (озвучки, видео)
 │   │   ├── activity.py         /account/activity: график и лента активности
 │   │   ├── auth.py             /auth/login, logout, me, register, config: вход паролем и настройки соцсети
 │   │   ├── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, перевод, картинки
 │   │   ├── friends.py          /account/friends…: друзья, заявки, «Возможные друзья», действия с дружбой
+│   │   ├── health.py           /health, /sources, /source-health, /adblock/…: состояние сервера
 │   │   ├── messages.py         /account/messages/{id}: «Написать» в переписку AnimeSocial
 │   │   ├── profile.py          /profile/…: публичные данные профиля — сводка, активность, списки
+│   │   ├── random.py           /random/watchable: случайный тайтл, который есть у источника
 │   │   ├── realtime.py         WebSocket /ws: протокол кадров, проверка Origin, вход по cookie
 │   │   └── social_login.py     /auth/as/…: вход через AnimeSocial, «кто вошёл», переход на сайт соцсети
 │   ├── admin/                  админ-API для раздела «AsoPlay» в /cpanel AnimeSocial (HMAC)
@@ -217,6 +220,9 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── activity_feed.py    лента событий и график по дням
 │   │   ├── rate_limit.py       лимит попыток входа и IP посетителя за прокси
 │   │   ├── source_health.py    source failure/cooldown state
+│   │   ├── sources.py          источники видео: реестр, ключи найденного, вызов напрямую или через VPN-мост
+│   │   ├── native_sources.py   свои источники (old.yummyani, animevost) в том же виде, что anicli-api
+│   │   ├── source_filters.py   фильтры найденного: год, имена озвучек, неиграбельные и VK-плееры, реклама
 │   │   └── player_hosts.py     политика плееров: VK, неиграющие плееры
 │   ├── classes/
 │   │   ├── db.py               подключение к базе AnimeSocial: настройки, соединение, проверка для /health
@@ -697,18 +703,21 @@ Key capabilities:
 │   └── trailer.js              trailer dialog
 ├── core/                       backend, a Python package: started with python -m core
 │   ├── __main__.py             uvicorn start (address and port: AV_BIND_HOST, AV_BIND_PORT)
-│   ├── core.py                 FastAPI app wiring, static serving, sources
+│   ├── core.py                 FastAPI wiring: CORS, lifecycle, layer links, routers, errors; static until step 6
 │   ├── requirements.txt        Python runtime dependencies
 │   ├── api/sections/           site API sections
 │   │   ├── account/            /account/…: the __init__.py entry includes the parts in route order —
 │   │   │                       favorites, history, progress, ratings, settings, import_storage
 │   │   ├── lists/              /account/lists/…: entries, progress_event (player events)
+│   │   ├── sources/            /src/…: search.py (search, episodes), media.py (dubs, videos)
 │   │   ├── activity.py         /account/activity: the activity graph and feed
 │   │   ├── auth.py             /auth/login, logout, me, register, config: password sign-in, social settings
 │   │   ├── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, translate, images
 │   │   ├── friends.py          /account/friends…: friends, requests, suggestions, friendship actions
+│   │   ├── health.py           /health, /sources, /source-health, /adblock/…: server state
 │   │   ├── messages.py         /account/messages/{id}: «Write» into the AnimeSocial dialog
 │   │   ├── profile.py          /profile/…: public profile data — summary, activity, lists
+│   │   ├── random.py           /random/watchable: a random title a source has
 │   │   ├── realtime.py         WebSocket /ws: the frame protocol, the Origin check, sign-in by cookie
 │   │   └── social_login.py     /auth/as/…: sign-in with AnimeSocial, «who is signed in», jump to the site
 │   ├── admin/                  admin API for the «AsoPlay» section in AnimeSocial /cpanel (HMAC)
@@ -741,6 +750,9 @@ Key capabilities:
 │   │   ├── activity_feed.py    the event feed and the per-day graph
 │   │   ├── rate_limit.py       login attempt limit and visitor IP behind the proxy
 │   │   ├── source_health.py    source failure/cooldown state
+│   │   ├── sources.py          video sources: the registry, keys of found objects, calls direct or via the VPN bridge
+│   │   ├── native_sources.py   our own sources (old.yummyani, animevost) shaped like anicli-api
+│   │   ├── source_filters.py   filters for found objects: year, dub names, unplayable and VK players, ads
 │   │   └── player_hosts.py     player policy: VK, players that do not play
 │   ├── classes/
 │   │   ├── db.py               AnimeSocial DB connection: settings, connect, the /health probe

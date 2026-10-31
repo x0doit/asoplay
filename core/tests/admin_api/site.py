@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.testclient import TestClient
 from core.classes import as_sessions, http_cache
 from core.classes.jikan import catalog as jikan_catalog
-from core.functions import site_settings
+from core.functions import site_settings, sources as source_registry
 from core.modules import title_cache, title_render
 from core import core as main
 
@@ -45,7 +45,7 @@ class SiteEffectTests(unittest.TestCase):
         resp = client.get("/src/search", params={"q": "Death Note", "source": "anilibria", "mal_id": 1535})
         self.assertEqual(resp.status_code, 451)
         site_settings.state.settings = site_settings.Settings(sources=({"id": "anilibria", "enabled": False, "order": 0},))
-        with patch.object(main, "_source_call", side_effect=AssertionError("must not search")):
+        with patch.object(source_registry, "source_call", side_effect=AssertionError("must not search")):
             self.assertEqual(client.get("/src/search", params={"q": "Naruto", "source": "anilibria"}).json(), [])
 
     def test_the_hidden_page_stays_for_people_but_not_for_search_engines(self):

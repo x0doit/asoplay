@@ -12,7 +12,9 @@ from unittest.mock import AsyncMock, Mock, patch
 import httpx
 from fastapi import HTTPException
 from starlette.requests import Request
-from core import core
+from core.api.sections.sources import media
+from core.functions import native_sources, source_filters
+from core.functions import sources as source_registry  # у проверки есть своя переменная sources
 from core.modules.player import routes as player_proxy
 from core.functions.player_hosts import is_disabled_player_url, iframe_preference_score, vk_video_ref
 
@@ -30,15 +32,17 @@ class Selection(unittest.IsolatedAsyncioTestCase):
     async def generic_dubs(self, entries):
         sources = [SimpleNamespace(title=name, url=url) for name, url in entries]
         ep = SimpleNamespace(a_get_sources=AsyncMock(return_value=sources))
-        with patch.object(core, '_get', return_value=ep), patch.object(core, '_put', side_effect=lambda s: s.url):
-            return await core.dubs_for_episode('episode', 'yummy_anime')
+        with patch.object(source_registry, 'get', return_value=ep), \
+             patch.object(source_registry, 'put', side_effect=lambda s: s.url):
+            return await media.dubs_for_episode('episode', 'yummy_anime')
 
     async def native_dubs(self, entries):
         ep = {'source': 'oldyummy', 'dubs': [
             {'data': {'dubbing': name}, 'iframe_url': url} for name, url in entries
         ]}
-        with patch.object(core, '_get', return_value=ep), patch.object(core, '_put', side_effect=lambda s: s['iframe_url']):
-            return await core._native_dubs('oldyummy', 'episode')
+        with patch.object(source_registry, 'get', return_value=ep), \
+             patch.object(source_registry, 'put', side_effect=lambda s: s['iframe_url']):
+            return await native_sources.native_dubs('oldyummy', 'episode')
 
     async def test_cvh_wins_on_both_paths_regardless_of_input_order(self):
         for urls in itertools.permutations([VK, CVH, KODIK]):
@@ -74,22 +78,22 @@ class Selection(unittest.IsolatedAsyncioTestCase):
 
     async def test_vk_source_key_returns_the_wrapper_for_the_clean_frame(self):
         source = SimpleNamespace(url=VK, title='AliveDub', get_videos=Mock())
-        with patch.object(core, '_get', return_value=source), \
-             patch.object(core.adblock, 'filter_videos', AsyncMock(side_effect=lambda v: v)):
-            videos = await core.videos('key', 'yummy_anime')
+        with patch.object(source_registry, 'get', return_value=source), \
+             patch.object(source_filters.adblock, 'filter_videos', AsyncMock(side_effect=lambda v: v)):
+            videos = await media.videos('key', 'yummy_anime')
         self.assertEqual([(v['url'], v['type']) for v in videos], [(VK, 'iframe')])
         source.get_videos.assert_not_called()
 
     async def test_unparseable_vk_source_key_never_extracts_videos(self):
         source = SimpleNamespace(url=VK_BROKEN, get_videos=Mock())
-        with patch.object(core, '_get', return_value=source):
-            self.assertEqual(await core.videos('stale', 'yummy_anime'), [])
+        with patch.object(source_registry, 'get', return_value=source):
+            self.assertEqual(await media.videos('stale', 'yummy_anime'), [])
         source.get_videos.assert_not_called()
 
     async def test_video_filter_keeps_vk_refs_and_drops_raw_vk_pages(self):
         keep = [{'url': VK, 'type': 'iframe'}, {'url': KODIK, 'type': 'iframe'}]
-        with patch.object(core.adblock, 'filter_videos', AsyncMock(side_effect=lambda v: v)) as filtered:
-            self.assertEqual(await core._filter_source_videos([*keep, {'url': VK_BROKEN}]), keep)
+        with patch.object(source_filters.adblock, 'filter_videos', AsyncMock(side_effect=lambda v: v)) as filtered:
+            self.assertEqual(await source_filters.filter_source_videos([*keep, {'url': VK_BROKEN}]), keep)
         filtered.assert_awaited_once_with(keep)
 
 
