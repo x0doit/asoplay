@@ -143,6 +143,20 @@ async function pickerPlacement(page) {
 // Console noise that is not a page error
 const CONSOLE_NOISE = /Failed to load resource/;
 
+// Ошибки консоли считаются только у нашей страницы — те, чей адрес на нашем origin. Сообщения чужих iframe
+// (трейлер, плеер) в проверки не идут, а копятся здесь со страницей и текстом: отчёт покажет их отдельной строкой,
+// чтобы такое можно было повторить.
+const foreign = [];
+
+function watchConsole(page, errors, scenario) {
+  page.on("console", m => {
+    if (m.type() !== "error" || CONSOLE_NOISE.test(m.text())) return;
+    const source = (m.location() || {}).url || "";
+    if (source === SITE || source.startsWith(SITE + "/")) errors.push(m.text().slice(0, 200));
+    else foreign.push({ scenario, page: page.url(), source, text: m.text().slice(0, 300) });
+  });
+}
+
 // «Who is signed in to AnimeSocial» never reaches the real social network: every page of every run would spend its
 // per-address limit (60 a minute), which the engine's own tests on this machine share. Unknown → «not signed in»;
 // the asLogin and friends scenarios answer it themselves (page routes win over this context route).
@@ -160,5 +174,5 @@ async function settle(page, ms = 800) {
   await page.waitForTimeout(ms);
 }
 
-module.exports = { SITE, OUT, USER, STATUS, report, accountMocks, check, shot, overflowing,
-  pickerPlacement, CONSOLE_NOISE, quietSocialSession, settle };
+module.exports = { SITE, OUT, USER, STATUS, report, foreign, accountMocks, check, shot, overflowing,
+  pickerPlacement, CONSOLE_NOISE, watchConsole, quietSocialSession, settle };

@@ -11,7 +11,7 @@
  */
 const fs = require("fs");
 const path = require("path");
-const { OUT, SITE, STATUS, quietSocialSession, report } = require("./lib.cjs");
+const { OUT, SITE, STATUS, foreign, quietSocialSession, report } = require("./lib.cjs");
 
 // Сценарии по порядку: файл scenarios/<имя>.cjs отдаёт свой сценарий под ключом (lists-live.cjs → listsLive)
 const FILES = ["desktop-guest", "desktop-account", "phone", "as-login", "friends", "realtime", "lists-live", "admin",
@@ -53,6 +53,11 @@ const ONLY = asked.length ? new Set(asked.flatMap(name => byName[name])) : null;
   await browser.close();
   const failed = report.filter(r => !r.ok);
   fs.writeFileSync(path.join(OUT, "_report.json"), JSON.stringify(report, null, 2));
+  // Ошибки консоли чужих iframe (трейлер, плеер) проверку не валят, но видны: страница, источник и текст
+  fs.writeFileSync(path.join(OUT, "_foreign_iframes.json"), JSON.stringify(foreign, null, 2));
+  const noAddress = foreign.filter(f => !f.source).length;  // не из файлов страницы: вставка Playwright, сам браузер
+  console.log(`\nчужие iframe: ${foreign.length - noAddress}, без адреса: ${noAddress}`);
+  for (const f of foreign) console.log(`  ${f.scenario} | ${f.page} | ${f.source || "без адреса"} | ${f.text}`);
   console.log(`\n${report.length - failed.length}/${report.length} checks passed`);
   for (const f of failed) console.log("FAIL:", f.name, f.detail);
   if (!report.length) console.log("FAIL: ни одной проверки — нечего считать зелёным");

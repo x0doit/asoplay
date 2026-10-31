@@ -3,7 +3,7 @@
  *
  * Автор: Чепела Даниил Максимович.
  */
-const { SITE, accountMocks, check, shot, overflowing, CONSOLE_NOISE, settle } = require("../lib.cjs");
+const { SITE, accountMocks, check, shot, overflowing, settle, watchConsole } = require("../lib.cjs");
 
 module.exports = {
   async phone(browser) {
@@ -12,7 +12,7 @@ module.exports = {
       const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, colorScheme: theme, locale: "ru-RU" });
       const page = await ctx.newPage();
       const errors = []; page.on("pageerror", e => errors.push(String(e.message).slice(0, 200)));
-      page.on("console", m => { if (m.type() === "error" && !CONSOLE_NOISE.test(m.text())) errors.push(m.text().slice(0, 200)); });
+      watchConsole(page, errors, `phone ${theme}`);
       const swipeDown = async (sel) => {
         const box = await (await page.$(sel)).boundingBox();
         const cdp = await ctx.newCDPSession(page);

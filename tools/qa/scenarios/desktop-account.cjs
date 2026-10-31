@@ -4,7 +4,7 @@
  *
  * Автор: Чепела Даниил Максимович.
  */
-const { SITE, accountMocks, check, shot, CONSOLE_NOISE, settle } = require("../lib.cjs");
+const { SITE, accountMocks, check, shot, settle, watchConsole } = require("../lib.cjs");
 
 module.exports = {
   async desktopAccount(browser) {
@@ -12,7 +12,7 @@ module.exports = {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light", locale: "ru-RU" });
     const page = await ctx.newPage();
     const errors = []; page.on("pageerror", e => errors.push(String(e.message).slice(0, 200)));
-    page.on("console", m => { if (m.type() === "error" && !CONSOLE_NOISE.test(m.text())) errors.push(m.text().slice(0, 200)); });
+    watchConsole(page, errors, "desktop account");
     await accountMocks(state)(page);
 
     await page.goto(SITE + "/", { waitUntil: "domcontentloaded" }); await settle(page, 2000);

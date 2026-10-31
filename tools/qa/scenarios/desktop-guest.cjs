@@ -3,14 +3,14 @@
  *
  * Автор: Чепела Даниил Максимович.
  */
-const { SITE, check, shot, overflowing, pickerPlacement, CONSOLE_NOISE, settle } = require("../lib.cjs");
+const { SITE, check, shot, overflowing, pickerPlacement, settle, watchConsole } = require("../lib.cjs");
 
 module.exports = {
   async desktopGuest(browser) {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light", locale: "ru-RU" });
     const page = await ctx.newPage();
     const errors = []; page.on("pageerror", e => errors.push(String(e.message).slice(0, 200)));
-    page.on("console", m => { if (m.type() === "error" && !CONSOLE_NOISE.test(m.text())) errors.push(m.text().slice(0, 200)); });
+    watchConsole(page, errors, "desktop guest");
 
     await page.goto(SITE + "/", { waitUntil: "domcontentloaded" }); await settle(page, 2500);
     const first = await page.textContent(".hero-slide.active .hero-title").catch(() => "");

@@ -4,7 +4,7 @@
  *
  * Автор: Чепела Даниил Максимович.
  */
-const { SITE, USER, STATUS, accountMocks, check, shot, overflowing, CONSOLE_NOISE, settle } = require("../lib.cjs");
+const { SITE, USER, STATUS, accountMocks, check, shot, overflowing, settle, watchConsole } = require("../lib.cjs");
 
 module.exports = {
   // Friends from AnimeSocial: /my/friends with presence, the filter and every empty state, the «?as=» notice,
@@ -26,7 +26,7 @@ module.exports = {
         deviceScaleFactor: vp.phone ? 2 : 1, colorScheme: vp.phone ? "dark" : "light", locale: "ru-RU" });
       const page = await ctx.newPage();
       const errors = []; page.on("pageerror", e => errors.push(String(e.message).slice(0, 200)));
-      page.on("console", m => { if (m.type() === "error" && !CONSOLE_NOISE.test(m.text())) errors.push(m.text().slice(0, 200)); });
+      watchConsole(page, errors, `friends ${tag}`);
       const state = { calls: [], privacyPuts: [], friends: FRIENDS, friendsStatus: 200, title: { connected: true, total: 0, items: [] } };
       await accountMocks(state)(page);
       const json = (route, body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
