@@ -55,6 +55,9 @@ _YUMMY_SITE = "https://ru.yummyani.me/"
 # The player iframe's flags on the page (app.js createIframe), never allow-same-origin: a proxied document
 # opened on its own gets an opaque origin, without the site's cookies and storage.
 _FRAME_SANDBOX = "sandbox allow-scripts allow-presentation"
+# Answers a browser can open as a page on their own. Outside the player's documents they get a sandbox with no
+# flags: no scripts, no site origin. An answer without a type counts too, since the browser sniffs it.
+_PAGE_TYPES = {"", "text/html", "application/xhtml+xml", "image/svg+xml", "text/xml", "application/xml"}
 # Redirects are followed by hand in _send, each hop checked; as many as httpx follows by default.
 _MAX_REDIRECTS = 20
 
@@ -232,6 +235,10 @@ async def _send(method: str, url: str, *, stream: bool = False, **kwargs: Any) -
         except http_public.Refused as exc:
             _log_refusal(host, str(exc))
             raise
+        except httpx.InvalidURL as exc:
+            # httpx builds the next hop itself, even when it does not follow it; a Location it cannot parse
+            # (javascript:, data:) ends the chain as an upstream fault, not a 500.
+            raise httpx.RemoteProtocolError(f"bad redirect: {exc}", request=request) from exc
         if response.next_request is None:
             return response
         await response.aclose()
@@ -400,6 +407,8 @@ def _response_headers(upstream: httpx.Response, *, html_frame: bool = False, ori
             f"worker-src {own} blob:; "
             f"object-src 'none'; base-uri 'none'; form-action 'none'; {_FRAME_SANDBOX}"
         )
+    elif (upstream.headers.get("content-type") or "").split(";", 1)[0].strip().lower() in _PAGE_TYPES:
+        headers["Content-Security-Policy"] = "sandbox"
     return headers
 
 
