@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-source = ast.parse((Path(__file__).resolve().parents[2] / 'core/functions/activity.py').read_text(encoding='utf-8'))
+source = ast.parse((Path(__file__).resolve().parents[2] / 'core/functions/activity_feed.py').read_text(encoding='utf-8'))
 functions = [node for node in source.body if isinstance(node, ast.FunctionDef) and node.name in ('_fetch_recent', '_resolve_kinds', '_activity_title')]
 namespace = {'Any': Any, 'KIND_GROUPS': {'watch': ['watch_start', 'watch_continue', 'complete']}, 'WATCH_EVENT_HAS_PROGRESS_SQL': 'PROGRESS_EXISTS'}
 exec(compile(ast.Module(body=functions, type_ignores=[]), '<activity functions>', 'exec'), namespace)

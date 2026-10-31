@@ -1454,9 +1454,6 @@
  "_get_extractor": [
   "def(source: str)"
  ],
- "_graph_for_user": [
-  "def(user_id: int, days: int=DEFAULT_DAYS) -> dict[str, Any]"
- ],
  "_guard_source": [
   "async def(source: str, op: str, awaitable, timeout: float)"
  ],
@@ -2337,6 +2334,9 @@
  ],
  "get_vpn_client": [
   "async def() -> httpx.AsyncClient | None"
+ ],
+ "graph_for_user": [
+  "def(user_id: int, days: int=DEFAULT_DAYS) -> dict[str, Any]"
  ],
  "graph_for_user_public": [
   "def(user_id: int, days: int=DEFAULT_DAYS) -> dict[str, Any]"

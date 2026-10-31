@@ -14,7 +14,6 @@ core/classes/db.py
 core/classes/http.py
 core/classes/jikan/catalog.py
 core/classes/vpn/bridge.py
-core/functions/activity.py
 core/functions/presence.py
 core/functions/realtime.py
 core/functions/social_login.py

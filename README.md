@@ -178,7 +178,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   ├── api/sections/           разделы API сайта
 │   │   ├── account/            /account/…: вход __init__.py подключает части в порядке маршрутов —
 │   │   │                       favorites, history, progress, ratings, settings, import_storage
-│   │   └── lists/              /account/lists/…: entries (записи), progress_event (события плеера)
+│   │   ├── lists/              /account/lists/…: entries (записи), progress_event (события плеера)
+│   │   └── activity.py         /account/activity: график и лента активности
 │   ├── admin/                  админ-API для раздела «AsoPlay» в /cpanel AnimeSocial (HMAC)
 │   │   ├── router.py           вход: подключает части в порядке маршрутов
 │   │   ├── auth.py             подпись, повторы, ошибки, обёртка ответов, страницы
@@ -199,7 +200,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── watch_history.py    история «Смотрю» и авто-статус после «не смотрел»
 │   │   ├── privacy.py          флаги приватности и их чтение
 │   │   ├── watch_time.py       сколько посмотрели — для «Обзора» в панели
-│   │   ├── activity.py         contribution/activity event log
+│   │   ├── activity.py         запись событий активности (contribution-график)
+│   │   ├── activity_feed.py    лента событий и график по дням
 │   │   ├── rate_limit.py       лимит попыток входа и IP посетителя за прокси
 │   │   ├── source_health.py    source failure/cooldown state
 │   │   └── player_hosts.py     политика плееров: VK, неиграющие плееры
@@ -683,7 +685,8 @@ Key capabilities:
 │   ├── api/sections/           site API sections
 │   │   ├── account/            /account/…: the __init__.py entry includes the parts in route order —
 │   │   │                       favorites, history, progress, ratings, settings, import_storage
-│   │   └── lists/              /account/lists/…: entries, progress_event (player events)
+│   │   ├── lists/              /account/lists/…: entries, progress_event (player events)
+│   │   └── activity.py         /account/activity: the activity graph and feed
 │   ├── admin/                  admin API for the «AsoPlay» section in AnimeSocial /cpanel (HMAC)
 │   │   ├── router.py           entry: includes the parts in route order
 │   │   ├── auth.py             signature, replays, errors, response envelope, pages
@@ -704,7 +707,8 @@ Key capabilities:
 │   │   ├── watch_history.py    the «Watching» history and auto status after «not watched»
 │   │   ├── privacy.py          privacy flags and reading them
 │   │   ├── watch_time.py       watched time for the panel overview
-│   │   ├── activity.py         contribution/activity event log
+│   │   ├── activity.py         records activity events (the contribution graph)
+│   │   ├── activity_feed.py    the event feed and the per-day graph
 │   │   ├── rate_limit.py       login attempt limit and visitor IP behind the proxy
 │   │   ├── source_health.py    source failure/cooldown state
 │   │   └── player_hosts.py     player policy: VK, players that do not play
