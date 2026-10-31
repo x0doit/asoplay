@@ -13,8 +13,8 @@ from urllib.parse import parse_qs, urlsplit
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from core.classes import as_api
-from core.functions import presence, sessions, social_login
+from core.classes import as_api, as_sessions
+from core.functions import presence, sessions
 
 from core.tests.presence.lib import NOW, FakeClock, person, SocialFake
 
@@ -44,9 +44,9 @@ class FriendsTests(unittest.TestCase):
             patch.object(presence, "_privacy", side_effect=lambda ids: {u: self.privacy[u] for u in ids if u in self.privacy}),
             patch.object(presence, "_titles", side_effect=lambda ids: {52991: ("Фрирен", "https://cdn.myanimelist.net/images/anime/1015/138006l.jpg")} if 52991 in set(ids) else {}),
             patch.object(presence, "_list_statuses", side_effect=lambda mal_id, ids: {u: s for u, s in self.statuses.items() if u in set(ids)}),
-            patch.object(social_login, "enabled", return_value=True),
-            patch.object(social_login, "access_token", side_effect=lambda *a: self.token),
-            patch.object(social_login, "_delete", side_effect=self.forgotten.append),
+            patch.object(as_sessions, "enabled", return_value=True),
+            patch.object(as_sessions, "access_token", side_effect=lambda *a: self.token),
+            patch.object(as_sessions, "_delete", side_effect=self.forgotten.append),
             patch.object(as_api, "call", side_effect=self.social),
         ]
         for p in patches:

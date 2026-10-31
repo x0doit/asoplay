@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from core.admin.audit import audit
 from core.admin.auth import AdminError, admin_user, ok
+from core.classes import as_sessions
 from core.classes.clock import utc_now
 from core.classes.db import connect
 from core.functions import site_settings, video_reports
@@ -57,7 +58,6 @@ class SettingsIn(BaseModel):
 
 def _settings_view() -> dict[str, Any]:
     """Настройки для панели — и что из выключенного вообще можно включить."""
-    from core.functions import social_login
     current = site_settings.state.settings
     return {
         "notice": dict(current.notice),
@@ -65,7 +65,7 @@ def _settings_view() -> dict[str, Any]:
         "sources": site_settings.sources_view(),
         # Что можно включить: вход через Anime Social — только при ключах клиента в .env AsoPlay,
         # комментариев на AsoPlay пока нет
-        "available": {"as_login": social_login.enabled(), "password_login": True, "comments": False},
+        "available": {"as_login": as_sessions.enabled(), "password_login": True, "comments": False},
     }
 
 

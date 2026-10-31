@@ -15,9 +15,9 @@ from unittest.mock import patch
 
 from fastapi.responses import HTMLResponse
 from fastapi.testclient import TestClient
-from core.classes import http_cache
+from core.classes import as_sessions, http_cache
 from core.classes.jikan import catalog as jikan_catalog
-from core.functions import site_settings, social_login
+from core.functions import site_settings
 from core.modules import title_pages
 from core import core as main
 
@@ -67,7 +67,7 @@ class SiteEffectTests(unittest.TestCase):
         until = int(time.time()) + 60
         site_settings.state.settings = site_settings.Settings(notice={"text": "Профилактика", "until": until},
                                                               features={"comments": True, "password_login": False, "as_login": True})
-        with patch.object(social_login, "enabled", return_value=True):
+        with patch.object(as_sessions, "enabled", return_value=True):
             state = site_settings.public_state()
         self.assertEqual(state, {"notice": {"text": "Профилактика", "until": until}, "hidden": [2, 1535], "adult": [7],
                                  "pinned": [52991], "login": {"social": True, "password": False},
@@ -80,7 +80,7 @@ class SiteEffectTests(unittest.TestCase):
         client = TestClient(main.app)
         resp = client.post("/auth/login", json={"login": "a@example.test", "password": "p"})
         self.assertEqual((resp.status_code, resp.json()["detail"]), (403, "password_login_disabled"))
-        with patch.object(social_login, "enabled", return_value=True):
+        with patch.object(as_sessions, "enabled", return_value=True):
             resp = client.get("/auth/as/start", params={"next": "/anime/1535"}, follow_redirects=False)
             self.assertEqual((resp.status_code, resp.headers["location"]), (302, "/anime/1535?as=disabled"))
             self.assertEqual(client.get("/health").json()["site"]["login"], {"social": False, "password": False})

@@ -23,6 +23,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from core.classes import as_sessions
 from core.classes.db import connect
 
 log = logging.getLogger("asoplay.site_settings")
@@ -178,13 +179,12 @@ def source_enabled(source: str) -> bool:
 
 def public_state() -> dict[str, Any]:
     """Что нужно каждой странице: плашка, скрытые, 18+ и закреплённые тайтлы, способы входа, порядок источников."""
-    from core.functions import social_login
     flags = state.flags
     return {
         "notice": notice(),
         "hidden": sorted(flags.hidden),
         "adult": sorted(flags.adult),
         "pinned": list(flags.pinned),
-        "login": {"social": social_login.enabled() and feature("as_login"), "password": feature("password_login")},
+        "login": {"social": as_sessions.enabled() and feature("as_login"), "password": feature("password_login")},
         "sources": source_order(),
     }

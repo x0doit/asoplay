@@ -11,7 +11,8 @@ import json
 import time
 from unittest.mock import patch
 
-from core.functions import site_settings, social_login
+from core.classes import as_sessions
+from core.functions import site_settings
 
 from core.tests.admin_api.lib import PanelCase
 
@@ -45,7 +46,7 @@ class SettingsTests(PanelCase):
         self.cursor.execute = execute
 
     def test_all_sources_are_shown_in_order_with_what_can_be_switched_on(self):
-        with patch.object(social_login, "enabled", return_value=False):
+        with patch.object(as_sessions, "enabled", return_value=False):
             data = self.panel.call("GET", "/api/admin/settings").json()["data"]
         self.assertEqual([s["id"] for s in data["sources"]][:3], ["yummy_anime", "oldyummy", "animego"])
         self.assertEqual(data["sources"][0], {"id": "yummy_anime", "name": "YummyAnime", "enabled": True, "order": 1})

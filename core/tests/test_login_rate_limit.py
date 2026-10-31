@@ -11,7 +11,7 @@ from unittest.mock import patch
 from fastapi import HTTPException, Response
 from starlette.requests import Request
 from core.api.sections import auth as auth_routes
-from core.classes import accounts, as_api, passwords
+from core.classes import accounts, as_api, as_sessions, passwords
 from core.functions import rate_limit, sessions, social_login
 
 
@@ -84,7 +84,7 @@ class LoginLimitTests(unittest.TestCase):
             patch.object(accounts, "serialize_user", side_effect=lambda row: {"id": row["id_col"]}),
             patch.object(sessions, "create_session", return_value="t" * 64),
             # Без ключей соцсети пароль сверяется по её таблице
-            patch.object(social_login, "enabled", return_value=False),
+            patch.object(as_sessions, "enabled", return_value=False),
         ]
         for p in patches:
             p.start()
@@ -153,14 +153,14 @@ class SocialPasswordLoginTests(unittest.TestCase):
             patch.object(auth_routes, "_login_by_ip", rate_limit.SlidingWindow(20, auth_routes.LOGIN_WINDOW, clock=self.clock)),
             patch.object(auth_routes, "_login_by_identity", rate_limit.SlidingWindow(8, auth_routes.LOGIN_WINDOW, clock=self.clock)),
             patch.object(accounts, "lookup_user", side_effect=AssertionError("the social network checks the password")),
-            patch.object(social_login, "enabled", return_value=True),
+            patch.object(as_sessions, "enabled", return_value=True),
             patch.object(as_api, "password_login", side_effect=lambda *a: self.answer(*a)),
             patch.object(as_api, "logout", side_effect=lambda token, *_: self.logged_out.append(token)),
             patch.object(sessions, "create_session", return_value="t" * 64),
             patch.object(sessions, "revoke_session", side_effect=self.revoked.append),
-            patch.object(social_login, "_insert", side_effect=lambda session, uid, tokens: self.inserted.append((session, uid))),
-            patch.object(social_login, "_session_user", side_effect=lambda s: self.profile if s == "t" * 64 else None),
-            patch.object(social_login, "end_session", side_effect=lambda s, *_: self.ended.append(s)),
+            patch.object(as_sessions, "insert", side_effect=lambda session, uid, tokens: self.inserted.append((session, uid))),
+            patch.object(social_login, "session_user", side_effect=lambda s: self.profile if s == "t" * 64 else None),
+            patch.object(as_sessions, "end_session", side_effect=lambda s, *_: self.ended.append(s)),
         ]
         for p in patches:
             p.start()

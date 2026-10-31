@@ -13,8 +13,9 @@ from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from core.classes import as_api
-from core.functions import sessions, social_login
+from core.api.sections import social_login as social_routes
+from core.classes import as_api, as_sessions
+from core.functions import sessions
 
 from core.tests.as_login.lib import make_request
 
@@ -24,12 +25,12 @@ class SocialSideTests(unittest.TestCase):
 
     def setUp(self):
         app = FastAPI()
-        app.include_router(social_login.router)
+        app.include_router(social_routes.router)
         self.user = None
         app.dependency_overrides[sessions.current_user_optional] = lambda: self.user
         self.client = TestClient(app, follow_redirects=False)
         patches = [
-            patch.object(social_login, "enabled", return_value=True),
+            patch.object(as_sessions, "enabled", return_value=True),
             patch.object(as_api, "base_url", return_value="https://social.test/api/v2"),
         ]
         for p in patches:
@@ -61,7 +62,7 @@ class SocialSideTests(unittest.TestCase):
     def test_to_social_signs_in_with_the_session_token(self):
         link = "https://social.test/auth/app/web?code=" + "c" * 64
         with patch.object(sessions, "touch_session", return_value={"id": 17}), \
-                patch.object(social_login, "access_token", return_value="asa_live"), \
+                patch.object(as_sessions, "access_token", return_value="asa_live"), \
                 patch.object(as_api, "web_login", return_value={"url": link, "expires_in": 60}) as web_login:
             self.assertEqual(self.go(next="/news", nonce="n" * 24), link)
         web_login.assert_called_once_with("asa_live", "/news", "n" * 24, "testclient", "testclient")
@@ -72,7 +73,7 @@ class SocialSideTests(unittest.TestCase):
 
     def test_to_social_drops_a_foreign_link_a_bad_nonce_and_a_bad_path(self):
         with patch.object(sessions, "touch_session", return_value={"id": 17}), \
-                patch.object(social_login, "access_token", return_value="asa_live"), \
+                patch.object(as_sessions, "access_token", return_value="asa_live"), \
                 patch.object(as_api, "web_login", return_value={"url": "https://evil.test/steal"}) as web_login:
             self.assertEqual(self.go(next="//evil.test", nonce="short"), "https://social.test/")
         web_login.assert_called_once_with("asa_live", "/", "", "testclient", "testclient")
@@ -81,11 +82,11 @@ class SocialSideTests(unittest.TestCase):
 class RedirectUriTests(unittest.TestCase):
     def test_the_scheme_comes_from_nginx_only_for_local_requests(self):
         headers = {"host": "play.animesocial.online", "x-forwarded-proto": "https"}
-        self.assertEqual(social_login.redirect_uri(make_request("127.0.0.1", headers)),
+        self.assertEqual(social_routes.redirect_uri(make_request("127.0.0.1", headers)),
                          "https://play.animesocial.online/auth/as/callback")
-        self.assertEqual(social_login.redirect_uri(make_request("203.0.113.5", headers)),
+        self.assertEqual(social_routes.redirect_uri(make_request("203.0.113.5", headers)),
                          "http://play.animesocial.online/auth/as/callback")
 
     def test_an_explicit_address_wins(self):
         with patch.dict(os.environ, {"AV_AS_REDIRECT_URI": "https://example.test/cb"}):
-            self.assertEqual(social_login.redirect_uri(make_request("127.0.0.1", {"host": "x"})), "https://example.test/cb")
+            self.assertEqual(social_routes.redirect_uri(make_request("127.0.0.1", {"host": "x"})), "https://example.test/cb")

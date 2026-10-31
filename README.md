@@ -181,7 +181,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── lists/              /account/lists/…: entries (записи), progress_event (события плеера)
 │   │   ├── activity.py         /account/activity: график и лента активности
 │   │   ├── auth.py             /auth/login, logout, me, register, config: вход паролем и настройки соцсети
-│   │   └── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, перевод, картинки
+│   │   ├── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, перевод, картинки
+│   │   └── social_login.py     /auth/as/…: вход через AnimeSocial, «кто вошёл», переход на сайт соцсети
 │   ├── admin/                  админ-API для раздела «AsoPlay» в /cpanel AnimeSocial (HMAC)
 │   │   ├── router.py           вход: подключает части в порядке маршрутов
 │   │   ├── auth.py             подпись, повторы, ошибки, обёртка ответов, страницы
@@ -191,7 +192,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── profile_pages.py    public profile API и SSR shell
 │   │   └── player/routes.py    same-origin player proxy, Shield, iframe bridge
 │   ├── functions/
-│   │   ├── social_login.py     вход через AnimeSocial (OAuth 2.0 + PKCE) и его сессии
+│   │   ├── social_login.py     вход через AnimeSocial: PKCE, сессия AsoPlay со связью с соцсетью, вход паролем
 │   │   ├── sessions.py         сессии AsoPlay: создать, проверить, закрыть; cookie и текущий пользователь
 │   │   ├── presence.py         присутствие на AsoPlay и друзья из AnimeSocial
 │   │   ├── realtime.py         WebSocket /ws: вкладки, события друзьям, состояние сервера
@@ -213,6 +214,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── accounts.py         аккаунты соцсети: схема таблицы, поиск, @handle, бан
 │   │   ├── passwords.py        проверка пароля по хешу: bcrypt, argon2, sha*, md5, DLE
 │   │   ├── as_api.py           клиент API v2 AnimeSocial
+│   │   ├── as_sessions.py      сессии соцсети у сессий AsoPlay (токены, обновление, выход); включён ли вход
 │   │   ├── as_realtime.py      соединение сервер–сервер с realtime AnimeSocial
 │   │   ├── token_box.py        шифрование токенов соцсети в базе (AES-GCM)
 │   │   ├── http.py             клиенты (напрямую и через VPN-мост), маршрут для хоста, темп запросов к MAL
@@ -694,7 +696,8 @@ Key capabilities:
 │   │   ├── lists/              /account/lists/…: entries, progress_event (player events)
 │   │   ├── activity.py         /account/activity: the activity graph and feed
 │   │   ├── auth.py             /auth/login, logout, me, register, config: password sign-in, social settings
-│   │   └── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, translate, images
+│   │   ├── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, translate, images
+│   │   └── social_login.py     /auth/as/…: sign-in with AnimeSocial, «who is signed in», jump to the site
 │   ├── admin/                  admin API for the «AsoPlay» section in AnimeSocial /cpanel (HMAC)
 │   │   ├── router.py           entry: includes the parts in route order
 │   │   ├── auth.py             signature, replays, errors, response envelope, pages
@@ -704,7 +707,7 @@ Key capabilities:
 │   │   ├── profile_pages.py    public profile API and SSR shell
 │   │   └── player/routes.py    same-origin player proxy, Shield, iframe bridge
 │   ├── functions/
-│   │   ├── social_login.py     sign-in with AnimeSocial (OAuth 2.0 + PKCE) and its sessions
+│   │   ├── social_login.py     sign-in with AnimeSocial: PKCE, the AsoPlay session linked to it, password sign-in
 │   │   ├── sessions.py         AsoPlay sessions: create, check, revoke; the cookie and the current user
 │   │   ├── presence.py         presence on AsoPlay and friends from AnimeSocial
 │   │   ├── realtime.py         WebSocket /ws: tabs, events to friends, server status
@@ -726,6 +729,7 @@ Key capabilities:
 │   │   ├── accounts.py         social network accounts: table layout, lookup, @handle, ban
 │   │   ├── passwords.py        password check against the stored hash: bcrypt, argon2, sha*, md5, DLE
 │   │   ├── as_api.py           AnimeSocial API v2 client
+│   │   ├── as_sessions.py      social network sessions of AsoPlay sessions (tokens, refresh, logout); login on/off
 │   │   ├── as_realtime.py      server-to-server link with AnimeSocial realtime
 │   │   ├── token_box.py        encryption of social network tokens at rest (AES-GCM)
 │   │   ├── http.py             clients (direct and through the VPN bridge), route per host, MAL pacing

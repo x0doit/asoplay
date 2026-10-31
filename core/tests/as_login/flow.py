@@ -15,7 +15,8 @@ from urllib.parse import parse_qs, urlsplit
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from core.classes import as_api
+from core.api.sections import social_login as social_routes
+from core.classes import as_api, as_sessions
 from core.functions import sessions, social_login
 
 from core.tests.as_login.lib import TOKENS
@@ -24,14 +25,14 @@ from core.tests.as_login.lib import TOKENS
 class FlowTests(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
-        app.include_router(social_login.router)
+        app.include_router(social_routes.router)
         self.client = TestClient(app, follow_redirects=False)
         self.inserted, self.logged_out = [], []
         self.exchange = lambda *_: {"tokens": dict(TOKENS), "user": {"id": 17, "banned": False}}
         patches = [
-            patch.object(social_login, "enabled", return_value=True),
-            patch.object(social_login, "_flows", social_login._FlowStore(600)),
-            patch.object(social_login, "_insert", side_effect=lambda *a: self.inserted.append(a)),
+            patch.object(as_sessions, "enabled", return_value=True),
+            patch.object(social_login, "flows", social_login._FlowStore(600)),
+            patch.object(as_sessions, "insert", side_effect=lambda *a: self.inserted.append(a)),
             patch.object(sessions, "create_session", return_value="s" * 64),
             patch.object(as_api, "exchange_code", side_effect=lambda *a: self.exchange(*a)),
             patch.object(as_api, "logout", side_effect=lambda token, *_: self.logged_out.append(token)),
@@ -54,8 +55,8 @@ class FlowTests(unittest.TestCase):
         self.assertEqual(query["code_challenge_method"], ["S256"])
         self.assertEqual(query["client_id"], ["cl_asoplay"])
         state = query["state"][0]
-        self.assertEqual(resp.cookies.get(social_login.FLOW_COOKIE), state)
-        flow = social_login._flows.take(state)
+        self.assertEqual(resp.cookies.get(social_routes.FLOW_COOKIE), state)
+        flow = social_login.flows.take(state)
         challenge = base64.urlsafe_b64encode(hashlib.sha256(flow["verifier"].encode()).digest()).rstrip(b"=").decode()
         self.assertEqual(query["code_challenge"], [challenge])
         self.assertRegex(flow["verifier"], r"^[A-Za-z0-9._~\-]{43,128}$")
@@ -64,11 +65,11 @@ class FlowTests(unittest.TestCase):
     def test_next_cannot_lead_to_another_site(self):
         for bad in ("//evil.test", "https://evil.test", "/\\evil.test", "evil", ""):
             _, query = self.start(bad)
-            self.assertEqual(social_login._flows.take(query["state"][0])["next"], "/", bad)
+            self.assertEqual(social_login.flows.take(query["state"][0])["next"], "/", bad)
 
     def callback(self, state, cookie_state=None, **params):
         if cookie_state:
-            self.client.cookies.set(social_login.FLOW_COOKIE, cookie_state)
+            self.client.cookies.set(social_routes.FLOW_COOKIE, cookie_state)
         return self.client.get("/auth/as/callback", params={"state": state, **params})
 
     def test_success_creates_a_session_and_returns_to_the_page(self):
@@ -120,7 +121,7 @@ class FlowTests(unittest.TestCase):
 
     def test_a_storage_failure_opens_no_session_and_ends_the_social_one(self):
         revoked = []
-        with patch.object(social_login, "_insert", side_effect=RuntimeError("table aviev_as_sessions is missing")), \
+        with patch.object(as_sessions, "insert", side_effect=RuntimeError("table aviev_as_sessions is missing")), \
                 patch.object(sessions, "revoke_session", side_effect=revoked.append), \
                 self.assertLogs("asoplay.as_login", level="ERROR"):
             _, query = self.start()
@@ -132,7 +133,7 @@ class FlowTests(unittest.TestCase):
         self.assertEqual(revoked, ["s" * 64])
 
     def test_the_routes_are_hidden_while_the_feature_is_off(self):
-        with patch.object(social_login, "enabled", return_value=False):
+        with patch.object(as_sessions, "enabled", return_value=False):
             self.assertEqual(self.client.get("/auth/as/start").status_code, 404)
             self.assertEqual(self.client.get("/auth/as/callback").status_code, 404)
 
@@ -143,7 +144,7 @@ class FlowTests(unittest.TestCase):
         p.start()
         self.addCleanup(p.stop)
         linked = []
-        p = patch.object(social_login, "_link", side_effect=lambda *a: linked.append(a[:3]))
+        p = patch.object(as_sessions, "link", side_effect=lambda *a: linked.append(a[:3]))
         p.start()
         self.addCleanup(p.stop)
         return linked
@@ -176,7 +177,7 @@ class FlowTests(unittest.TestCase):
 
     def test_a_failed_link_ends_the_new_social_session(self):
         self.signed_in(17)
-        with patch.object(social_login, "_link", side_effect=RuntimeError("database is down")),                 self.assertLogs("asoplay.as_login", level="ERROR"):
+        with patch.object(as_sessions, "link", side_effect=RuntimeError("database is down")),                 self.assertLogs("asoplay.as_login", level="ERROR"):
             _, query = self.start("/my/friends")
             state = query["state"][0]
             resp = self.callback(state, state, code="a" * 64)

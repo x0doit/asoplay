@@ -38,9 +38,9 @@ from urllib.parse import urlsplit
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from core.classes import as_realtime
+from core.classes import as_realtime, as_sessions
 from core.config import animesocial
-from core.functions import presence, rate_limit, sessions, social_login
+from core.functions import presence, rate_limit, sessions
 from core.config.config import SITE_URL
 
 log = logging.getLogger("asoplay.realtime")
@@ -184,7 +184,7 @@ class Hub:
         """Друзья из соцсети — по токену сессии соцсети этого человека; без неё друзей нет."""
         ua = conn.ws.headers.get("user-agent") or ""
         try:
-            token = await asyncio.to_thread(social_login.access_token, conn.session, conn.ip, ua) if social_login.enabled() else None
+            token = await asyncio.to_thread(as_sessions.access_token, conn.session, conn.ip, ua) if as_sessions.enabled() else None
             if token:
                 # presence._friend_ids сам сообщит id через friend_listeners
                 await asyncio.to_thread(presence._friend_ids, conn.user_id, token, conn.ip, ua)

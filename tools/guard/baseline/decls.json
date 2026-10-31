@@ -1281,9 +1281,6 @@
  "_attach_shell": [
   "def(app, path: str) -> None"
  ],
- "_auth_result": [
-  "def(result: Any) -> tuple[dict[str, Any], int, dict[str, Any]] | None"
- ],
  "_authorize_url": [
   "def() -> str"
  ],
@@ -1410,9 +1407,6 @@
  "_flags_for": [
   "def(ids: list[int]) -> dict[int, tuple]"
  ],
- "_flows": [
-  "= 11e199702906"
- ],
  "_friend_action": [
   "def(request: Request, session: str | None, user: dict[str, Any], method: str, peer_id: int, suffix: str='') -> dict[str, Any]"
  ],
@@ -1467,9 +1461,6 @@
  "_in": [
   "def(ids: list[int]) -> str"
  ],
- "_insert": [
-  "def(session: str, uid: int, tokens: dict[str, Any]) -> None"
- ],
  "_instance": [
   "= 6eef6648406c",
   "= 6eef6648406c"
@@ -1522,9 +1513,6 @@
  "_limiter": [
   "= 4e3ce3681989"
  ],
- "_link": [
-  "def(session: str, uid: int, tokens: dict[str, Any], user_ip: str='', user_agent: str='') -> None"
- ],
  "_list_entry_for_title": [
   "def(conn, user_id: int, mal_id: int) -> dict[str, Any] | None"
  ],
@@ -1548,9 +1536,6 @@
  ],
  "_login_by_ip": [
   "= f1f04dc02b7c"
- ],
- "_logout_quietly": [
-  "def(token: str, user_ip: str='', user_agent: str='') -> None"
  ],
  "_looks_textual": [
   "def(content_type: str) -> bool"
@@ -1594,9 +1579,6 @@
  ],
  "_on_route": [
   "def(source: str, obj, route: str)"
- ],
- "_open_session": [
-  "def(uid: int, tokens: dict[str, Any], request: Request, user_ip: str, user_agent: str) -> str | None"
  ],
  "_origin": [
   "def(url: str) -> str",
@@ -1787,7 +1769,6 @@
   "@app.exception_handler(Exception) async def(request: Request, exc: Exception)"
  ],
  "_session_user": [
-  "def(session: str) -> dict[str, Any] | None",
   "def(session: str) -> dict[str, Any] | None"
  ],
  "_settings_view": [
@@ -2074,6 +2055,9 @@
  "auth_register_redirect": [
   "@router.get('/register') def() -> Response"
  ],
+ "auth_result": [
+  "def(result: Any) -> tuple[dict[str, Any], int, dict[str, Any]] | None"
+ ],
  "auto_add_enabled": [
   "def(conn, user_id: int) -> bool"
  ],
@@ -2250,6 +2234,9 @@
  "filter_videos": [
   "async def(videos: list[dict[str, Any]]) -> list[dict[str, Any]]"
  ],
+ "flows": [
+  "= 11e199702906"
+ ],
  "fon_url": [
   "def(user_id: int | str | None, fon: str | None) -> str"
  ],
@@ -2362,6 +2349,9 @@
  "import_marks": [
   "@router.get('/import-marks') def(user: dict[str, Any]=Depends(current_user_required)) -> dict[str, str]"
  ],
+ "insert": [
+  "def(session: str, uid: int, tokens: dict[str, Any]) -> None"
+ ],
  "introspect_schema": [
   "def() -> dict[str, Any]"
  ],
@@ -2416,6 +2406,9 @@
  "launch": [
   "def(config_path: Path) -> subprocess.Popen | None"
  ],
+ "link": [
+  "def(session: str, uid: int, tokens: dict[str, Any], user_ip: str='', user_agent: str='') -> None"
+ ],
  "list_all": [
   "@router.get('') def(status: str | None=Query(default=None), user: dict[str, Any]=Depends(current_user_required)) -> list[dict[str, Any]]"
  ],
@@ -2469,6 +2462,8 @@
   "= ea77bb90f150",
   "= eae50792383d",
   "= eae50792383d",
+  "= ee32d4684644",
+  "= ee32d4684644",
   "= ee32d4684644"
  ],
  "login_url": [
@@ -2476,6 +2471,9 @@
  ],
  "logout": [
   "def(access_token: str, user_ip: str='', user_agent: str='') -> None"
+ ],
+ "logout_quietly": [
+  "def(token: str, user_ip: str='', user_agent: str='') -> None"
  ],
  "lookup": [
   "async def(mal_id: int) -> dict[str, Any] | None"
@@ -2503,6 +2501,9 @@
  ],
  "ok": [
   "def(data: Any) -> dict[str, Any]"
+ ],
+ "open_session": [
+  "def(uid: int, tokens: dict[str, Any], request: Request, user_ip: str, user_agent: str) -> str | None"
  ],
  "ospanel_dir": [
   "def() -> Path"
@@ -2745,6 +2746,9 @@
  ],
  "serialize_user": [
   "def(row: dict[str, Any]) -> dict[str, Any]"
+ ],
+ "session_user": [
+  "def(session: str) -> dict[str, Any] | None"
  ],
  "set_favorite": [
   "@router.put('/{mal_id}/favorite') async def(mal_id: int, payload: FavoriteIn, user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"

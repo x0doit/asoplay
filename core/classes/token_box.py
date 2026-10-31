@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 """
-AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
-All rights reserved. See /COPYRIGHT for full terms.
-
 Шифрование токенов Anime Social в базе: AES-256-GCM.
+
+Автор: Чепела Даниил Максимович.
+AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
 База общая с соцсетью, а соцсеть сама хранит только хеши своих токенов: открытый
 токен в aviev_* дал бы любому, кто прочитал базу, доступ к аккаунтам. Ключ —
@@ -24,6 +23,7 @@ _NONCE_BYTES = 12
 
 
 def _key() -> bytes | None:
+    """Ключ AV_TOKEN_KEY: 32 байта в base64; нет или не тот размер — None."""
     raw = config.token_key()
     if not raw:
         return None
@@ -35,6 +35,7 @@ def _key() -> bytes | None:
 
 
 def _aead() -> Any:
+    """Шифр AES-GCM с этим ключом; нет ключа или пакета cryptography — None."""
     key = _key()
     if key is None:
         return None
@@ -46,10 +47,12 @@ def _aead() -> Any:
 
 
 def available() -> bool:
+    """Можно ли шифровать токены: ключ и пакет на месте; иначе вход через соцсеть выключен."""
     return _aead() is not None
 
 
 def seal(text: str, context: str) -> bytes:
+    """Зашифровать текст с привязкой к строке и полю (context): nonce + шифротекст; без ключа — RuntimeError."""
     aead = _aead()
     if aead is None:
         raise RuntimeError("AV_TOKEN_KEY or the cryptography package is missing")

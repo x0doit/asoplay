@@ -24,9 +24,8 @@ from typing import Any, Awaitable, Callable
 import certifi
 import websockets
 
-from core.classes import as_api
+from core.classes import as_api, as_sessions
 from core.config import config
-from core.functions import social_login
 
 log = logging.getLogger("asoplay.as_realtime")
 
@@ -141,7 +140,7 @@ class SocialLink:
     async def _loop(self) -> None:
         failures = 0
         while True:
-            if not social_login.enabled():
+            if not as_sessions.enabled():
                 await asyncio.sleep(BACKOFF_MAX)
                 continue
             outcome = "closed"

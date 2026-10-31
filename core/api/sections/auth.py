@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from core.classes import accounts, as_api, passwords
+from core.classes import accounts, as_api, as_sessions, passwords
 from core.config import animesocial, config
 from core.functions import rate_limit, realtime, sessions, site_settings, social_login
 
@@ -58,7 +58,7 @@ def auth_login(payload: LoginIn, request: Request, response: Response) -> dict[s
         raise HTTPException(429, "too many login attempts", headers={"Retry-After": str(wait)})
     if not identity or not payload.password:
         raise HTTPException(401, "invalid credentials")
-    if social_login.enabled():
+    if as_sessions.enabled():
         # Пароль проверяет соцсеть, и вошедший по почте получает ту же сессию AsoPlay в соцсети,
         # что и вошедший кнопкой; вход только по почте — как на сайте соцсети
         signed = social_login.password_login(identity, payload.password, request)
@@ -94,7 +94,7 @@ def auth_logout(
 ) -> dict[str, Any]:
     """Выход: сессия соцсети отзывается, вкладки переподключаются гостями, сессия закрывается, cookie снимается."""
     if token:
-        social_login.end_session(token, rate_limit.client_ip(request), request.headers.get("user-agent") or "")
+        as_sessions.end_session(token, rate_limit.client_ip(request), request.headers.get("user-agent") or "")
         # Вкладки этой сессии переподключаются гостями
         realtime.drop_session(token)
         try:
@@ -129,7 +129,7 @@ def auth_config() -> dict[str, Any]:
         "session_ttl_days": config.SESSION_TTL_DAYS,
         "cookie_secure": config.COOKIE_SECURE,
         "social": social,
-        "as_login": social_login.enabled(),
+        "as_login": as_sessions.enabled(),
         # Браузер сам спрашивает у соцсети, кто в ней вошёл («Имя Фамилия, это вы?»)
         "as_api_url": as_api.base_url(),
     }

@@ -14,8 +14,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import httpx
-from core.classes import as_api
-from core.functions import social_login
+from core.classes import as_api, as_sessions
 
 
 class ClientHeaderTests(unittest.TestCase):
@@ -54,7 +53,7 @@ class ClientHeaderTests(unittest.TestCase):
     def test_no_keys_means_the_feature_stays_off(self):
         with patch.dict(os.environ, {"AV_AS_CLIENT_ID": "", "AV_AS_CLIENT_SECRET": ""}):
             self.assertFalse(as_api.configured())
-            self.assertFalse(social_login.enabled())
+            self.assertFalse(as_sessions.enabled())
 
     def test_a_rate_limit_carries_the_wait_from_retry_after(self):
         real_client = httpx.Client

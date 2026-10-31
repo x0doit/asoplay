@@ -12,8 +12,8 @@ from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from core.classes import as_api
-from core.functions import presence, sessions, social_login
+from core.classes import as_api, as_sessions
+from core.functions import presence, sessions
 
 from core.tests.presence.lib import FakeClock, person, SocialFake
 
@@ -33,8 +33,8 @@ class FriendPageTests(unittest.TestCase):
             patch.object(presence, "_friend_cache", {7: (10 ** 12, [11])}),
             patch.object(presence, "_privacy", return_value={}),
             patch.object(presence, "_titles", return_value={}),
-            patch.object(social_login, "enabled", return_value=True),
-            patch.object(social_login, "access_token", return_value="asa_token"),
+            patch.object(as_sessions, "enabled", return_value=True),
+            patch.object(as_sessions, "access_token", return_value="asa_token"),
             patch.object(as_api, "call", side_effect=self.social),
         ]
         for p in patches:
@@ -103,9 +103,9 @@ class WriteTests(unittest.TestCase):
             return {"id": 5121}
 
         patches = [
-            patch.object(social_login, "enabled", return_value=True),
-            patch.object(social_login, "access_token", side_effect=lambda *a: self.token),
-            patch.object(social_login, "_delete", side_effect=self.forgotten.append),
+            patch.object(as_sessions, "enabled", return_value=True),
+            patch.object(as_sessions, "access_token", side_effect=lambda *a: self.token),
+            patch.object(as_sessions, "_delete", side_effect=self.forgotten.append),
             patch.object(as_api, "call", side_effect=call),
         ]
         for p in patches:

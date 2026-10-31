@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 """
-AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
-All rights reserved. See /COPYRIGHT for full terms.
-
 Клиент API v2 Anime Social (документация — socialnetwork.local/docs/api).
+
+Автор: Чепела Даниил Максимович.
+AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
 Адрес — сайт соцсети из animesocial.json плюс /api/v2, AV_AS_API_URL его заменяет.
 Ответ приходит обёрткой {"ok": true, "data": …} или {"ok": false, "error": {code,
@@ -31,7 +30,9 @@ _TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 
 
 class ASApiError(Exception):
+    """Ошибка API соцсети: код ответа, постоянный машинный код, текст и Retry-After."""
     def __init__(self, status: int, code: str, message: str = "", retry_after: int = 0):
+        """status — код HTTP, code — машинный код соцсети, retry_after — через сколько секунд повторять."""
         super().__init__(f"{status} {code}: {message}")
         self.status = status
         self.code = code
@@ -41,6 +42,7 @@ class ASApiError(Exception):
 
 
 def base_url() -> str:
+    """Адрес API: AV_AS_API_URL или сайт соцсети из animesocial.json плюс /api/v2."""
     override = config.as_api_url()
     return override or animesocial.site_url() + "/api/v2"
 
@@ -51,11 +53,13 @@ def site_url() -> str:
 
 
 def configured() -> bool:
+    """Заданы ли ключи клиента AsoPlay (AV_AS_CLIENT_ID и AV_AS_CLIENT_SECRET)."""
     client_id, secret = config.as_client_keys()
     return bool(client_id and secret)
 
 
 def client_id() -> str:
+    """Публичный id клиента AsoPlay — для адреса страницы входа соцсети."""
     return config.as_client_keys()[0]
 
 
@@ -72,6 +76,8 @@ def _tls(ca: str) -> ssl.SSLContext | bool:
 
 def call(method: str, path: str, *, token: str | None = None, body: dict[str, Any] | None = None,
          user_ip: str = "", user_agent: str = "") -> Any:
+    """Запрос к API соцсети с ключами клиента (и токеном человека, если есть) → data из {ok: true, data};
+    иначе ASApiError: нет связи — 503 unavailable, испорченный ответ — bad_response."""
     client, secret = config.as_client_keys()
     headers = {"Accept": "application/json", "User-Agent": "AsoPlay", "X-Client-Id": client, "X-Client-Secret": secret}
     if user_ip:

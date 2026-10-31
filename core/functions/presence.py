@@ -40,9 +40,9 @@ from urllib.parse import quote
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from core.classes import as_api
+from core.classes import as_api, as_sessions
 from core.config import animesocial
-from core.functions import rate_limit, sessions, social_login
+from core.functions import rate_limit, sessions
 from core.classes.db import connect
 from core.config.config import SITE_URL
 from core.functions.sessions import current_user_required
@@ -262,7 +262,7 @@ async def _report_loop() -> None:
     reported = False
     while True:
         await asyncio.sleep(REPORT_EVERY)
-        if not social_login.enabled():
+        if not as_sessions.enabled():
             continue
         if not batch_needed():
             # Снимок при переподключении заменит всё, что соцсеть знала, — пустой пакет после него не нужен
@@ -368,12 +368,12 @@ def _person(user: dict[str, Any]) -> dict[str, Any]:
 def _social_session(request: Request, session: str | None) -> tuple[str | None, str, str]:
     """Токен сессии соцсети этого браузера, адрес и браузер человека; без связи с соцсетью — None."""
     user_ip, user_agent = rate_limit.client_ip(request), request.headers.get("user-agent") or ""
-    token = social_login.access_token(session, user_ip, user_agent) if session and social_login.enabled() else None
+    token = as_sessions.access_token(session, user_ip, user_agent) if session and as_sessions.enabled() else None
     return token, user_ip, user_agent
 
 
 def _social_failure(session: str | None, exc: as_api.ASApiError, unlinked: dict[str, Any]) -> dict[str, Any]:
-    if session and social_login.forget_if_dead(session, exc):
+    if session and as_sessions.forget_if_dead(session, exc):
         return unlinked
     log.warning("Anime Social friends request failed: %s %s", exc.status, exc.code)
     raise HTTPException(503, "AnimeSocial не отвечает") from exc
@@ -480,7 +480,7 @@ def _social_call(request: Request, session: str | None, method: str, path: str,
     try:
         return as_api.call(method, path, token=token, body=body, user_ip=user_ip, user_agent=user_agent)
     except as_api.ASApiError as exc:
-        if session and social_login.forget_if_dead(session, exc):
+        if session and as_sessions.forget_if_dead(session, exc):
             raise HTTPException(409, "not linked to Anime Social") from exc
         if exc.code == "rate_limited":
             raise HTTPException(429, "rate_limited", headers={"Retry-After": str(exc.retry_after or 60)}) from exc
