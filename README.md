@@ -184,6 +184,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, перевод, картинки
 │   │   ├── friends.py          /account/friends…: друзья, заявки, «Возможные друзья», действия с дружбой
 │   │   ├── messages.py         /account/messages/{id}: «Написать» в переписку AnimeSocial
+│   │   ├── profile.py          /profile/…: публичные данные профиля — сводка, активность, списки
 │   │   ├── realtime.py         WebSocket /ws: протокол кадров, проверка Origin, вход по cookie
 │   │   └── social_login.py     /auth/as/…: вход через AnimeSocial, «кто вошёл», переход на сайт соцсети
 │   ├── admin/                  админ-API для раздела «AsoPlay» в /cpanel AnimeSocial (HMAC)
@@ -195,7 +196,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── title_render.py     HTML страницы тайтла: мета-теги, Open Graph, JSON-LD; общая оболочка и заглушка 404
 │   │   ├── title_cache.py      кеш страниц тайтлов (aviev_title_pages), адрес страницы, заполнение из каталога
 │   │   ├── seo.py              /sitemap.xml и /robots.txt
-│   │   ├── profile_pages.py    public profile API и SSR shell
+│   │   ├── profile_pages.py    /@handle: страница профиля для поисковиков и превью ссылок (SSR)
 │   │   └── player/routes.py    same-origin player proxy, Shield, iframe bridge
 │   ├── functions/
 │   │   ├── social_login.py     вход через AnimeSocial: PKCE, сессия AsoPlay со связью с соцсетью, вход паролем
@@ -206,7 +207,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   │                       друзьям, realtime_social.py — события соцсети и состояние сервера
 │   │   ├── site_settings.py    что решила панель: пометки тайтлов, плашка, функции, источники
 │   │   ├── video_reports.py    жалобы «Не работает» из плеера
-│   │   ├── lists.py            list/status/favorite domain и auto-rules
+│   │   ├── lists.py            list/status/favorite domain и auto-rules; счётчики и записи публичного профиля
 │   │   ├── lists_sweep.py      правило 30 дней по расписанию: раз в сутки, замок, догон после простоя
 │   │   ├── progress.py         позиции в сериях, «досмотрено», пороги «Смотрю»
 │   │   ├── watch_history.py    история «Смотрю» и авто-статус после «не смотрел»
@@ -707,6 +708,7 @@ Key capabilities:
 │   │   ├── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, translate, images
 │   │   ├── friends.py          /account/friends…: friends, requests, suggestions, friendship actions
 │   │   ├── messages.py         /account/messages/{id}: «Write» into the AnimeSocial dialog
+│   │   ├── profile.py          /profile/…: public profile data — summary, activity, lists
 │   │   ├── realtime.py         WebSocket /ws: the frame protocol, the Origin check, sign-in by cookie
 │   │   └── social_login.py     /auth/as/…: sign-in with AnimeSocial, «who is signed in», jump to the site
 │   ├── admin/                  admin API for the «AsoPlay» section in AnimeSocial /cpanel (HMAC)
@@ -718,7 +720,7 @@ Key capabilities:
 │   │   ├── title_render.py     title page HTML: meta tags, Open Graph, JSON-LD; the generic shell and the 404 stub
 │   │   ├── title_cache.py      the title page cache (aviev_title_pages), the page address, backfill from the catalog
 │   │   ├── seo.py              /sitemap.xml and /robots.txt
-│   │   ├── profile_pages.py    public profile API and SSR shell
+│   │   ├── profile_pages.py    /@handle: the profile page for crawlers and link previews (SSR)
 │   │   └── player/routes.py    same-origin player proxy, Shield, iframe bridge
 │   ├── functions/
 │   │   ├── social_login.py     sign-in with AnimeSocial: PKCE, the AsoPlay session linked to it, password sign-in
@@ -729,7 +731,7 @@ Key capabilities:
 │   │   │                       presence to friends, realtime_social.py — social events and server status
 │   │   ├── site_settings.py    what the panel decided: title flags, notice, features, sources
 │   │   ├── video_reports.py    «Не работает» reports from the player
-│   │   ├── lists.py            list/status/favorite domain and auto-rules
+│   │   ├── lists.py            list/status/favorite domain and auto-rules; counts and entries for the public profile
 │   │   ├── lists_sweep.py      the 30-day rule on a schedule: once a day, a lock, catching up after downtime
 │   │   ├── progress.py         episode positions, «watched», «Watching» thresholds
 │   │   ├── watch_history.py    the «Watching» history and auto status after «not watched»

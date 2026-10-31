@@ -11,7 +11,6 @@ styles.css
 core/core.py
 core/functions/video_reports.py
 core/modules/player/routes.py
-core/modules/profile_pages.py
 # После части K: решить, поднимать ли cookie и current_user_* из core/functions/sessions.py в core/auth.py
 
 # Python: переехал без деления, ждёт только docblock (шаг 5)

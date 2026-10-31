@@ -1,191 +1,41 @@
-# -*- coding: utf-8 -*-
 """
-AsoPlay — proprietary. (c) Chepela Daniel Maximovich (x0doit, https://crazydev.pro/).
-All rights reserved. See /COPYRIGHT for full terms.
+Публичный профиль /@handle: HTML для поисковиков и превью ссылок.
 
-Публичный профиль /@handle — и JSON-хендлы, и серверный рендер HTML для
-краулеров. Handle = alias из Just_accounts (например edward), либо
-profile{user_id} если alias пуст.
+Автор: Чепела Даниил Максимович.
+AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
+
+Handle — alias из Just_accounts (например, edward), а если alias пуст — profile{user_id}. Страница — оболочка SPA
+(core/modules/title_render.py) с canonical, Open Graph, JSON-LD ProfilePage и noscript; данные профиля фронтенд
+берёт из раздела /profile/… (core/api/sections/profile.py).
 
 Приватность:
-- если hide_lists → списки не попадают в HTML и JSON public-view,
+- если hide_lists → списки не попадают в HTML,
 - если hide_activity → блок активности тоже не попадает.
-Никакого CSS-скрытия: данные просто не отдаются.
+Никакого CSS-скрытия: данные просто не отдаются. Индексируется только «живой» профиль: открыт хотя бы один блок
+и у человека есть имя.
 """
 from __future__ import annotations
 
 import html
 import json
-import logging
-import re
-from pathlib import Path
-from typing import Any
 
-from fastapi import APIRouter, HTTPException, Depends, Query
-from fastapi.responses import HTMLResponse, Response
+from fastapi import APIRouter
+from fastapi.responses import HTMLResponse
 
 from core.classes.accounts import resolve_handle
-from core.classes.db import connect
-from core.functions.sessions import current_user_optional
-from core.functions.privacy import read_privacy
-from core.functions.activity_feed import graph_for_user_public, fetch_recent_paged
 from core.config.config import SITE_NAME, SITE_URL
+from core.functions import lists
+from core.functions.privacy import read_privacy
 from core.modules import title_render
 
-log = logging.getLogger("asoplay.profile_pages")
-
 router = APIRouter()
-
-
-STATUSES = ("watching", "planned", "completed", "dropped", "postponed")
-
-
-# ---------- public JSON ----------
-def _counts_for(user_id: int) -> dict[str, int]:
-    out = {s: 0 for s in STATUSES}
-    out["favorite"] = 0
-    with connect() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            """SELECT status, COUNT(*) FROM aviev_user_lists
-                WHERE user_id=%s AND status IS NOT NULL GROUP BY status""",
-            (user_id,),
-        )
-        for status, n in cur.fetchall():
-            if status in out:
-                out[status] = int(n)
-        cur.execute(
-            "SELECT COUNT(*) FROM aviev_user_lists WHERE user_id=%s AND is_favorite=1",
-            (user_id,),
-        )
-        out["favorite"] = int(cur.fetchone()[0] or 0)
-    return out
-
-
-def _items_for(user_id: int, status: str | None) -> list[dict[str, Any]]:
-    with connect() as conn:
-        cur = conn.cursor()
-        if status == "favorite":
-            cur.execute(
-                """SELECT mal_id, status, status_source, is_favorite,
-                          title, poster_url, updated_at
-                    FROM aviev_user_lists
-                    WHERE user_id=%s AND is_favorite=1
-                    ORDER BY updated_at DESC LIMIT 200""",
-                (user_id,),
-            )
-        elif status in STATUSES:
-            cur.execute(
-                """SELECT mal_id, status, status_source, is_favorite,
-                          title, poster_url, updated_at
-                    FROM aviev_user_lists
-                    WHERE user_id=%s AND status=%s
-                    ORDER BY updated_at DESC LIMIT 200""",
-                (user_id, status),
-            )
-        else:
-            return []
-        rows = cur.fetchall()
-    return [
-        {
-            "mal_id": int(r[0]),
-            "status": r[1],
-            "status_source": r[2],
-            "is_favorite": bool(r[3]),
-            "title": r[4] or "",
-            "poster_url": r[5] or "",
-            "updated_at": r[6].isoformat() if r[6] else None,
-        }
-        for r in rows
-    ]
-
-
-@router.get("/profile/{handle}/summary")
-def profile_summary(
-    handle: str,
-    days: int = Query(default=30, ge=1, le=365),
-    viewer: dict[str, Any] | None = Depends(current_user_optional),
-) -> dict[str, Any]:
-    target = resolve_handle(handle)
-    if not target:
-        raise HTTPException(404, "profile not found")
-    is_owner = bool(viewer and int(viewer["id"]) == int(target["id"]))
-    privacy = read_privacy(target["id"])
-    out: dict[str, Any] = {
-        "user": {k: target[k] for k in (
-            "id", "handle", "profile_path", "name", "avatar", "avatar_small",
-        )},
-        "is_owner": is_owner,
-        # Посторонним — только то, что меняет страницу профиля
-        "privacy": {k: privacy[k] for k in ("hide_lists", "hide_activity")},
-        "counts": None,
-        "activity": None,
-    }
-    if not privacy["hide_lists"] or is_owner:
-        out["counts"] = _counts_for(target["id"])
-    if not privacy["hide_activity"] or is_owner:
-        out["activity"] = graph_for_user_public(target["id"], days=days)
-    return out
-
-
-@router.get("/profile/{handle}/activity")
-def profile_activity(
-    handle: str,
-    days: int = Query(default=30, ge=1, le=365),
-    viewer: dict[str, Any] | None = Depends(current_user_optional),
-) -> dict[str, Any]:
-    target = resolve_handle(handle)
-    if not target:
-        raise HTTPException(404, "profile not found")
-    is_owner = bool(viewer and int(viewer["id"]) == int(target["id"]))
-    privacy = read_privacy(target["id"])
-    if privacy["hide_activity"] and not is_owner:
-        return {"hidden": True}
-    return graph_for_user_public(target["id"], days=days)
-
-
-@router.get("/profile/{handle}/activity/recent")
-def profile_activity_recent(
-    handle: str,
-    offset: int = Query(default=0, ge=0),
-    limit: int = Query(default=10, ge=1, le=50),
-    group: str = Query(default="all"),
-    date: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
-    viewer: dict[str, Any] | None = Depends(current_user_optional),
-) -> dict[str, Any]:
-    target = resolve_handle(handle)
-    if not target:
-        raise HTTPException(404, "profile not found")
-    is_owner = bool(viewer and int(viewer["id"]) == int(target["id"]))
-    privacy = read_privacy(target["id"])
-    if privacy["hide_activity"] and not is_owner:
-        return {"hidden": True, "items": [], "has_more": False}
-    return fetch_recent_paged(target["id"], offset=offset, limit=limit,
-                              group=group, day=date)
-
-
-@router.get("/profile/{handle}/lists")
-def profile_lists(
-    handle: str,
-    status: str = "watching",
-    viewer: dict[str, Any] | None = Depends(current_user_optional),
-) -> dict[str, Any]:
-    target = resolve_handle(handle)
-    if not target:
-        raise HTTPException(404, "profile not found")
-    is_owner = bool(viewer and int(viewer["id"]) == int(target["id"]))
-    privacy = read_privacy(target["id"])
-    if privacy["hide_lists"] and not is_owner:
-        return {"hidden": True, "items": []}
-    if status not in STATUSES and status != "favorite":
-        raise HTTPException(400, "unknown status")
-    return {"hidden": False, "items": _items_for(target["id"], status), "is_owner": is_owner}
 
 
 # ---------- SSR ----------
 def _render_shell(head_extra: str, noscript: str, *,
                   title: str | None = None, description: str | None = None,
                   robots: str | None = None) -> HTMLResponse:
+    """Оболочка SPA с head_extra и noscript; title, description и robots — в head, кеш — no-cache."""
     shell = title_render.read_shell()
     shell = title_render.override_head(shell, title=title, description=description, robots=robots)
     shell = shell.replace("<!--av:head-extra-->", head_extra, 1)
@@ -199,6 +49,8 @@ def _render_shell(head_extra: str, noscript: str, *,
 @router.get("/@{handle}", response_class=HTMLResponse)
 @router.get("/@{handle}/", response_class=HTMLResponse)
 def profile_page(handle: str):
+    """Страница профиля: canonical, Open Graph, JSON-LD ProfilePage и noscript со счётчиками списков, если они
+    открыты. Неизвестный handle — оболочка SPA с 404."""
     target = resolve_handle(handle)
     if not target:
         # Неизвестный handle: оболочка SPA с кодом 404, а «Профиль не найден» рисует сам фронтенд.
@@ -256,7 +108,7 @@ def profile_page(handle: str):
 
     noscript_parts = [f'<h1>{html.escape(name)}</h1>']
     if show_lists:
-        counts = _counts_for(target["id"])
+        counts = lists.counts_for(target["id"])
         bits = [f'{k}: {v}' for k, v in counts.items() if v]
         if bits:
             noscript_parts.append(f"<p>{' · '.join(html.escape(b) for b in bits)}</p>")

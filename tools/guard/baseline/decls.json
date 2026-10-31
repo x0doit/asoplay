@@ -777,7 +777,6 @@
  ],
  "STATUSES": [
   "= 0c8df4bb6485",
-  "= 0c8df4bb6485",
   "= bbc6f0539231"
  ],
  "SWEEP_BATCH": [
@@ -1332,9 +1331,6 @@
  "_context": [
   "def(session: str, field: str) -> str"
  ],
- "_counts_for": [
-  "def(user_id: int) -> dict[str, int]"
- ],
  "_csv": [
   "def(name: str) -> tuple[str, ...]"
  ],
@@ -1479,9 +1475,6 @@
  ],
  "_is_vk_media_url": [
   "def(url: str) -> bool"
- ],
- "_items_for": [
-  "def(user_id: int, status: str | None) -> list[dict[str, Any]]"
  ],
  "_json_string_field": [
   "def(text: str, key: str) -> str"
@@ -2095,6 +2088,9 @@
  "cooldown_remaining": [
   "def(source: str) -> int"
  ],
+ "counts_for": [
+  "def(user_id: int) -> dict[str, int]"
+ ],
  "cover_url": [
   "def(user_id: int | str | None, cover: str | None) -> str"
  ],
@@ -2325,6 +2321,9 @@
  "is_enabled": [
   "def() -> bool"
  ],
+ "items_for": [
+  "def(user_id: int, status: str | None) -> list[dict[str, Any]]"
+ ],
  "jikan_php": [
   "def() -> str"
  ],
@@ -2410,7 +2409,6 @@
   "= 48bd8c61a38f",
   "= 48bd8c61a38f",
   "= 96797f0c7e5f",
-  "= 96ff858b959b",
   "= 9a6a5b08b0f5",
   "= 9a6a5b08b0f5",
   "= 9d8fc02d77ae",
@@ -2690,6 +2688,7 @@
   "= 2350873edac3",
   "= 38a8009d6ab6",
   "= 603dd6e11367",
+  "= 82e1a4f1c862",
   "= 82e1a4f1c862",
   "= 82e1a4f1c862",
   "= 82e1a4f1c862",

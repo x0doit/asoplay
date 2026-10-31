@@ -18,6 +18,9 @@ completed / dropped / postponed), и отдельный флаг is_favorite. К
 
 Действия человека пишутся в активность (core.functions.activity) там, где он их делает. Автоперенос через 30 дней
 в активность не пишется: график профиля — о том, что человек делал сам; в списке перенос виден по status_source='auto'.
+
+Публичный профиль (раздел /profile/… и страница /@handle) берёт отсюда счётчики и записи человека — counts_for
+и items_for; соединение с базой они открывают сами.
 """
 from __future__ import annotations
 
@@ -25,6 +28,7 @@ from datetime import datetime, timedelta
 from typing import Any, Callable
 
 from core.classes.clock import utc_now
+from core.classes.db import connect
 from core.classes.jikan import catalog as jikan_catalog
 
 STATUSES = ("watching", "planned", "completed", "dropped", "postponed")
@@ -174,3 +178,66 @@ def sweep_dropped_after_30_days(conn, now: datetime, *, user_id: int | None = No
             break
         after = (int(rows[-1][0]), int(rows[-1][1]))
     return moved
+
+
+# ---------- публичный профиль ----------
+def counts_for(user_id: int) -> dict[str, int]:
+    """Сколько тайтлов у человека в каждом статусе и в избранном — для публичного профиля."""
+    out = {s: 0 for s in STATUSES}
+    out["favorite"] = 0
+    with connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT status, COUNT(*) FROM aviev_user_lists
+                WHERE user_id=%s AND status IS NOT NULL GROUP BY status""",
+            (user_id,),
+        )
+        for status, n in cur.fetchall():
+            if status in out:
+                out[status] = int(n)
+        cur.execute(
+            "SELECT COUNT(*) FROM aviev_user_lists WHERE user_id=%s AND is_favorite=1",
+            (user_id,),
+        )
+        out["favorite"] = int(cur.fetchone()[0] or 0)
+    return out
+
+
+def items_for(user_id: int, status: str | None) -> list[dict[str, Any]]:
+    """Записи одного статуса или избранного (status="favorite"), до 200, свежие сверху — для публичного профиля;
+    другой status — пусто."""
+    with connect() as conn:
+        cur = conn.cursor()
+        if status == "favorite":
+            cur.execute(
+                """SELECT mal_id, status, status_source, is_favorite,
+                          title, poster_url, updated_at
+                    FROM aviev_user_lists
+                    WHERE user_id=%s AND is_favorite=1
+                    ORDER BY updated_at DESC LIMIT 200""",
+                (user_id,),
+            )
+        elif status in STATUSES:
+            cur.execute(
+                """SELECT mal_id, status, status_source, is_favorite,
+                          title, poster_url, updated_at
+                    FROM aviev_user_lists
+                    WHERE user_id=%s AND status=%s
+                    ORDER BY updated_at DESC LIMIT 200""",
+                (user_id, status),
+            )
+        else:
+            return []
+        rows = cur.fetchall()
+    return [
+        {
+            "mal_id": int(r[0]),
+            "status": r[1],
+            "status_source": r[2],
+            "is_favorite": bool(r[3]),
+            "title": r[4] or "",
+            "poster_url": r[5] or "",
+            "updated_at": r[6].isoformat() if r[6] else None,
+        }
+        for r in rows
+    ]

@@ -40,7 +40,7 @@ env.load()  # до остальных импортов: настройки в co
 # FastAPI startup event below. Importing the module is cheap and side-effect
 # free.
 from core.admin import auth as admin_auth, router as admin_router, summary as admin_summary
-from core.api.sections import account, activity, auth, catalog, friends, lists, messages, social_login
+from core.api.sections import account, activity, auth, catalog, friends, lists, messages, profile, social_login
 from core.api.sections import realtime as realtime_ws
 from core.classes import db, http, http_cache
 from core.classes.adblock import engine as adblock
@@ -948,6 +948,7 @@ app.include_router(messages.router)
 app.include_router(realtime_ws.router)
 app.include_router(lists.router)
 app.include_router(activity.router)
+app.include_router(profile.router)
 app.include_router(profile_pages.router)
 app.include_router(player_proxy.router)
 app.include_router(player_proxy.kodik_router)
