@@ -147,17 +147,26 @@ def response(text, status=200, url='https://vk.com/video_ext.php'):
 
 class VkFrame(unittest.IsolatedAsyncioTestCase):
     async def render(self, *responses):
-        client = Mock(get=AsyncMock(side_effect=list(responses)))
+        """Кадр VK на подставном транспорте: ответы — по очереди, исключение в списке — сбой сети; seen — запросы."""
+        answers, seen = iter(responses), []
+
+        def handler(req):
+            seen.append(req)
+            answer = next(answers)
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         with patch.object(player_proxy, '_get_client', AsyncMock(return_value=client)):
             result = await player_proxy.frame(request(), VK)
-        return result.body.decode(), client
+        return result.body.decode(), seen
 
     async def test_frame_routes_vk_to_clean_player_with_qualities(self):
-        body, client = await self.render(response(EMBED), response(MASTER))
-        embed_call = client.get.await_args_list[0]
-        self.assertEqual(embed_call.args[0], 'https://vk.com/video_ext.php')
-        self.assertEqual(embed_call.kwargs['params'], {'oid': '-1', 'id': '2', 'hd': '2'})
-        self.assertEqual(client.get.await_args_list[1].args[0], 'https://vkvd1.okcdn.ru/srcIp/1/master.m3u8?x=1&y=2')
+        body, seen = await self.render(response(EMBED), response(MASTER))
+        self.assertEqual(str(seen[0].url.copy_with(query=None)), 'https://vk.com/video_ext.php')
+        self.assertEqual(dict(seen[0].url.params), {'oid': '-1', 'id': '2', 'hd': '2'})
+        self.assertEqual(str(seen[1].url), 'https://vkvd1.okcdn.ru/srcIp/1/master.m3u8?x=1&y=2')
         self.assertIn('id="av-vk-video"', body)
         self.assertIn('"label":"Auto"', body)
         self.assertLess(body.index('"label":"720p"'), body.index('"label":"360p"'))
@@ -174,9 +183,9 @@ class VkFrame(unittest.IsolatedAsyncioTestCase):
     async def test_unavailable_or_foreign_stream_shows_an_honest_frame(self):
         foreign = EMBED.replace('vkvd1.okcdn.ru', 'evil.example.test')
         for embed in ('<html>video removed</html>', foreign):
-            body, client = await self.render(response(embed))
+            body, seen = await self.render(response(embed))
             self.assertIn('Видео недоступно', body)
-            self.assertEqual(client.get.await_count, 1)
+            self.assertEqual(len(seen), 1)
 
     async def test_embed_failure_shows_load_error(self):
         body, _ = await self.render(response('', status=500))

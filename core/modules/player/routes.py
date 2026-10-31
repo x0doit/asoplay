@@ -14,16 +14,19 @@ import html
 import json
 import logging
 import re
+import time
 from html.parser import HTMLParser
+from typing import Any
 from urllib.parse import parse_qs, quote, urljoin, urlparse, urlsplit, urlunsplit
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 
+from core.classes import http_public
 from core.classes.adblock import engine as adblock
 from core.config import config, env
-from core.functions.player_hosts import is_disabled_player_url, vk_video_ref
+from core.functions.player_hosts import is_disabled_player_url, proxy_url_refusal, vk_video_ref
 
 log = logging.getLogger("asoplay.player_proxy")
 
@@ -49,6 +52,11 @@ _CHROME_UA = (
     "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 )
 _YUMMY_SITE = "https://ru.yummyani.me/"
+# The player iframe's flags on the page (app.js createIframe), never allow-same-origin: a proxied document
+# opened on its own gets an opaque origin, without the site's cookies and storage.
+_FRAME_SANDBOX = "sandbox allow-scripts allow-presentation"
+# Redirects are followed by hand in _send, each hop checked; as many as httpx follows by default.
+_MAX_REDIRECTS = 20
 
 _TEXT_TYPES = (
     "text/",
@@ -132,8 +140,11 @@ async def startup() -> None:
     if _client is None or _client.is_closed:
         _client = httpx.AsyncClient(
             timeout=httpx.Timeout(30.0, connect=15.0),
-            follow_redirects=True,
-            limits=httpx.Limits(max_connections=80, max_keepalive_connections=30),
+            # Redirects go through _send, which checks every hop against the host list.
+            follow_redirects=False,
+            # Connects only to public addresses of a name, checked after it resolves (core/classes/http_public).
+            transport=http_public.transport(
+                limits=httpx.Limits(max_connections=80, max_keepalive_connections=30), trust_env=False),
             # Video hosts are latency-sensitive and several of them reject or
             # fail through the app-wide xray HTTP_PROXY. Keep player traffic
             # direct; the regular API proxy layer still uses vpn_bridge.
@@ -161,6 +172,71 @@ async def _get_client() -> httpx.AsyncClient:
         await startup()
     assert _client is not None
     return _client
+
+
+class _RefusalLog:
+    """Refusal lines in the log: at most one per host a minute and LINES a minute for all hosts, so requests to
+    random hosts cannot flood the log. Refusals left out are counted into the next line."""
+
+    WINDOW = 60.0
+    LINES = 30
+
+    def __init__(self) -> None:
+        self._hosts: dict[str, list] = {}  # host -> [when its line was written, refusals since then]
+        self._minute: float | None = None
+        self._lines = 0
+        self._dropped = 0  # refusals over LINES, and those of hosts that went quiet for two minutes
+
+    def __call__(self, host: str, reason: str) -> None:
+        now = time.monotonic()
+        if self._minute is None or now - self._minute >= self.WINDOW:
+            self._minute, self._lines = now, 0
+            # A host keeps its count for one more minute, for its own next line; then the count moves on.
+            for key, (at, quiet) in list(self._hosts.items()):
+                if now - at >= 2 * self.WINDOW:
+                    self._dropped += quiet
+                    del self._hosts[key]
+        entry = self._hosts.get(host)
+        if entry is not None and now - entry[0] < self.WINDOW:
+            entry[1] += 1
+            return
+        if self._lines >= self.LINES:
+            self._dropped += 1
+            return
+        self._lines += 1
+        quiet = entry[1] if entry is not None else 0
+        dropped, self._dropped = self._dropped, 0
+        log.info("player proxy refused %s (%s)%s%s", host, reason,
+                 f"; {quiet} more for this host since its last line" if quiet else "",
+                 f"; {dropped} more for other hosts not logged" if dropped else "")
+        self._hosts[host] = [now, 0]
+
+
+_log_refusal = _RefusalLog()
+
+
+async def _send(method: str, url: str, *, stream: bool = False, **kwargs: Any) -> httpx.Response:
+    """Send with the player client, following redirects by hand: every hop must pass proxy_url_refusal, and the
+    client itself connects only to public addresses. A refused hop raises http_public.Refused; the responses
+    left behind on the way are closed."""
+    client = await _get_client()
+    request = client.build_request(method, url, **kwargs)
+    for _ in range(_MAX_REDIRECTS + 1):
+        host = request.url.host
+        refusal = proxy_url_refusal(str(request.url))
+        if refusal:
+            _log_refusal(host, refusal)
+            raise http_public.Refused(f"{refusal}: {host}", request=request)
+        try:
+            response = await client.send(request, stream=stream, follow_redirects=False)
+        except http_public.Refused as exc:
+            _log_refusal(host, str(exc))
+            raise
+        if response.next_request is None:
+            return response
+        await response.aclose()
+        request = response.next_request
+    raise httpx.TooManyRedirects("Exceeded maximum allowed redirects.", request=request)
 
 
 def _valid_http_url(url: str) -> bool:
@@ -322,7 +398,7 @@ def _response_headers(upstream: httpx.Response, *, html_frame: bool = False, ori
             "https://api.okcdn.ru https://videotestapi.ok.ru https://apitest.ok.ru; "
             f"frame-src {own} data: blob:; "
             f"worker-src {own} blob:; "
-            "object-src 'none'; base-uri 'none'; form-action 'none'"
+            f"object-src 'none'; base-uri 'none'; form-action 'none'; {_FRAME_SANDBOX}"
         )
     return headers
 
@@ -989,7 +1065,7 @@ body.muted .av-volume-off{{display:block}}
             "default-src 'self' data: blob:; "
             "script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
             "img-src 'self' data: blob:; media-src 'self' data: blob:; "
-            "connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+            f"connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; {_FRAME_SANDBOX}"
         ),
     }
     return Response(body, media_type="text/html", headers=headers)
@@ -1006,11 +1082,11 @@ async def _cvh_frame(request: Request, iframe_url: str) -> Response:
     if not anime_id:
         return _cvh_error_frame("Видео не найдено")
 
-    client = await _get_client()
     safe_iframe_url = _ascii_url(iframe_url)
     playlist_url = f"https://plapi.cdnvideohub.com/api/v1/player/sv/playlist?pub=745&aggr=mali&id={quote(anime_id)}"
     try:
-        playlist_resp = await client.get(
+        playlist_resp = await _send(
+            "GET",
             playlist_url,
             headers={
                 "Referer": safe_iframe_url,
@@ -1040,7 +1116,8 @@ async def _cvh_frame(request: Request, iframe_url: str) -> Response:
 
     video_url = f"https://plapi.cdnvideohub.com/api/v1/player/sv/video/{quote(vk_id)}"
     try:
-        video_resp = await client.get(
+        video_resp = await _send(
+            "GET",
             video_url,
             headers={
                 "Referer": "https://player.cdnvideohub.com/",
@@ -1085,9 +1162,9 @@ def _match_first(patterns: tuple[str, ...], text: str) -> str:
 
 
 async def _sibnet_frame(request: Request, iframe_url: str) -> Response:
-    client = await _get_client()
     try:
-        frame_resp = await client.get(
+        frame_resp = await _send(
+            "GET",
             _ascii_url(iframe_url),
             headers={
                 "Referer": "https://video.sibnet.ru/",
@@ -1164,10 +1241,9 @@ async def _vk_frame(request: Request, ref: dict[str, str]) -> Response:
     params = {"oid": ref["oid"], "id": ref["id"], "hd": "2"}
     if ref.get("hash"):
         params["hash"] = ref["hash"]
-    client = await _get_client()
     try:
-        embed = await client.get(
-            "https://vk.com/video_ext.php", params=params,
+        embed = await _send(
+            "GET", "https://vk.com/video_ext.php", params=params,
             headers={"Accept": "text/html,application/xhtml+xml", "User-Agent": _CHROME_UA},
             timeout=httpx.Timeout(12.0, connect=5.0),
         )
@@ -1183,8 +1259,8 @@ async def _vk_frame(request: Request, ref: dict[str, str]) -> Response:
         return _cvh_error_frame("Видео недоступно")
     sources = [{"label": "Auto", "url": master}]
     try:
-        playlist = await client.get(master, headers=_headers_for_upstream(request, master, "https://vk.com/"),
-                                    timeout=httpx.Timeout(8.0, connect=4.0))
+        playlist = await _send("GET", master, headers=_headers_for_upstream(request, master, "https://vk.com/"),
+                               timeout=httpx.Timeout(8.0, connect=4.0))
         if playlist.status_code == 200:
             sources += _hls_quality_sources(master, _decode_text(playlist))
     except httpx.HTTPError:
@@ -2159,44 +2235,36 @@ async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = 
         log.info("player proxy blocked %s (%s)", urlparse(url).netloc, reason)
         return Response(status_code=204, headers={"Access-Control-Allow-Origin": "*"})
 
-    client = await _get_client()
     body = await request.body() if request.method not in {"GET", "HEAD"} else None
-    stream_cm = None
+    # Pages and requests with a body are read whole; media is streamed.
+    stream = not frame and request.method in {"GET", "HEAD"}
     try:
-        if frame or request.method not in {"GET", "HEAD"}:
-            upstream = await client.request(
-                request.method,
-                _ascii_url(url),
-                content=body,
-                headers=_headers_for_upstream(request, url, base, referer),
-            )
-        else:
-            stream_cm = client.stream(
-                request.method,
-                _ascii_url(url),
-                headers=_headers_for_upstream(request, url, base, referer),
-            )
-            upstream = await stream_cm.__aenter__()
+        upstream = await _send(
+            request.method,
+            _ascii_url(url),
+            stream=stream,
+            content=body,
+            headers=_headers_for_upstream(request, url, base, referer),
+        )
+    except http_public.Refused as exc:
+        raise HTTPException(403, "player host not allowed") from exc
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"player proxy upstream failed: {exc}") from exc
 
     final_url = str(upstream.url)
     if is_disabled_player_url(final_url):
-        if stream_cm is not None:
-            await stream_cm.__aexit__(None, None, None)
+        await upstream.aclose()
         raise HTTPException(403, "player disabled")
     blocked, reason = adblock.should_block(final_url)
     if blocked:
-        if stream_cm is not None:
-            await stream_cm.__aexit__(None, None, None)
+        await upstream.aclose()
         log.info("player proxy blocked redirect %s (%s)", urlparse(final_url).netloc, reason)
         return Response(status_code=204, headers={"Access-Control-Allow-Origin": "*"})
 
     content_type = upstream.headers.get("content-type", "")
     if (not frame and request.method == "GET" and 200 <= upstream.status_code < 300
             and ("text/html" in content_type or "application/xhtml+xml" in content_type)):
-        if stream_cm is not None:
-            await stream_cm.__aexit__(None, None, None)
+        await upstream.aclose()
         return RedirectResponse(_path_proxy_url(final_url, final_url, document=True), status_code=307,
                                 headers={"Cache-Control": "no-store", "Access-Control-Allow-Origin": "*"})
     headers = _response_headers(upstream, html_frame=frame, origin=_site_origin(request) if frame else "")
@@ -2206,8 +2274,7 @@ async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = 
         upstream_length = upstream.headers.get("content-length")
         if upstream_length:
             headers["Content-Length"] = upstream_length
-        if stream_cm is not None:
-            await stream_cm.__aexit__(None, None, None)
+        await upstream.aclose()
         return Response(
             status_code=upstream.status_code,
             media_type=content_type.split(";", 1)[0] or None,
@@ -2215,9 +2282,8 @@ async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = 
         )
 
     if frame or _looks_textual(content_type) or final_url.lower().endswith((".m3u8", ".m3u")):
-        content = await upstream.aread() if stream_cm is not None else upstream.content
-        if stream_cm is not None:
-            await stream_cm.__aexit__(None, None, None)
+        content = await upstream.aread()
+        await upstream.aclose()
         playlist = not frame and _is_playlist(content_type, final_url, content)
         content = _strip_cvh_ads(content, content_type, final_url)
         content = _rewrite_body(content, content_type, rewrite_base, frame=frame,
@@ -2239,7 +2305,7 @@ async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = 
             headers=headers,
         )
 
-    if stream_cm is not None:
+    if stream:
         upstream_length = upstream.headers.get("content-length")
         if upstream_length:
             headers["Content-Length"] = upstream_length
@@ -2249,7 +2315,7 @@ async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = 
                 async for chunk in upstream.aiter_bytes():
                     yield chunk
             finally:
-                await stream_cm.__aexit__(None, None, None)
+                await upstream.aclose()
 
         return StreamingResponse(
             stream_body(),
@@ -2300,6 +2366,10 @@ async def frame(request: Request, url: str = Query(..., min_length=8)):
         return await _sibnet_frame(request, url)
     if not _valid_http_url(url) or urlsplit(url).username or urlsplit(url).password:
         raise HTTPException(400, "invalid player url")
+    refusal = proxy_url_refusal(url)
+    if refusal:
+        _log_refusal(urlsplit(url).hostname or "", refusal)
+        raise HTTPException(403, "player host not allowed")
     return RedirectResponse(_path_proxy_url(url, url, document=True), status_code=307)
 
 

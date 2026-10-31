@@ -6,7 +6,7 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 """
 import html
 import unittest
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 from urllib.parse import quote, urljoin, urlsplit
 import httpx
 
@@ -17,6 +17,26 @@ from core.modules.player import routes as player
 
 BASE = "https://ru.yummyani.me/embed.html?id=123"
 ENTRY = "https://ru.yummyani.me/assets/player.js"
+# Страница плеера с хоста из белого списка: прокси ходит только к таким
+PLAYER = "https://player.aksor.tv/embed.html?id=123"
+
+
+class Body(httpx.AsyncByteStream):
+    """Тело ответа, которое помнит, закрыли ли его."""
+
+    def __init__(self, data: bytes):
+        self.data, self.closed = data, False
+
+    async def __aiter__(self):
+        yield self.data
+
+    async def aclose(self):
+        self.closed = True
+
+
+def mock_client(handler):
+    """Клиент плеера на подставном транспорте: на каждый запрос отвечает handler, сеть не трогается."""
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler))
 
 
 class ModuleUrls(unittest.TestCase):
@@ -103,16 +123,16 @@ class ModuleRoute(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.status_code, 502)
 
     async def test_frame_exposes_original_query_and_does_not_loop(self):
-        url = BASE + '&title=Test%20title&preview=https%3A%2F%2Fimg.test%2Fa.jpg'
+        url = PLAYER + '&title=Test%20title&preview=https%3A%2F%2Fimg.test%2Fa.jpg'
         req = self.request(raw_path=b'/player/frame', query=b'')
         with patch.object(player, '_fetch', AsyncMock(return_value=Response('frame'))) as fetch:
             redirected = await player.frame(req, url)
             self.assertEqual(redirected.status_code, 307)
             fetch.assert_not_awaited()
             target = urlsplit(redirected.headers['location'])
-            self.assertEqual(target.path, '/player/documents/https/ru.yummyani.me/embed.html')
+            self.assertEqual(target.path, '/player/documents/https/player.aksor.tv/embed.html')
             final_req = self.request(raw_path=target.path.encode('ascii'), query=target.query.encode('ascii'))
-            result = await player.player_document(final_req, 'https', 'ru.yummyani.me', 'embed.html')
+            result = await player.player_document(final_req, 'https', 'player.aksor.tv', 'embed.html')
             self.assertEqual(result.status_code, 200)
             fetch.assert_awaited_once_with(final_req, url, url, frame=True, referer=None)
             self.assertEqual(final_req.query_params['id'], '123')
@@ -173,26 +193,22 @@ class ModuleRoute(unittest.IsolatedAsyncioTestCase):
             clean.assert_awaited_once_with(req, url)
 
     async def test_query_proxy_html_redirect_closes_upstream_stream(self):
-        url = 'https://cdn.viqeo.tv/embed?vid=123'
-        cm = AsyncMock()
-        cm.__aenter__.return_value = httpx.Response(200, headers={'content-type': 'text/html'},
-                                                   content=b'<html></html>', request=httpx.Request('GET', url))
-        client = Mock(stream=Mock(return_value=cm))
+        url = 'https://player.aksor.tv/embed?vid=123'
+        body = Body(b'<html></html>')
+        client = mock_client(lambda req: httpx.Response(200, headers={'content-type': 'text/html'}, stream=body))
         with patch.object(player, '_get_client', AsyncMock(return_value=client)), \
              patch.object(player.adblock, 'should_block', return_value=(False, '')):
             result = await player._fetch(self.request(), url, BASE)
         self.assertEqual(result.status_code, 307)
-        self.assertEqual(result.headers['location'], '/player/documents/https/cdn.viqeo.tv/embed?vid=123')
-        cm.__aexit__.assert_awaited_once()
+        self.assertEqual(result.headers['location'], '/player/documents/https/player.aksor.tv/embed?vid=123')
+        self.assertTrue(body.closed)
 
     async def test_playlists_reach_safari_as_hls(self):
         # Kodik's CDN sends text/plain; with no .m3u8 in /player/proxy, iOS refused the stream.
         url = 'https://p13.solodcdn.com/s/m/abc/360.mp4:hls:manifest.m3u8'
-        cm = AsyncMock()
-        cm.__aenter__.return_value = httpx.Response(
+        client = mock_client(lambda req: httpx.Response(
             200, headers={'content-type': 'text/plain; charset=utf-8'},
-            content=b'#EXTM3U\n#EXTINF:6.000,\n360.mp4:hls:seg-1-v1-a1.ts\n', request=httpx.Request('GET', url))
-        client = Mock(stream=Mock(return_value=cm))
+            content=b'#EXTM3U\n#EXTINF:6.000,\n360.mp4:hls:seg-1-v1-a1.ts\n'))
         with patch.object(player, '_get_client', AsyncMock(return_value=client)), \
              patch.object(player.adblock, 'should_block', return_value=(False, '')):
             result = await player._fetch(self.request(), url, 'https://kodikplayer.com/season/1/abc/720p')
@@ -201,10 +217,9 @@ class ModuleRoute(unittest.IsolatedAsyncioTestCase):
         self.assertIn(b'/player/proxy?url=https%3A%2F%2Fp13.solodcdn.com%2Fs%2Fm%2Fabc%2F360.mp4%3Ahls%3Aseg-1', result.body)
 
     async def test_document_response_retains_csp(self):
-        url = BASE
-        client = Mock(request=AsyncMock(return_value=httpx.Response(200,
-            headers={'content-type': 'text/html'}, content=b'<head></head><body>test</body>',
-            request=httpx.Request('GET', url))))
+        url = PLAYER
+        client = mock_client(lambda req: httpx.Response(
+            200, headers={'content-type': 'text/html'}, content=b'<head></head><body>test</body>'))
         with patch.object(player, '_get_client', AsyncMock(return_value=client)), \
              patch.object(player.adblock, 'should_block', return_value=(False, '')):
             result = await player._fetch(self.request(), url, url, frame=True)

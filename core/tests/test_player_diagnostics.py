@@ -90,13 +90,14 @@ class DiagnosticsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.status_code, 400)
 
     async def test_real_media_failures_are_still_502(self):
-        cm = AsyncMock()
-        cm.__aenter__.side_effect = httpx.ConnectError("offline")
-        client = Mock(stream=Mock(return_value=cm))
+        def offline(req):
+            raise httpx.ConnectError("offline", request=req)
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(offline))
         with patch.object(player, "_get_client", AsyncMock(return_value=client)), \
              patch.object(player.adblock, "should_block", return_value=(False, "")):
             with self.assertRaises(HTTPException) as caught:
-                await player._fetch(self.request, "https://cdn.example.test/episode.mp4", BASE)
+                await player._fetch(self.request, "https://p12.solodcdn.com/episode.mp4", BASE)
         self.assertEqual(caught.exception.status_code, 502)
 
     def test_cache_busting_probe_query_is_supported(self):

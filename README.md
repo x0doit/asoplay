@@ -144,7 +144,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
   `AsoPlay-{mal_id}-ep{episode}-{hh}-{mm}-{ss}.png`.
 - Отдельный Kodik skin в `assets/player/kodik-skin.css` с акцентом тёмной
   темы EDDAS `#9db3cc`.
-- Same-origin player proxy для iframe и media URL.
+- Same-origin player proxy для iframe и media URL — только к хостам самих плееров
+  (белый список) и только на публичные адреса; проксируемые документы идут с CSP sandbox.
 - AsoPlay Shield для фильтрации рекламных URL, блокировки popup/navigation
   сценариев и защиты от шумных third-party scripts внутри sandbox.
 - Отдельные служебные player-ресурсы: `/player/asoplay-shield.js`,
@@ -224,7 +225,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── sources.py          источники видео: реестр, ключи найденного, вызов напрямую или через VPN-мост
 │   │   ├── native_sources.py   свои источники (old.yummyani, animevost) в том же виде, что anicli-api
 │   │   ├── source_filters.py   фильтры найденного: год, имена озвучек, неиграбельные и VK-плееры, реклама
-│   │   └── player_hosts.py     политика плееров: VK, неиграющие плееры
+│   │   └── player_hosts.py     политика плееров: белый список хостов прокси, VK, неиграющие плееры
 │   ├── classes/
 │   │   ├── db.py               подключение к базе AnimeSocial: настройки, соединение, проверка для /health
 │   │   ├── accounts.py         аккаунты соцсети: схема таблицы, поиск, @handle, бан
@@ -235,6 +236,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── token_box.py        шифрование токенов соцсети в базе (AES-GCM)
 │   │   ├── http.py             клиенты (напрямую и через VPN-мост), маршрут для хоста, темп запросов к MAL
 │   │   ├── http_cache.py       кеш апстримов на диске, повторы и паузы апстримов, один запрос на одинаковые
+│   │   ├── http_public.py      выход только на публичные адреса: сетевой слой клиента прокси плеера
 │   │   ├── jikan/              каталог MAL: catalog.py (запросы, кеш, лимит, фильтры), php_bridge.py (запуск PHP)
 │   │   ├── jikan/php/          PHP-мост, Composer manifest и lockfile
 │   │   ├── adblock/            блокировщик плеера: rules.py (разбор фильтров AdGuard), engine.py (списки, проверка)
@@ -675,7 +677,8 @@ Key capabilities:
   `AsoPlay-{mal_id}-ep{episode}-{hh}-{mm}-{ss}.png`.
 - Dedicated Kodik skin in `assets/player/kodik-skin.css` with the EDDAS
   dark-theme accent `#9db3cc`.
-- Same-origin player proxy for iframe and media URLs.
+- Same-origin player proxy for iframe and media URLs — only to the players' own hosts
+  (a list) and only to public addresses; proxied documents carry a CSP sandbox.
 - AsoPlay Shield for filtering ad URLs, blocking popup/navigation flows and
   reducing noisy third-party behavior inside sandboxed players.
 - Dedicated internal player resources: `/player/asoplay-shield.js`,
@@ -755,7 +758,7 @@ Key capabilities:
 │   │   ├── sources.py          video sources: the registry, keys of found objects, calls direct or via the VPN bridge
 │   │   ├── native_sources.py   our own sources (old.yummyani, animevost) shaped like anicli-api
 │   │   ├── source_filters.py   filters for found objects: year, dub names, unplayable and VK players, ads
-│   │   └── player_hosts.py     player policy: VK, players that do not play
+│   │   └── player_hosts.py     player policy: the proxy host list, VK, players that do not play
 │   ├── classes/
 │   │   ├── db.py               AnimeSocial DB connection: settings, connect, the /health probe
 │   │   ├── accounts.py         social network accounts: table layout, lookup, @handle, ban
@@ -766,6 +769,7 @@ Key capabilities:
 │   │   ├── token_box.py        encryption of social network tokens at rest (AES-GCM)
 │   │   ├── http.py             clients (direct and through the VPN bridge), route per host, MAL pacing
 │   │   ├── http_cache.py       upstream disk cache, retries and upstream pauses, one request for equal ones
+│   │   ├── http_public.py      connections to public addresses only: the player proxy client's network layer
 │   │   ├── jikan/              MAL catalog: catalog.py (requests, cache, rate limit, filters), php_bridge.py (PHP runs)
 │   │   ├── jikan/php/          PHP bridge, Composer manifest and lockfile
 │   │   ├── adblock/            player ad-block: rules.py (AdGuard filter parsing), engine.py (lists, checks)

@@ -41,7 +41,7 @@
   "bytes": 22551,
   "headers": {
    "cache-control": "no-store",
-   "content-security-policy": "default-src 'self' data: blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'",
+   "content-security-policy": "default-src 'self' data: blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts allow-presentation",
    "content-type": "text/html; charset=utf-8"
   },
   "sha256": "470c85c93e7a42d2c89d531820d5e6010870d47216434567d170b19026b11789"
@@ -50,7 +50,7 @@
   "bytes": 22476,
   "headers": {
    "cache-control": "no-store",
-   "content-security-policy": "default-src 'self' data: blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'",
+   "content-security-policy": "default-src 'self' data: blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts allow-presentation",
    "content-type": "text/html; charset=utf-8"
   },
   "sha256": "2d9d412a4006dee1c766a4a381b2589eb8fedadc34d9cea13456266914a1392d"
@@ -59,7 +59,7 @@
   "bytes": 22403,
   "headers": {
    "cache-control": "no-store",
-   "content-security-policy": "default-src 'self' data: blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'",
+   "content-security-policy": "default-src 'self' data: blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts allow-presentation",
    "content-type": "text/html; charset=utf-8"
   },
   "sha256": "0a76800aefeaf8321a509d01f8a7c6cfd7539cf5ec94e6e88fca582688ee6900"

@@ -555,6 +555,9 @@
  "PRIVACY_TTL": [
   "= e6c3dd630428"
  ],
+ "PROXY_HOSTS": [
+  "= 667224f43127"
+ ],
  "Presence": [
   "class()"
  ],
@@ -648,6 +651,24 @@
  "ProgressIn.title": [
   "str = f8ee4cc99729"
  ],
+ "PublicOnlyBackend": [
+  "class(httpcore.AsyncNetworkBackend)"
+ ],
+ "PublicOnlyBackend.__init__": [
+  "def(self, inner: httpcore.AsyncNetworkBackend) -> None"
+ ],
+ "PublicOnlyBackend._first": [
+  "async def(self, addresses: list[str], port: int, local_address: str | None, socket_options: typing.Iterable[typing.Any] | None) -> httpcore.AsyncNetworkStream"
+ ],
+ "PublicOnlyBackend.connect_tcp": [
+  "async def(self, host: str, port: int, timeout: float | None=None, local_address: str | None=None, socket_options: typing.Iterable[typing.Any] | None=None) -> httpcore.AsyncNetworkStream"
+ ],
+ "PublicOnlyBackend.connect_unix_socket": [
+  "async def(self, path: str, timeout: float | None=None, socket_options: typing.Iterable[typing.Any] | None=None) -> httpcore.AsyncNetworkStream"
+ ],
+ "PublicOnlyBackend.sleep": [
+  "async def(self, seconds: float) -> None"
+ ],
  "REPORT_EVERY": [
   "= e6c3dd630428"
  ],
@@ -707,6 +728,9 @@
  ],
  "RecordIn.year": [
   "int | None = 6eef6648406c"
+ ],
+ "Refused": [
+  "class(httpx.ConnectError)"
  ],
  "ReportIn": [
   "class(BaseModel)"
@@ -1079,6 +1103,9 @@
  "_FALLBACK_SNIPPETS": [
   "= 4bd953ce9154"
  ],
+ "_FRAME_SANDBOX": [
+  "= 708cdc188489"
+ ],
  "_FlowStore": [
   "class()"
  ],
@@ -1090,6 +1117,9 @@
  ],
  "_FlowStore.take": [
   "def(self, state: str) -> dict[str, Any] | None"
+ ],
+ "_HAPPY_EYEBALLS_DELAY": [
+  "= bdedc3fe4985"
  ],
  "_HLS_TYPE": [
   "= 7c442550060e"
@@ -1121,6 +1151,12 @@
  "_LOOPBACK": [
   "= 6aa6c39ae4ae",
   "= 7d56bf911333"
+ ],
+ "_MAX_REDIRECTS": [
+  "= 91032ad7bbcb"
+ ],
+ "_NAT64": [
+  "= b719543b575c"
  ],
  "_NONCE": [
   "= 0ee1b477c91d"
@@ -1169,6 +1205,15 @@
  ],
  "_RateLimiter.wait": [
   "async def(self) -> None"
+ ],
+ "_RefusalLog": [
+  "class()"
+ ],
+ "_RefusalLog.__call__": [
+  "def(self, host: str, reason: str) -> None"
+ ],
+ "_RefusalLog.__init__": [
+  "def(self) -> None"
  ],
  "_ResourceTagParser": [
   "class(HTMLParser)"
@@ -1455,6 +1500,9 @@
  "_is_cvh_iframe_url": [
   "def(url: str) -> bool"
  ],
+ "_is_ip": [
+  "def(host: str) -> bool"
+ ],
  "_is_javascript": [
   "def(content_type: str, url: str='') -> bool"
  ],
@@ -1505,6 +1553,9 @@
  ],
  "_load_raw": [
   "def() -> dict[str, Any]"
+ ],
+ "_log_refusal": [
+  "= 2490ebf6e2b0"
  ],
  "_login_by_identity": [
   "= d5b13a078488"
@@ -1690,6 +1741,9 @@
  ],
  "_seen": [
   "= 5af8cc004a97"
+ ],
+ "_send": [
+  "async def(method: str, url: str, *, stream: bool=False, **kwargs: Any) -> httpx.Response"
  ],
  "_server_error": [
   "@app.exception_handler(Exception) async def(request: Request, exc: Exception)"
@@ -2312,6 +2366,9 @@
  "is_enabled": [
   "def() -> bool"
  ],
+ "is_public": [
+  "def(address: str) -> bool"
+ ],
  "items_for": [
   "def(user_id: int, status: str | None) -> list[dict[str, Any]]"
  ],
@@ -2597,6 +2654,12 @@
  ],
  "proxy_url": [
   "def() -> str | None"
+ ],
+ "proxy_url_refusal": [
+  "def(url: str) -> str | None"
+ ],
+ "public_addresses": [
+  "async def(host: str, port: int) -> list[str]"
  ],
  "public_state": [
   "def() -> dict[str, Any]"
@@ -2922,6 +2985,9 @@
  ],
  "touch_session": [
   "def(token: str) -> dict[str, Any] | None"
+ ],
+ "transport": [
+  "def(**kwargs: typing.Any) -> httpx.AsyncHTTPTransport"
  ],
  "unix": [
   "def(value: datetime | None) -> int | None"
