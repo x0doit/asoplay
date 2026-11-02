@@ -22,7 +22,9 @@ class TitleCatalogTests(unittest.IsolatedAsyncioTestCase):
     async def test_embedded_catalog_keeps_mal_id(self):
         media = {"mal_id": 1535, "title": "Death Note", "score": 8.5, "genres": [{"mal_id": 7, "name": "Mystery"}]}
         fetch = AsyncMock(return_value=(json.dumps({"data": media}).encode(), "application/json", 200))
-        with patch.object(title_cache.jikan_catalog, "fetch", fetch), patch.object(title_cache, "store_title", side_effect=lambda p: p):
+        with patch.object(title_cache.jikan_catalog, "fetch", fetch), \
+                patch.object(title_cache, "_russian_title", AsyncMock(return_value="Тетрадь смерти")), \
+                patch.object(title_cache, "store_title", side_effect=lambda p, **_: p):  # без сети
             result = await title_cache.fetch_and_store(1535)
         self.assertEqual(result["mal_id"], 1535)
         self.assertEqual(result["score"], 8.5)

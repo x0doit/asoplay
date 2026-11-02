@@ -36,9 +36,9 @@ from core.classes.jikan import catalog as jikan_catalog
 from core.classes.vpn import bridge as vpn_bridge
 from core.config import config
 from core.functions import (
-    as_events_sender, lists_sweep, presence_batch, realtime, realtime_social, site_settings, sources,
+    as_events_sender, lists_sweep, presence_batch, realtime, realtime_social, site_settings, sources, title_completion,
 )
-from core.modules import profile_pages, seo, title_pages
+from core.modules import profile_pages, seo, title_cache, title_pages
 from core.modules.player import routes as player_proxy
 
 
@@ -112,6 +112,10 @@ async def _startup() -> None:
     await presence_batch.startup()
     await realtime.startup()
     await as_events_sender.startup(realtime.hub.social)
+    # Досмотр тайтла, которого нет в кеше страниц: каталог грузит title_cache, досмотр засчитает проверка после
+    # записи страницы (core/functions/title_completion.py). Подключается здесь, до первого запроса
+    title_cache.bind_loop(asyncio.get_running_loop())
+    title_completion.unknown_title = title_cache.refresh_soon
     await lists_sweep.startup()
 
 

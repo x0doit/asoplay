@@ -1,7 +1,8 @@
 """
 Досылка задним числом на поддельной базе: без --apply только числа, серии — только с записью просмотра, досмотр —
-только из авто-правила, старше окна — не берётся, в очередь — с настоящим временем, оценка не заменяет более новую;
---since — полночь по Киеву с его переходом времени.
+последняя серия по каталогу сервера со строкой просмотра, тайтлы не из кеша — сначала из каталога, старше окна —
+не берётся, в очередь — с настоящим временем, оценка не заменяет более новую; --types выбирает события; --since —
+полночь по Киеву с его переходом времени.
 
 Автор: Чепела Даниил Максимович.
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
@@ -35,10 +36,12 @@ def _has_zone(key: str) -> bool:
 
 
 def answer(sql, params):
+    if "NOT EXISTS (SELECT 1 FROM aviev_title_pages" in sql:
+        return [], 1
+    if "JOIN aviev_title_pages t" in sql:
+        return [(20, 52991, 0, None, FRESH)], 1
     if "FROM aviev_episode_progress p" in sql:
         return [(20, 52991, 6, None, FRESH), (20, 52991, 7, None, OLD)], 1
-    if "a.kind = 'complete'" in sql:
-        return [(20, 52991, 0, None, FRESH)], 1
     if "FROM aviev_title_ratings r" in sql:
         return [(31, 1535, 0, 9, FRESH)], 1
     return [], 1
@@ -50,8 +53,10 @@ class Backfill(unittest.TestCase):
         out = io.StringIO()
         with patch.object(env, "load"), patch.object(db, "connect", return_value=conn), \
                 patch.object(clock, "utc_now", return_value=NOW), contextlib.redirect_stdout(out), \
-                patch.object(backfill, "ZoneInfo", lambda key: KYIV_LATE_OCTOBER):
+                patch.object(backfill, "ZoneInfo", lambda key: KYIV_LATE_OCTOBER), \
+                patch.object(backfill, "load_unknown_titles", return_value=(0, 0)) as load:
             code = backfill.main(["--since", "2026-10-30", *args])
+        self.load_calls = load.call_count
         self.assertEqual(code, 0)
         return conn, out.getvalue()
 
@@ -59,15 +64,20 @@ class Backfill(unittest.TestCase):
         conn, out = self.run_tool()
         self.assertIn("since 2026-10-29 22:00 UTC, window 8 days, people 2", out)  # полночь 30.10 по Киеву
         self.assertIn("  episode: 1\n  completed: 1\n  rating: 1\n  older than the window (skipped): 1", out)
+        self.assertIn("catalog: loaded 0 titles into the page cache, still unknown 0", out)
         self.assertEqual(conn.statements("INSERT"), [])
         self.assertEqual((conn.commits, conn.rollbacks), (0, 1))
 
-    def test_episodes_need_a_watch_record_and_completed_comes_only_from_the_auto_rule(self):
+    def test_episodes_need_a_watch_record_and_completed_is_the_last_episode_by_the_catalog(self):
         conn, _ = self.run_tool()
         episodes, completed, rated = conn.sql
         self.assertIn("a.kind IN ('watch_start', 'watch_continue') AND a.meta = CONCAT('ep=', p.episode_num)",
                       episodes[0])
-        self.assertIn("a.kind = 'complete'", completed[0])
+        self.assertIn("JOIN aviev_title_pages t ON t.mal_id = p.mal_id AND t.airing_status = 'Finished Airing' "
+                      "AND t.episodes_total = p.episode_num", completed[0])
+        self.assertIn("a.meta = CONCAT('ep=', p.episode_num)", completed[0])  # смотрел ли её на самом деле
+        self.assertNotIn("a.kind = 'complete'", completed[0])            # не правило списков
+        self.assertEqual(self.load_calls, 1)
         self.assertNotIn("aviev_user_lists", " ".join(sql for sql, _ in conn.sql))  # ручное «Просмотрено» — нет
         for sql, params in conn.sql:
             self.assertIn("s.refresh_expires_at > %s", sql)                       # живая сессия соцсети
@@ -82,6 +92,31 @@ class Backfill(unittest.TestCase):
         self.assertEqual(params, (31, 1535, 9, FRESH))
         self.assertEqual(conn.commits, 1)
         self.assertIn("queued: episode 1, completed 1, rating 1", out)
+
+    def test_types_completed_runs_and_queues_only_completed(self):
+        conn, out = self.run_tool("--types", "completed", "--apply")
+        (sql, _), = conn.statements("SELECT")
+        self.assertIn("JOIN aviev_title_pages t", sql)
+        self.assertEqual([p[1] for _, p in conn.statements("INSERT")], ["completed"])
+        self.assertIn("queued: completed 1", out)
+
+    def test_titles_missing_from_the_cache_are_loaded_from_the_catalog_without_events(self):
+        from core.modules import title_cache
+        cur = FakeConn(lambda sql, params: ([(1535,), (2,)], 1)).cursor()
+        calls = []
+
+        async def fetch(mal_id, sweep=True):
+            calls.append((mal_id, sweep))
+            if mal_id == 2:
+                raise OSError("catalog down")
+            return {"slug": "death-note"}
+
+        async def no_wait(_):
+            return None
+        with patch.object(title_cache, "fetch_and_store", fetch), patch.object(backfill.asyncio, "sleep", no_wait), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(backfill.load_unknown_titles(cur, datetime(2026, 10, 29, 22, 0)), (1, 1))
+        self.assertEqual(calls, [(1535, False), (2, False)])  # без проверки досмотра: события пишет только --apply
 
     def test_without_a_time_zone_database_it_refuses_before_touching_the_database(self):
         out = io.StringIO()

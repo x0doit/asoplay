@@ -31,6 +31,7 @@ from core.classes.db import connect
 from core.classes.http_cache import SHIKI_HEADERS, SHIKI_ORIGIN
 from core.classes.jikan import catalog as jikan_catalog
 from core.config.config import SITE_URL
+from core.functions import as_events, title_completion
 
 log = logging.getLogger("asoplay.title_cache")
 
@@ -112,22 +113,23 @@ def stale(info: dict[str, Any]) -> bool:
     return info.get("fresh_until") is None or info["fresh_until"] <= utc_now()
 
 
-def store_title(payload: dict[str, Any]) -> dict[str, Any]:
-    """Записать тайтл из каталога в кеш — новый или поверх прежнего. Возвращает mal_id, slug, cached_at и
-    fresh_until."""
+def store_title(payload: dict[str, Any], *, sweep: bool = True) -> dict[str, Any]:
+    """Записать тайтл из каталога в кеш — новый или поверх прежнего. Запись узнала, что тайтл вышел целиком, —
+    досмотр тем, кто уже досмотрел его последнюю серию (title_completion.title_finished; sweep=False — без этого,
+    для подсчёта досылки). Возвращает mal_id, slug, cached_at и fresh_until."""
     now = utc_now()
     fresh_until = now + TTL_FRESH
     mal_id = int(payload["mal_id"])
-    # Для slug'а предпочитаем латинский title — он уже без кириллицы/кандзи
-    # и даёт читаемые URL вида /anime/1-cowboy-bebop/. Cyrillic NFKD
-    # полностью вырезается ASCII-страйпом, так что русское название как
-    # источник slug'а нам ничего не даёт.
+    # slug — из латинского названия: кириллицу ASCII-срез всё равно вырезал бы (/anime/1-cowboy-bebop/)
     slug = _slugify(payload.get("title_en") or payload.get("title_ru") or payload.get("title_jp") or "")
     if not slug or slug == "anime":
         slug = f"mal-{mal_id}"
     # slug uniqueness — if taken by a different mal_id, suffix the mal_id
+    finished = sweep and str(payload.get("airing_status") or "").strip() == title_completion.FINISHED
+    queued = 0
     with connect() as conn:
         cur = conn.cursor()
+        before = title_completion.last_episode(cur, mal_id) if finished else None
         cur.execute(
             "SELECT mal_id FROM aviev_title_pages WHERE slug=%s LIMIT 1",
             (slug,),
@@ -182,7 +184,12 @@ def store_title(payload: dict[str, Any]) -> dict[str, Any]:
                 fresh_until,
             ),
         )
+        total = int(payload.get("episodes_total") or 0)
+        if finished and total and before != total:  # тайтл впервые известен как вышедший — или сменилось число серий
+            queued = title_completion.title_finished(conn, mal_id, total, now)
         conn.commit()
+    if queued:
+        as_events.wake()
     return {"mal_id": mal_id, "slug": slug, "cached_at": now.isoformat(), "fresh_until": fresh_until.isoformat()}
 
 
@@ -199,9 +206,9 @@ async def _russian_title(mal_id: int) -> str:
     return ""
 
 
-async def fetch_and_store(mal_id: int) -> dict[str, Any] | None:
-    """Взять тайтл из каталога Jikan (русское название — с Shikimori) и записать в кеш. None — такого тайтла в MAL
-    нет (404); каталог недоступен — HTTPException 503, ответил не тем — 502."""
+async def fetch_and_store(mal_id: int, *, sweep: bool = True) -> dict[str, Any] | None:
+    """Взять тайтл из каталога Jikan (русское название — с Shikimori) и записать в кеш (sweep — как у store_title).
+    None — такого тайтла в MAL нет (404); каталог недоступен — HTTPException 503, ответил не тем — 502."""
     content, _, status = await jikan_catalog.fetch(f"anime/{mal_id}/full", timeout=10)
     if status == 404:
         return None
@@ -228,9 +235,10 @@ async def fetch_and_store(mal_id: int) -> dict[str, Any] | None:
         "genres": [g.get("name") for g in (data.get("genres") or []) if g.get("name")],
         "studios": ", ".join(s.get("name") for s in (data.get("studios") or []) if s.get("name")),
     }
-    return store_title(payload)
+    return store_title(payload, sweep=sweep)
 
 
+_loop: asyncio.AbstractEventLoop | None = None  # цикл событий сервера — для refresh_soon из потоков
 _refreshing: set[int] = set()       # тайтлы, чья загрузка уже идёт
 _refreshed_at: list[float] = []     # когда назначены загрузки последней минуты
 _tasks: set[asyncio.Task] = set()   # ссылки на задачи, пока они идут
@@ -250,6 +258,20 @@ def refresh_later(mal_id: int) -> bool:
     _tasks.add(task)
     task.add_done_callback(_tasks.discard)
     return True
+
+
+def bind_loop(loop: asyncio.AbstractEventLoop) -> None:
+    """Цикл событий сервера — для refresh_soon (core.py при старте)."""
+    global _loop
+    _loop = loop
+
+
+def refresh_soon(mal_id: int) -> None:
+    """refresh_later из потока обработчика — через пару секунд: действие, которое спросило о тайтле (досмотр
+    серии), к тому времени уже зафиксировано, и проверка досмотра после загрузки его увидит."""
+    loop = _loop
+    if loop is not None and not loop.is_closed():
+        loop.call_soon_threadsafe(loop.call_later, 2.0, refresh_later, mal_id)
 
 
 async def _refresh(mal_id: int) -> None:

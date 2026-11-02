@@ -162,6 +162,9 @@
  "CACHE_DIR": [
   "= c5061ae78c53"
  ],
+ "CATALOG_PACE": [
+  "= bdc1408a91f1"
+ ],
  "CATALOG_WAIT": [
   "= 743da23f34ee"
  ],
@@ -267,6 +270,9 @@
  "DOH_TIMEOUT": [
   "= 2ce6ddc84d93"
  ],
+ "DONE": [
+  "= 2828d010721f"
+ ],
  "DOWN_ERROR_AFTER": [
   "= e6c3dd630428"
  ],
@@ -281,6 +287,9 @@
  ],
  "FAIL_THRESHOLD": [
   "= 77de68daecd8"
+ ],
+ "FINISHED": [
+  "= f94d8bc52e1e"
  ],
  "FIRST_OF_TWO": [
   "= affe98b89557"
@@ -803,7 +812,7 @@
   "async def(self, seconds: float) -> None"
  ],
  "QUERIES": [
-  "= b21871374389"
+  "= 02c17e5664c7"
  ],
  "REFRESH_PER_MINUTE": [
   "= 22d200f8670d"
@@ -1616,6 +1625,9 @@
  "_UNIT_MINUTES": [
   "= cbc4e1cf3f45"
  ],
+ "_UNKNOWN": [
+  "= c2c91668c34d"
+ ],
  "_UNSUPPORTED_MODIFIERS": [
   "= 288901d6b8f4"
  ],
@@ -1930,6 +1942,7 @@
   "async def(server: str, name: str) -> tuple[list[str], int]"
  ],
  "_loop": [
+  "= 6eef6648406c",
   "async def(at: tuple[int, int], sleep: Callable[[float], Any]=asyncio.sleep) -> None"
  ],
  "_mark_previous_episodes_done_if_needed": [
@@ -2489,6 +2502,9 @@
  "bind_host": [
   "def() -> str"
  ],
+ "bind_loop": [
+  "def(loop: asyncio.AbstractEventLoop) -> None"
+ ],
  "bind_port": [
   "def() -> int"
  ],
@@ -2639,6 +2655,9 @@
  "entry_for": [
   "def(host: str, hosts: Iterable[str]) -> str | None"
  ],
+ "episode_done": [
+  "def(conn: Any, user_id: int, mal_id: int, episode: int, at: datetime) -> bool"
+ ],
  "episodes": [
   "@router.get('/src/episodes') async def(key: str, source: str='anilibria')"
  ],
@@ -2671,7 +2690,7 @@
   "async def(url: str, *, allowed: Callable[[httpx.URL], bool], via: str='site', key: str='', take: Callable[[], int]=lambda: 0, visitor: str='') -> tuple[bytes, str]"
  ],
  "fetch_and_store": [
-  "async def(mal_id: int) -> dict[str, Any] | None"
+  "async def(mal_id: int, *, sweep: bool=True) -> dict[str, Any] | None"
  ],
  "fetch_entry": [
   "def(conn, user_id: int, mal_id: int) -> dict[str, Any] | None"
@@ -2716,7 +2735,7 @@
   "def(mal_id: int) -> int"
  ],
  "found": [
-  "def(cur, since: datetime, now: datetime, window: timedelta) -> dict[str, list[tuple]]"
+  "def(cur, since: datetime, now: datetime, window: timedelta, types: tuple[str, ...]=tuple(QUERIES)) -> dict[str, list[tuple]]"
  ],
  "frame": [
   "@router.get('/frame') async def(request: Request, url: str=Query(..., min_length=8))",
@@ -2886,6 +2905,9 @@
  "kodik_video": [
   "@kodik_router.api_route('/video/{rest:path}', methods=['GET', 'POST', 'HEAD', 'OPTIONS']) async def(request: Request, rest: str)"
  ],
+ "last_episode": [
+  "def(cur: Any, mal_id: int) -> int | None"
+ ],
  "last_slot": [
   "def(now: datetime, at: tuple[int, int]) -> datetime"
  ],
@@ -2928,6 +2950,9 @@
  "load_cached": [
   "def(mal_id: int) -> dict[str, Any] | None"
  ],
+ "load_unknown_titles": [
+  "def(cur, since: datetime) -> tuple[int, int]"
+ ],
  "loaded_sources": [
   "= 42186eaf8b75"
  ],
@@ -2946,6 +2971,7 @@
   "= 48bd8c61a38f",
   "= 6cddf65a201a",
   "= 6cddf65a201a",
+  "= 8d79196ccde5",
   "= 96797f0c7e5f",
   "= 9a6a5b08b0f5",
   "= 9a6a5b08b0f5",
@@ -3240,6 +3266,9 @@
  "refresh_later": [
   "def(mal_id: int) -> bool"
  ],
+ "refresh_soon": [
+  "def(mal_id: int) -> None"
+ ],
  "register_shell_routes": [
   "def(app) -> None"
  ],
@@ -3505,7 +3534,7 @@
   "def(key: str, content: bytes, content_type: str) -> None"
  ],
  "store_title": [
-  "def(payload: dict[str, Any]) -> dict[str, Any]"
+  "def(payload: dict[str, Any], *, sweep: bool=True) -> dict[str, Any]"
  ],
  "summary": [
   "@router.get('/summary') def(_admin: int=Depends(admin_user)) -> dict[str, Any]"
@@ -3524,6 +3553,9 @@
  ],
  "title_cards": [
   "def(mal_ids: Iterable[int]) -> dict[int, tuple[str, str]]"
+ ],
+ "title_finished": [
+  "def(conn: Any, mal_id: int, last: int, now: datetime) -> int"
  ],
  "title_name": [
   "def(cur: Any, mal_id: int) -> str"
@@ -3550,6 +3582,9 @@
  "unix": [
   "def(at: datetime) -> int",
   "def(value: datetime | None) -> int | None"
+ ],
+ "unknown_title": [
+  "= 6eef6648406c"
  ],
  "unplayable_player_url": [
   "def(url: str) -> bool"

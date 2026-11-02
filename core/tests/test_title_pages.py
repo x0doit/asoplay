@@ -62,7 +62,7 @@ class FromTheCatalogOnly(Fresh):
             self.assertTrue(url.endswith("/api/animes/1535"))
             return json.dumps({"russian": "Тетрадь смерти"}).encode(), "application/json", 200
         with patch.object(jikan_catalog, "fetch", jikan), patch.object(http_cache, "cached_fetch", shiki), \
-                patch.object(title_cache, "store_title", side_effect=lambda p: stored.append(p) or {"slug": "x"}):
+                patch.object(title_cache, "store_title", side_effect=lambda p, **_: stored.append(p) or {"slug": "x"}):
             await title_cache.fetch_and_store(1535)
         (payload,) = stored
         self.assertEqual((payload["title_ru"], payload["title_en"], payload["episodes_total"]),
@@ -78,7 +78,7 @@ class FromTheCatalogOnly(Fresh):
         async def shiki(*_, **__):
             raise OSError("shikimori is down")
         with patch.object(jikan_catalog, "fetch", jikan), patch.object(http_cache, "cached_fetch", shiki), \
-                patch.object(title_cache, "store_title", side_effect=lambda p: stored.append(p) or {"slug": "x"}):
+                patch.object(title_cache, "store_title", side_effect=lambda p, **_: stored.append(p) or {"slug": "x"}):
             await title_cache.fetch_and_store(1535)
         self.assertEqual((stored[0]["title_ru"], stored[0]["title_en"]), ("", "Death Note"))
 

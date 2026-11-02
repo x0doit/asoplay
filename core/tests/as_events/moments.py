@@ -1,6 +1,7 @@
 """
 Где пишутся события: серия — только когда впервые стала досмотренной (серии, отмеченные сами, — без событий),
-досмотр тайтла — только авто-правилом последней серии (ручное «Просмотрено» — нет), оценка — с её временем;
+досмотр тайтла — первый досмотр последней серии по каталогу сервера (онгоинг, неизвестное число и нумерация
+дальше числа серий — нет; тайтла нет в кеше — спрашиваем каталог; ручное «Просмотрено» — нет), оценка — с её временем;
 после commit отправитель просыпается.
 
 Автор: Чепела Даниил Максимович.
@@ -13,7 +14,7 @@ from unittest.mock import AsyncMock, patch
 
 from core.api.sections.account import import_storage, ratings
 from core.api.sections.lists import entries, progress_event
-from core.functions import as_events, progress
+from core.functions import as_events, progress, title_completion
 from core.tests.as_events.lib import AT, FakeConn, linked_answer
 
 USER = {"id": 20}
@@ -49,10 +50,46 @@ class FirstDone(unittest.TestCase):
         self.assertEqual([c.kwargs["episode"] for c in self.record.call_args_list], [6])
 
 
+def catalog(row):
+    """Ответ базы для досмотра: прогресс до записи пуст, сессия соцсети у 20, кеш страницы тайтла — row."""
+    def answer(sql, params):
+        if sql.startswith("SELECT episodes_total, airing_status FROM aviev_title_pages"):
+            return ([row] if row else []), 1
+        return linked_answer({20})(sql, params)
+    return answer
+
+
 class Completed(unittest.TestCase):
-    def test_the_last_episode_rule_gives_completed_and_wakes_the_sender_after_commit(self):
+    def setUp(self):
+        p = patch.object(as_events, "record", return_value=True)
+        self.record = p.start()
+        self.addCleanup(p.stop)
+
+    def done(self, row, episode=12):
+        conn = FakeConn(catalog(row))
+        progress.upsert_episode_progress(conn, 20, 52991, episode, 1400, 1420, updated_at=AT)
+        return [c.args[2] for c in self.record.call_args_list]
+
+    def test_the_last_episode_by_the_catalog_gives_completed_with_the_episode(self):
+        self.assertEqual(self.done((12, "Finished Airing")), ["episode", "completed"])
+        self.assertEqual(self.record.call_args.kwargs, {"at": AT})
+
+    def test_ongoing_unknown_count_or_numbering_past_the_total_give_no_completed(self):
+        self.assertEqual(self.done((12, "Currently Airing")), ["episode"])            # онгоинг
+        self.record.reset_mock()
+        self.assertEqual(self.done((None, "Finished Airing")), ["episode"])           # число серий неизвестно
+        self.record.reset_mock()
+        self.assertEqual(self.done((12, "Finished Airing"), episode=13), ["episode"])  # сквозная нумерация: 13 из 12
+
+    def test_a_title_missing_from_the_cache_is_asked_from_the_catalog(self):
+        asked = []
+        with patch.object(title_completion, "unknown_title", asked.append):
+            self.assertEqual(self.done(None), ["episode"])
+        self.assertEqual(asked, [52991])  # досмотр засчитает проверка после загрузки страницы
+
+    def test_the_list_rule_no_longer_writes_the_event_and_the_sender_wakes_after_commit(self):
         order = []
-        conn = FakeConn()
+        conn = FakeConn(catalog((12, "Finished Airing")))
         conn.commit = lambda: order.append("commit")
         with patch.object(progress_event, "connect", return_value=conn), \
                 patch.object(progress_event, "upsert_episode_progress"), \
@@ -60,22 +97,20 @@ class Completed(unittest.TestCase):
                 patch.object(progress_event, "auto_add_enabled", return_value=True), \
                 patch.object(progress_event, "upsert_status"), patch.object(progress_event, "record_event"), \
                 patch.object(progress_event, "watched_seconds", return_value=0), \
-                patch.object(as_events, "record") as record, \
                 patch.object(as_events, "wake", side_effect=lambda: order.append("wake")):
             event = progress_event.ProgressEventIn(mal_id=52991, episode_num=12, seconds=1400, duration=1420,
                                                    episodes_total=12)
             progress_event.progress_event(event, USER)
-        self.assertEqual([c.args[1:4] for c in record.call_args_list], [(20, "completed", 52991)])
+        self.record.assert_not_called()  # completed пишет сам досмотр (upsert_episode_progress), не правило списков
         self.assertEqual(order, ["commit", "wake"])
 
     def test_a_manual_completed_status_gives_no_event(self):
         with patch.object(entries, "mal_id_exists", AsyncMock(return_value=True)), \
                 patch.object(entries, "connect", return_value=FakeConn()), \
                 patch.object(entries, "fetch_entry", return_value=None), \
-                patch.object(entries, "upsert_status"), patch.object(entries, "record_event"), \
-                patch.object(as_events, "record") as record:
+                patch.object(entries, "upsert_status"), patch.object(entries, "record_event"):
             asyncio.run(entries.set_status(52991, entries.ListItemIn(status="completed"), USER))
-        record.assert_not_called()  # решено 31.10: очки — за настоящий досмотр, не за клик
+        self.record.assert_not_called()  # решено 31.10: очки — за настоящий досмотр, не за клик
 
 
 class Rating(unittest.TestCase):

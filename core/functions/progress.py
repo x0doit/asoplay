@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Any
 
 from core.classes.clock import utc_now
-from core.functions import as_events
+from core.functions import as_events, title_completion
 
 
 def _mark_previous_episodes_done_if_needed(
@@ -66,7 +66,8 @@ def upsert_episode_progress(
     updated_at: datetime | None = None,
 ) -> bool:
     """Записать позицию в серии (только вперёд: берётся большее из старого и нового). True — серия только что
-    впервые стала досмотренной: тогда в очереди соцсети событие episode."""
+    впервые стала досмотренной: тогда в очереди соцсети событие episode, а у последней серии по каталогу — и
+    completed (core/functions/title_completion.py)."""
     stamp = updated_at or utc_now()
     cur = conn.cursor()
     cur.execute(
@@ -99,6 +100,8 @@ def upsert_episode_progress(
     if not progress_done(max(old_seconds, seconds), max(old_duration, duration)):
         return False
     as_events.record(conn, user_id, "episode", mal_id, episode=episode_num, at=stamp)
+    # Последняя серия по каталогу сервера — и досмотр тайтла: факт просмотра, не правило списков
+    title_completion.episode_done(conn, user_id, mal_id, episode_num, stamp)
     return True
 
 

@@ -1,6 +1,6 @@
 """
-События просмотра для соцсети: очередь aviev_as_events в транзакции действия, где пишется событие, отправка по
-соединению сервер–сервер с подтверждением и досылка задним числом. Без сети и без живой базы.
+События просмотра для соцсети: очередь aviev_as_events в транзакции действия, где пишется событие, досмотр тайтла
+по каталогу сервера, отправка по соединению сервер–сервер с подтверждением и досылка задним числом. Без сети и без живой базы.
 
 Автор: Чепела Даниил Максимович.
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
@@ -9,9 +9,9 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 """
 import unittest
 
-from core.tests.as_events import backfill, moments, queue, sender
+from core.tests.as_events import backfill, completion, moments, queue, sender
 
-PARTS = (queue, moments, sender, backfill)
+PARTS = (queue, moments, completion, sender, backfill)
 
 
 def load_tests(loader, tests, pattern):

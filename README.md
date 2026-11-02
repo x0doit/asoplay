@@ -523,7 +523,9 @@ nginx перед AsoPlay; заголовкам прокси сервер вер�
 попадают.
 
 События просмотра (`core/functions/as_events.py`) засчитывают задания компендиума и достижения соцсети: серия,
-впервые досмотренная в плеере, досмотр тайтла по его последней серии и оценка. Ручное «Просмотрено» и импорт
+впервые досмотренная в плеере, досмотр тайтла и оценка. Досмотр — первый досмотр последней серии по каталогу
+сервера (`core/functions/title_completion.py`: тайтл вышел целиком, номер серии равен числу серий), что бы ни
+стояло в списках; тайтла ещё нет в кеше страниц — засчитается после его загрузки. Ручное «Просмотрено» и импорт
 событий не дают. Событие пишется в `aviev_as_events` той же транзакцией, что и само действие, — только у тех, у
 кого есть живая сессия соцсети, — и уходит кадром `events` по тому же соединению сервер–сервер
 (`core/functions/as_events_sender.py`). Из очереди его удаляет только ответ `events_ok`; при сбое или обрыве оно
@@ -1126,8 +1128,10 @@ settings: `hide_presence` shows nobody that the person is here, `show_watching` 
 friends what they watch; hidden lists stay out of the block.
 
 Watch events (`core/functions/as_events.py`) count toward AnimeSocial's compendium tasks and achievements: an
-episode the player finishes for the first time, a title finished by its last episode, and a rating. A manual
-«Просмотрено» and imports give no events. An event is written to `aviev_as_events` in the same transaction as the
+episode the player finishes for the first time, a finished title, and a rating. A title counts as finished when
+its last episode by the server's catalog is finished for the first time (`core/functions/title_completion.py`:
+the title has finished airing and the episode number equals the episode count), whatever the lists say; a title
+not yet in the page cache counts once it is loaded. A manual «Просмотрено» and imports give no events. An event is written to `aviev_as_events` in the same transaction as the
 action itself, only for people with a live AnimeSocial session, and goes out as an `events` frame over the same
 server-to-server link (`core/functions/as_events_sender.py`). Only an `events_ok` answer removes it from the queue;
 after a failure or a break it goes again, and AnimeSocial never counts a repeat twice. It does not count events

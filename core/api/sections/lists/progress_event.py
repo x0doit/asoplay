@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field, conint
 
 from core.classes.clock import utc_now
 from core.classes.db import connect
-from core.functions import as_events, lists_sweep
+from core.functions import as_events, lists_sweep, title_completion
 from core.functions.activity import record_event
 from core.functions.lists import auto_add_enabled, fetch_entry, sweep_dropped_after_30_days, upsert_status
 from core.functions.progress import auto_watching_qualified, history_qualified, upsert_episode_progress
@@ -91,9 +91,9 @@ def progress_event(
         current = fetch_entry(conn, user["id"], event.mal_id)
         auto_ok = auto_add_enabled(conn, user["id"])
 
-        # 2) auto-rule: 10 минут или завершённая серия → watching (auto),
-        #    если нет ручного статуса. Так короткие серии не выпадают из
-        #    списков только потому, что физически короче 10 минут.
+        # 2) auto-rule: 10 минут или завершённая серия → watching (auto), если нет ручного статуса или стоит
+        #    «в планах»: начатый тайтл из планов переходит в «Смотрю», как на MAL. Так и короткие серии не выпадают
+        #    из списков только потому, что физически короче 10 минут.
         cur.execute(
             """SELECT 1
                 FROM aviev_episode_progress
@@ -109,7 +109,7 @@ def progress_event(
         if auto_ok and has_watching_signal:
             prev_status = current.get("status") if current else None
             prev_source = current.get("status_source") if current else None
-            if prev_status is None and prev_source != "manual":
+            if (prev_status is None and prev_source != "manual") or prev_status == "planned":
                 upsert_status(
                     conn, user["id"], event.mal_id,
                     status="watching", source="auto",
@@ -117,14 +117,16 @@ def progress_event(
                 )
                 applied.append("watching")
                 record_event(
-                    conn, user["id"], kind="list_add",
+                    conn, user["id"], kind="list_move" if prev_status else "list_add",
                     mal_id=event.mal_id, meta="watching:auto",
                 )
 
-        # 3) auto-rule: последняя серия → completed (auto), если не было manual
-        #    completed/dropped/postponed.
+        # 3) auto-rule: последняя серия по каталогу сервера (не число серий от плеера; строгое равенство — у части
+        #    источников нумерация сквозная) → completed (auto); запирают только ручные completed/dropped/postponed.
+        #    Событие completed для соцсети — не здесь: его засчитывает сам досмотр (upsert_episode_progress).
+        last = title_completion.last_episode(cur, event.mal_id)
         is_last = (
-            event.episodes_total > 0 and event.episode_num >= event.episodes_total
+            bool(last) and event.episode_num == last
             and event.duration > 30
             and (event.seconds >= event.duration * 0.85
                  or event.seconds >= event.duration - 60)
@@ -134,7 +136,7 @@ def progress_event(
             prev_status = entry.get("status") if entry else None
             prev_source = entry.get("status_source") if entry else None
             unlocked = (
-                prev_status in (None, "watching")
+                prev_status in (None, "watching", "planned")
                 and not (prev_source == "manual" and prev_status in ("dropped", "postponed", "completed"))
             )
             if unlocked and prev_status != "completed":
@@ -148,8 +150,6 @@ def progress_event(
                     conn, user["id"], kind="complete",
                     mal_id=event.mal_id, meta="auto",
                 )
-                # Досмотр по последней серии — событие для соцсети; ручное «Просмотрено» его не даёт
-                as_events.record(conn, user["id"], "completed", event.mal_id, at=now)
 
         # 4) activity: базовое событие «продолжаю смотреть» c эпизодом в meta.
         record_event(
