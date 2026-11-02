@@ -189,6 +189,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── activity.py         /account/activity: график и лента активности
 │   │   ├── auth.py             /auth/login, logout, me, register, config: вход паролем и настройки соцсети
 │   │   ├── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, перевод, картинки
+│   │   ├── comments.py         /comments…: комментарии к тайтлам и чат серии через соцсеть
 │   │   ├── friends.py          /account/friends…: друзья, заявки, «Возможные друзья», действия с дружбой
 │   │   ├── health.py           /health, /sources, /source-health, /adblock/…: состояние сервера
 │   │   ├── messages.py         /account/messages/{id}: «Написать» в переписку AnimeSocial
@@ -215,9 +216,11 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── presence.py         присутствие на AsoPlay: вкладки и «смотрит»; presence_batch.py — пакет соцсети
 │   │   ├── as_events.py        очередь событий просмотра для соцсети: серия, досмотр, оценка; as_events_sender.py —
 │   │   │                       отправка кадром events по соединению сервер–сервер с подтверждением
+│   │   ├── comments.py         комментарии в соцсети: объекты AsoPlay, вызовы токеном человека, кеш гостей
 │   │   ├── friends.py          друзья из AnimeSocial: id с кешем, люди, статусы, вызовы соцсети от имени человека
 │   │   ├── realtime.py         хаб живых соединений: вкладки, кадры, фон; realtime_presence.py — присутствие
-│   │   │                       друзьям, realtime_social.py — события соцсети и состояние сервера
+│   │   │                       друзьям, realtime_social.py — события соцсети и состояние сервера,
+│   │   │                       realtime_comments.py — события веток комментариев подписанным вкладкам
 │   │   ├── site_settings.py    что решила панель: пометки тайтлов, плашка, функции, источники, хосты картинок,
 │   │   │                       выключенные виды плееров
 │   │   ├── image_hosts.py      хосты /proxy/img: каталога и из панели, правило имени, проверка адреса
@@ -788,6 +791,7 @@ Key capabilities:
 │   │   ├── activity.py         /account/activity: the activity graph and feed
 │   │   ├── auth.py             /auth/login, logout, me, register, config: password sign-in, social settings
 │   │   ├── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, translate, images
+│   │   ├── comments.py         /comments…: title comments and the episode chat through AnimeSocial
 │   │   ├── friends.py          /account/friends…: friends, requests, suggestions, friendship actions
 │   │   ├── health.py           /health, /sources, /source-health, /adblock/…: server state
 │   │   ├── messages.py         /account/messages/{id}: «Write» into the AnimeSocial dialog
@@ -814,9 +818,11 @@ Key capabilities:
 │   │   ├── presence.py         presence on AsoPlay: tabs and «watching»; presence_batch.py — the batch for AS
 │   │   ├── as_events.py        the queue of watch events for AS: episode, completed, rating; as_events_sender.py —
 │   │   │                       sends them as an events frame over the server-to-server link, with confirmation
+│   │   ├── comments.py         comments in AnimeSocial: AsoPlay objects, calls with the person's token, guest cache
 │   │   ├── friends.py          friends from AnimeSocial: cached ids, people, statuses, calls on a person's behalf
 │   │   ├── realtime.py         the live connection hub: tabs, frames, background; realtime_presence.py —
-│   │   │                       presence to friends, realtime_social.py — social events and server status
+│   │   │                       presence to friends, realtime_social.py — social events and server status,
+│   │   │                       realtime_comments.py — comment thread events to subscribed tabs
 │   │   ├── site_settings.py    what the panel decided: title flags, notice, features, sources, image hosts,
 │   │   │                       player kinds switched off
 │   │   ├── image_hosts.py      /proxy/img hosts: the catalog's and the panel's, the name rule, the address check

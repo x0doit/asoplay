@@ -1,4 +1,7 @@
 {
+ "ACTIONS": [
+  "= 7df6604363ff"
+ ],
  "ADBLOCK_CACHE_DIR": [
   "= ff8f2bf1b1a4"
  ],
@@ -183,6 +186,24 @@
  "COOLDOWN_SECONDS": [
   "= df1f005bd0e9"
  ],
+ "CommentIn": [
+  "class(BaseModel)"
+ ],
+ "CommentIn.moment": [
+  "conint(ge=0, le=86400) | None = 6eef6648406c"
+ ],
+ "CommentIn.object": [
+  "str = 8bafcd2efa3f"
+ ],
+ "CommentIn.reply_to": [
+  "conint(ge=1) | None = 6eef6648406c"
+ ],
+ "CommentIn.text": [
+  "str = 3402e4544b0b"
+ ],
+ "CommentIn.thread": [
+  "conint(ge=1) | None = 6eef6648406c"
+ ],
  "CompiledRules": [
   "class()"
  ],
@@ -221,6 +242,9 @@
  ],
  "Conn.brief": [
   "dict[str, Any] | None = da39a3ee5e6b"
+ ],
+ "Conn.comment_objects": [
+  "frozenset[str] = c814e69f6eb7"
  ],
  "Conn.frames": [
   "list[float] = b1e8f0f90a08"
@@ -364,6 +388,12 @@
  "GRACE": [
   "= 22d200f8670d"
  ],
+ "GUEST_ENTRIES": [
+  "= ce09b127d48f"
+ ],
+ "GUEST_TTL": [
+  "= c23f7da70705"
+ ],
  "HistoryIn": [
   "class(BaseModel)"
  ],
@@ -389,7 +419,7 @@
   "str = f8ee4cc99729"
  ],
  "Hub": [
-  "class(HubPresence, HubSocial)"
+  "class(HubPresence, HubSocial, HubComments)"
  ],
  "Hub.__init__": [
   "def(self, clock: Callable[[], float]=time.monotonic)"
@@ -435,6 +465,18 @@
  ],
  "Hub.sweep": [
   "async def(self) -> None"
+ ],
+ "HubComments": [
+  "class()"
+ ],
+ "HubComments.comment_event": [
+  "async def(self, data: dict[str, Any]) -> None"
+ ],
+ "HubComments.unwatch_comments": [
+  "def(self, conn: Any) -> None"
+ ],
+ "HubComments.watch_comments": [
+  "def(self, conn: Any, objects: Any) -> None"
  ],
  "HubPresence": [
   "class()"
@@ -590,6 +632,9 @@
  "MAX_TABS_PER_USER": [
   "= 91032ad7bbcb"
  ],
+ "MAX_WATCH": [
+  "= da4b9237bacc"
+ ],
  "Mark": [
   "class()"
  ],
@@ -630,6 +675,9 @@
  ],
  "NoticeIn.until": [
   "int | None = b084b11a4f87"
+ ],
+ "OBJECT": [
+  "= 69c81bb224ef"
  ],
  "OPEN": [
   "= b49dc5f80dc2"
@@ -844,7 +892,11 @@
   "def(self, reason: str, *, upstream: int | None=None)"
  ],
  "ReportIn": [
+  "class(BaseModel)",
   "class(BaseModel)"
+ ],
+ "ReportIn.comment": [
+  "str = 2cf38272d8c2"
  ],
  "ReportIn.dub": [
   "str = a22704babb40"
@@ -860,6 +912,9 @@
  ],
  "ReportIn.player": [
   "str = 4ca5190644f7"
+ ],
+ "ReportIn.reason": [
+  "Literal['spam', 'insult', 'adult', 'violence', 'fraud', 'other'] = da39a3ee5e6b"
  ],
  "ReportIn.source": [
   "str = 409dcce6a7d7"
@@ -1494,7 +1549,8 @@
   "= e6c3dd630428"
  ],
  "_REFUSALS": [
-  "= aa55e45a267b"
+  "= aa55e45a267b",
+  "= ee2a67f6cef3"
  ],
  "_REPORT_COLUMNS": [
   "= 8d9115176837"
@@ -1542,6 +1598,7 @@
   "def(self, tag, attrs)"
  ],
  "_SESSION": [
+  "= d5e00b34696d",
   "= ed8cf32f5b53"
  ],
  "_SHIELD_LOGGER_JS": [
@@ -1637,6 +1694,9 @@
  "_URL_TAIL": [
   "= bfceba9419c6"
  ],
+ "_USER": [
+  "= 679e7e187734"
+ ],
  "_USERS_CHUNK": [
   "= f83a383c0fa8"
  ],
@@ -1684,6 +1744,9 @@
  ],
  "_anicli_http": [
   "def(source: str, route: str) -> tuple[Any, Any]"
+ ],
+ "_as_guest": [
+  "def(request: Request, path: str, key: str) -> Any"
  ],
  "_ascii_url": [
   "def(url: str) -> str"
@@ -1835,6 +1898,12 @@
  "_guess_base": [
   "def(url: str, base: str | None) -> str"
  ],
+ "_guest": [
+  "= a902315319ba"
+ ],
+ "_guest_lock": [
+  "= c6d6acc28078"
+ ],
  "_handle_for": [
   "def(user_id: int, alias: str | None) -> str"
  ],
@@ -1863,7 +1932,8 @@
   "def(ids: list[int]) -> str"
  ],
  "_int_or_none": [
-  "def(value: Any) -> int | None"
+  "def(value: Any) -> int | None",
+  "def(value: Any, top: int) -> bool"
  ],
  "_is_alloha_base": [
   "def(base: str) -> bool"
@@ -2001,6 +2071,9 @@
  "_parents": [
   "@lru_cache(maxsize=1) def(rules: tuple[frozenset[str], frozenset[str], frozenset[str]]) -> frozenset[str]"
  ],
+ "_parse": [
+  "def(key: str) -> tuple[int, int | None]"
+ ],
  "_path_proxy_url": [
   "def(url: str, base: str, *, document: bool=False) -> str"
  ],
@@ -2082,6 +2155,9 @@
  ],
  "_refreshing": [
   "= 9aadf8ef192d"
+ ],
+ "_refusal": [
+  "def(exc: as_api.ASApiError, session: str | None) -> HTTPException"
  ],
  "_register": [
   "def(name: str, import_paths: list[str]) -> None"
@@ -2264,6 +2340,9 @@
  "_text": [
   "def(name: str) -> str"
  ],
+ "_thread_title": [
+  "async def(mal_id: int, episode: int | None) -> tuple[str, str]"
+ ],
  "_title_item": [
   "def(mal_id: int, name: str, flags: tuple | None) -> dict[str, Any]"
  ],
@@ -2349,6 +2428,9 @@
  "_watchdog_thread": [
   "= 6eef6648406c"
  ],
+ "_who": [
+  "def(request: Request) -> tuple[str, str]"
+ ],
  "_wildcard_to_regex": [
   "def(pattern: str) -> str"
  ],
@@ -2371,7 +2453,7 @@
   "def(path: str) -> str"
  ],
  "access_token": [
-  "def(session: str, user_ip: str='', user_agent: str='') -> str | None"
+  "def(session: str, user_ip: str='', user_agent: str='', *, stale: str | None=None) -> str | None"
  ],
  "activate": [
   "def() -> bool"
@@ -2597,6 +2679,27 @@
  ],
  "client_ip": [
   "def(request: Request) -> str"
+ ],
+ "comment_add": [
+  "@router.post('') async def(payload: CommentIn, request: Request, user: dict[str, Any]=_USER, session: str | None=_SESSION) -> Any"
+ ],
+ "comment_delete": [
+  "@router.delete('/{comment_id}') def(request: Request, comment_id: int=Path(..., ge=1), user: dict[str, Any]=_USER, session: str | None=_SESSION) -> Any"
+ ],
+ "comment_item": [
+  "@router.get('/item/{comment_id}') def(request: Request, comment_id: int=Path(..., ge=1), session: str | None=_SESSION) -> Any"
+ ],
+ "comment_like": [
+  "@router.put('/{comment_id}/like') def(request: Request, comment_id: int=Path(..., ge=1), user: dict[str, Any]=_USER, session: str | None=_SESSION) -> Any"
+ ],
+ "comment_report": [
+  "@router.post('/{comment_id}/report') def(payload: ReportIn, request: Request, comment_id: int=Path(..., ge=1), user: dict[str, Any]=_USER, session: str | None=_SESSION) -> Any"
+ ],
+ "comment_unlike": [
+  "@router.delete('/{comment_id}/like') def(request: Request, comment_id: int=Path(..., ge=1), user: dict[str, Any]=_USER, session: str | None=_SESSION) -> Any"
+ ],
+ "comments_list": [
+  "@router.get('') def(request: Request, object: str=Query(..., max_length=150), sort: Literal['new', 'old', 'top', 'moment']='new', thread: int | None=Query(None, ge=1), cursor: str | None=Query(None, max_length=200), since: int | None=Query(None, alias='from', ge=0, le=86400), until: int | None=Query(None, alias='to', ge=0, le=86400), limit: int=Query(20, ge=1, le=100), session: str | None=_SESSION) -> Any"
  ],
  "compile_rules": [
   "def(filter_texts: list[str]) -> CompiledRules"
@@ -2978,6 +3081,7 @@
   "= 09e04af44e51",
   "= 09e04af44e51",
   "= 09e04af44e51",
+  "= 0dd68a9ceb8a",
   "= 1775a40410d5",
   "= 32d06339fc74",
   "= 331c30afefaa",
@@ -3097,6 +3201,9 @@
  ],
  "parse_line": [
   "def(raw: str, rules: CompiledRules, *, regex_limit: int, snippet_limit: int) -> None"
+ ],
+ "parse_object": [
+  "def(key: str) -> tuple[int, int | None] | None"
  ],
  "parse_proxy_hosts": [
   "def(items: Iterable[Any], *, strict: bool) -> list[dict[str, str]]"
@@ -3234,6 +3341,9 @@
  "put": [
   "def(obj: Any) -> str"
  ],
+ "query": [
+  "def(params: dict[str, Any]) -> str"
+ ],
  "queue": [
   "def(cur, rows: dict[str, list[tuple]]) -> dict[str, int]"
  ],
@@ -3248,6 +3358,9 @@
  ],
  "ratings_all": [
   "@router.get('/ratings') def(user: dict[str, Any]=Depends(current_user_required)) -> dict[str, int]"
+ ],
+ "read": [
+  "def(request: Request, session: str | None, path: str, params: dict[str, Any] | None=None, *, cache: bool=True) -> Any"
  ],
  "read_privacy": [
   "def(user_id: int) -> dict[str, bool]"
@@ -3376,6 +3489,7 @@
   "= 82e1a4f1c862",
   "= 82e1a4f1c862",
   "= 82e1a4f1c862",
+  "= cd03d15b99a8",
   "= f115762622b1",
   "= f115762622b1",
   "= f115762622b1",
@@ -3480,7 +3594,8 @@
   "def(sources: Iterable[str] | None=None) -> dict[str, dict[str, object]]"
  ],
  "social_call": [
-  "def(request: Request, session: str | None, method: str, path: str, body: dict[str, Any] | None=None) -> Any"
+  "def(request: Request, session: str | None, method: str, path: str, body: dict[str, Any] | None=None) -> Any",
+  "def(request: Request, session: str | None, method: str, path: str, body: dict[str, Any] | None=None, *, token: str | None=None) -> Any"
  ],
  "social_session": [
   "def(request: Request, session: str | None) -> tuple[str | None, str, str]"
@@ -3588,6 +3703,9 @@
  "token_key": [
   "def() -> str"
  ],
+ "token_of": [
+  "def(request: Request, session: str | None) -> str | None"
+ ],
  "touch_session": [
   "def(token: str) -> dict[str, Any] | None"
  ],
@@ -3670,6 +3788,9 @@
  ],
  "window": [
   "def(source: str) -> dict[str, object]"
+ ],
+ "write": [
+  "def(request: Request, session: str | None, method: str, path: str, body: dict[str, Any] | None=None) -> Any"
  ],
  "ws_endpoint": [
   "@router.websocket('/ws') async def(ws: WebSocket) -> None"

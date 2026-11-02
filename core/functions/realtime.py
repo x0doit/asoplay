@@ -4,8 +4,9 @@
 Автор: Чепела Даниил Максимович.
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
-Hub собран из трёх частей: соединения и кадры — здесь, присутствие друзьям — HubPresence
-(core/functions/realtime_presence.py), соцсеть и состояние сервера — HubSocial (core/functions/realtime_social.py).
+Hub собран из четырёх частей: соединения и кадры — здесь, присутствие друзьям — HubPresence
+(core/functions/realtime_presence.py), соцсеть и состояние сервера — HubSocial (core/functions/realtime_social.py),
+ветки комментариев — HubComments (core/functions/realtime_comments.py).
 Маршрут /ws и протокол кадров — core/api/sections/realtime.py. Из обычных обработчиков (потоков) хаб зовут
 функции модуля: privacy_changed, status_changed, lists_changed, drop_session.
 """
@@ -24,6 +25,7 @@ from fastapi import WebSocket
 from core.classes import as_realtime
 from core.config import animesocial
 from core.functions import friends as friend_data, presence, presence_batch, privacy as privacy_rules, sessions
+from core.functions.realtime_comments import HubComments
 from core.functions.realtime_presence import HubPresence
 from core.functions.realtime_social import HubSocial
 
@@ -52,6 +54,7 @@ class Conn:
     visible: bool = False
     mal_id: int = 0
     title: str = ""
+    comment_objects: frozenset[str] = frozenset()
     frames: list[float] = field(default_factory=list)
 
     def allow_frame(self, now: float) -> bool:
@@ -83,9 +86,10 @@ def _brief(user: dict[str, Any]) -> dict[str, Any]:
             "profile_path": user.get("profile_path") or f"/@profile{uid}"}
 
 
-class Hub(HubPresence, HubSocial):
+class Hub(HubPresence, HubSocial, HubComments):
     """Живые соединения вкладок: кто подключён, их кадры, отправка и фон. Присутствие друзьям — HubPresence
-    (realtime_presence.py), соцсеть и состояние сервера — HubSocial (realtime_social.py)."""
+    (realtime_presence.py), соцсеть и состояние сервера — HubSocial (realtime_social.py), ветки комментариев —
+    HubComments (realtime_comments.py)."""
     def __init__(self, clock: Callable[[], float] = time.monotonic):
         """Пустой хаб: соединения, друзья тех, кто на сайте, что им уже сообщено, кеши и связь с realtime соцсети."""
         self._clock = clock
@@ -93,6 +97,7 @@ class Hub(HubPresence, HubSocial):
         self.conns: dict[int, Conn] = {}
         self.by_user: dict[int, set[int]] = {}
         self.guests_by_ip: dict[str, int] = {}
+        self.by_object: dict[str, set[int]] = {}  # ветка комментариев → вкладки
         # Друзья тех, кто на сайте, и обратный указатель: о ком кому сообщать
         self.friends: dict[int, frozenset[int]] = {}
         self.followers: dict[int, set[int]] = {}
@@ -140,6 +145,7 @@ class Hub(HubPresence, HubSocial):
         человека — забыть его друзей."""
         if self.conns.pop(conn.id, None) is None:
             return
+        self.unwatch_comments(conn)
         if not conn.user_id:
             left = self.guests_by_ip.get(conn.ip, 1) - 1
             if left > 0:
@@ -158,8 +164,8 @@ class Hub(HubPresence, HubSocial):
 
     # ----- кадры браузера -----
     async def handle(self, conn: Conn, text: str) -> None:
-        """Кадр вкладки: ping — pong; visible и watching — в присутствие и друзьям.
-        Длинный, лишний или испорченный кадр — мимо."""
+        """Кадр вкладки: ping — pong; comments.watch — подписка на ветки; visible и watching — в присутствие
+        и друзьям. Длинный, лишний или испорченный кадр — мимо."""
         if len(text) > MAX_FRAME or not conn.allow_frame(self._clock()):
             return
         try:
@@ -169,6 +175,9 @@ class Hub(HubPresence, HubSocial):
         kind = frame.get("type") if isinstance(frame, dict) else None
         if kind == "ping":
             await self.send(conn, {"type": "pong"})
+            return
+        if kind == "comments.watch":  # и гостям: комментарии открыты всем
+            self.watch_comments(conn, frame.get("objects"))
             return
         if not conn.user_id:
             return

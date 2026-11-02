@@ -80,8 +80,9 @@ class HubSocial:
                 conn = self.conns.get(conn_id)
                 if conn:
                     await self.close(conn, 4001)
-        # notify и account_state — для значка соцсети в шапке, client_comment — для веток комментариев:
-        # их у AsoPlay пока нет
+        elif name == "client_comment":
+            await self.comment_event(data)  # вкладкам, подписанным на эту ветку (HubComments)
+        # notify и account_state — для значка соцсети в шапке: его у AsoPlay пока нет
 
     async def lists_changed(self, user_id: int, items: list[dict[str, Any]]) -> None:
         """Сервер перенёс тайтлы человека (правило 30 дней, досмотр по каталогу): кадр «lists» во все его вкладки."""

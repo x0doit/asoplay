@@ -29,7 +29,7 @@ env.load()  # до остальных импортов: настройки в co
 # free.
 from core.admin import auth as admin_auth, router as admin_router, summary as admin_summary
 from core.api.sections import account, activity, auth, catalog, friends, health, lists, messages, profile, social_login
-from core.api.sections import random as random_api, realtime as realtime_ws, reports, sources as source_api
+from core.api.sections import comments, random as random_api, realtime as realtime_ws, reports, sources as source_api
 from core.classes import http, http_cache, image_proxy
 from core.classes.adblock import engine as adblock
 from core.classes.jikan import catalog as jikan_catalog
@@ -166,6 +166,7 @@ app.include_router(social_login.router)
 app.include_router(account.router)
 app.include_router(friends.router)
 app.include_router(messages.router)
+app.include_router(comments.router)
 app.include_router(realtime_ws.router)
 app.include_router(lists.router)
 app.include_router(activity.router)
