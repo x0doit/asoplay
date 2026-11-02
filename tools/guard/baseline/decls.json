@@ -23,6 +23,9 @@
  "ASApiError.__init__": [
   "def(self, status: int, code: str, message: str='', retry_after: int=0)"
  ],
+ "ATTEMPT_TIMEOUT": [
+  "= 91032ad7bbcb"
+ ],
  "AUTHOR_NAME": [
   "= 1bd52457993d"
  ],
@@ -264,6 +267,9 @@
  "DOH_TIMEOUT": [
   "= 2ce6ddc84d93"
  ],
+ "DOWN_ERROR_AFTER": [
+  "= e6c3dd630428"
+ ],
  "DubPrefIn": [
   "class(BaseModel)"
  ],
@@ -278,6 +284,9 @@
  ],
  "FIRST_OF_TWO": [
   "= affe98b89557"
+ ],
+ "FIRST_RETRY": [
+  "= 356a192b7913"
  ],
  "FLOW_COOKIE": [
   "= 81211f7d3047"
@@ -1104,6 +1113,9 @@
  "SocialLink._handle": [
   "async def(self, message: Any) -> str | None"
  ],
+ "SocialLink._log_if_down": [
+  "def(self) -> None"
+ ],
  "SocialLink._loop": [
   "async def(self) -> None"
  ],
@@ -1111,7 +1123,7 @@
   "def(self, frame: dict[str, Any]) -> None"
  ],
  "SocialLink._realtime_url": [
-  "async def(self) -> str"
+  "async def(self, failures: int=0) -> str"
  ],
  "SocialLink._send_loop": [
   "async def(self, ws) -> None"
@@ -1120,7 +1132,7 @@
   "def(self, user_id: int, online: bool, watching: dict[str, str] | None) -> None"
  ],
  "SocialLink.run_once": [
-  "async def(self) -> str"
+  "async def(self, failures: int=0) -> str"
  ],
  "SocialLink.send": [
   "def(self, frame: dict[str, Any]) -> bool"
@@ -1240,6 +1252,12 @@
  "UA": [
   "= 243042ee209b",
   "= d6b3ee3cf2c5"
+ ],
+ "URL_STALE_AFTER": [
+  "= 77de68daecd8"
+ ],
+ "URL_TTL": [
+  "= a032c7639cf6"
  ],
  "VIA": [
   "= c082f5493569"
@@ -2251,6 +2269,9 @@
  "_tls": [
   "@functools.lru_cache(maxsize=4) def(ca: str) -> ssl.SSLContext | bool",
   "def(url: str) -> ssl.SSLContext | None"
+ ],
+ "_tls_context": [
+  "@functools.lru_cache(maxsize=4) def(ca: str) -> ssl.SSLContext"
  ],
  "_too_short": [
   "def(card: dict) -> bool"
