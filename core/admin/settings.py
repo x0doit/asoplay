@@ -1,5 +1,5 @@
 """
-Админ-API: настройки сайта — плашка, функции, источники видео.
+Админ-API: настройки сайта — плашка, функции, источники видео, хосты картинок через прокси.
 
 Автор: Чепела Даниил Максимович.
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
@@ -10,17 +10,18 @@ core/functions/site_settings.py; здесь — проверка, сохране
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from core.admin.audit import audit
+from core.admin.audit import DETAILS_MAX, audit
 from core.admin.auth import AdminError, admin_user, ok
 from core.classes import as_sessions
 from core.classes.clock import utc_now
 from core.classes.db import connect
-from core.functions import site_settings, video_reports
+from core.classes.vpn import bridge as vpn_bridge
+from core.functions import image_hosts, site_settings, video_reports
 
 router = APIRouter()
 
@@ -48,12 +49,20 @@ class SourceIn(BaseModel):
     order: int = Field(default=0, ge=0, le=1000)
 
 
+class ProxyHostIn(BaseModel):
+    """Хост картинок через прокси: имя (сервер приводит его к punycode и нижнему регистру) и путь сервера к нему —
+    как обычно (site) или через VPN-мост (vpn)."""
+    host: str = Field(min_length=1, max_length=300)
+    via: Literal["site", "vpn"] = "site"
+
+
 class SettingsIn(BaseModel):
     """Настройки сайта целиком; часть, которой нет, не меняется."""
 
     notice: NoticeIn | None = None
     features: FeaturesIn | None = None
     sources: list[SourceIn] | None = Field(default=None, max_length=50)
+    proxy_hosts: list[ProxyHostIn] | None = Field(default=None, max_length=image_hosts.PROXY_HOSTS_MAX)
 
 
 def _settings_view() -> dict[str, Any]:
@@ -63,9 +72,12 @@ def _settings_view() -> dict[str, Any]:
         "notice": dict(current.notice),
         "features": dict(current.features),
         "sources": site_settings.sources_view(),
+        "proxy_hosts": [dict(item) for item in current.proxy_hosts],
         # Что можно включить: вход через Anime Social — только при ключах клиента в .env AsoPlay,
         # комментариев на AsoPlay пока нет
-        "available": {"as_login": as_sessions.enabled(), "password_login": True, "comments": False},
+        # vpn — работает ли VPN-мост на сервере сейчас (via "vpn" без него идёт напрямую)
+        "available": {"as_login": as_sessions.enabled(), "password_login": True, "comments": False,
+                      "vpn": vpn_bridge.is_active()},
     }
 
 
@@ -78,6 +90,24 @@ def settings_get(_admin: int = Depends(admin_user)) -> dict[str, Any]:
 def _sources_key(sources: Any) -> list[tuple[str, bool, int]]:
     """Источники в сравнимом виде: id, включён ли, место в порядке."""
     return sorted((s["id"], bool(s.get("enabled", True)), int(s.get("order", 0))) for s in sources)
+
+
+def _proxy_hosts_diff(old: Any, new: list[dict[str, str]]) -> dict[str, Any]:
+    """Запись журнала о списке хостов: added, removed, changed (сменился via), пустые части тоже есть. Сам список
+    лежит в настройках. Что не влезло в запись журнала, отрезается с конца самой длинной части; omitted — сколько."""
+    before = {item["host"]: item["via"] for item in old}
+    after = {item["host"]: item["via"] for item in new}
+    details: dict[str, Any] = {
+        "added": [{"host": h, "via": v} for h, v in after.items() if h not in before],
+        "removed": [{"host": h, "via": v} for h, v in before.items() if h not in after],
+        "changed": [{"host": h, "via": v, "was": before[h]} for h, v in after.items()
+                    if h in before and before[h] != v],
+        "omitted": 0,
+    }
+    while len(json.dumps(details, ensure_ascii=False)) > DETAILS_MAX:
+        details[max(("added", "removed", "changed"), key=lambda part: len(details[part]))].pop()
+        details["omitted"] += 1
+    return details
 
 
 @router.put("/settings")
@@ -104,6 +134,14 @@ def settings_put(body: SettingsIn, admin: int = Depends(admin_user)) -> dict[str
         sources = [s.model_dump() for s in body.sources]
         if _sources_key(sources) != _sources_key(site_settings.sources_view()):
             changes["sources"] = sources
+    if body.proxy_hosts is not None:
+        try:
+            proxy_hosts = image_hosts.parse_proxy_hosts([h.model_dump() for h in body.proxy_hosts], strict=True)
+        except ValueError as exc:
+            why = f" — {exc.args[1]}" if len(exc.args) > 1 else ""  # общий суффикс: почему не годится
+            raise AdminError(422, "invalid_host", f"Неверный хост: {exc.args[0]}{why}") from exc
+        if proxy_hosts != list(current.proxy_hosts):
+            changes["proxy_hosts"] = proxy_hosts
     if not changes:
         return ok(_settings_view())
     now = utc_now()
@@ -115,9 +153,10 @@ def settings_put(body: SettingsIn, admin: int = Depends(admin_user)) -> dict[str
                    ON DUPLICATE KEY UPDATE value = VALUES(value), updated_by = VALUES(updated_by), updated_at = VALUES(updated_at)""",
                 (name, json.dumps(value, ensure_ascii=False), admin, now),
             )
-        # Как показывает панель: settings.notice | settings.features | settings.sources
+        # Как показывает панель: settings.notice | settings.features | settings.sources | settings.proxy_hosts
         for name, value in changes.items():
-            audit(cur, admin, f"settings.{name}", f"settings:{name}", {name: value})
+            details = _proxy_hosts_diff(current.proxy_hosts, value) if name == "proxy_hosts" else {name: value}
+            audit(cur, admin, f"settings.{name}", f"settings:{name}", details)
         conn.commit()
     site_settings.state.load()
     site_settings.changed(set(changes))

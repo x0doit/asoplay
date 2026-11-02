@@ -62,6 +62,9 @@
  "AdblockEngine.wait_ready": [
   "async def(self, timeout: float=1.5) -> None"
  ],
+ "AddressRefused": [
+  "class(Refused)"
+ ],
  "AdminError": [
   "class(Exception)"
  ],
@@ -101,6 +104,51 @@
  "BASE": [
   "= 2cbc373a1a5c",
   "= d5d5d1b100b9"
+ ],
+ "BREAK_AFTER": [
+  "= 77de68daecd8"
+ ],
+ "BREAK_FOR": [
+  "= 57eb3a49d9ad"
+ ],
+ "Breaker": [
+  "class()"
+ ],
+ "Breaker.__init__": [
+  "def(self, after: int=BREAK_AFTER, pause: float=BREAK_FOR)"
+ ],
+ "Breaker.answered": [
+  "def(self, host: str) -> None"
+ ],
+ "Breaker.failed": [
+  "def(self, host: str) -> None"
+ ],
+ "Breaker.resting": [
+  "def(self, host: str) -> float"
+ ],
+ "BridgeBackend": [
+  "class(httpcore.AsyncNetworkBackend)"
+ ],
+ "BridgeBackend.__init__": [
+  "def(self, inner: httpcore.AsyncNetworkBackend) -> None"
+ ],
+ "BridgeBackend._first": [
+  "async def(self, proxy_host: str, proxy_port: int, addresses: list[str], port: int, timeout: float | None, socket_options: typing.Iterable[typing.Any] | None) -> httpcore.AsyncNetworkStream"
+ ],
+ "BridgeBackend.connect_tcp": [
+  "async def(self, host: str, port: int, timeout: float | None=None, local_address: str | None=None, socket_options: typing.Iterable[typing.Any] | None=None) -> httpcore.AsyncNetworkStream"
+ ],
+ "BridgeBackend.connect_unix_socket": [
+  "async def(self, path: str, timeout: float | None=None, socket_options: typing.Iterable[typing.Any] | None=None) -> httpcore.AsyncNetworkStream"
+ ],
+ "BridgeBackend.sleep": [
+  "async def(self, seconds: float) -> None"
+ ],
+ "Busy": [
+  "class(Exception)"
+ ],
+ "Busy.__init__": [
+  "def(self, status: int, retry_after: int)"
  ],
  "CACHE_DIR": [
   "= c5061ae78c53"
@@ -201,6 +249,15 @@
  "DEFAULT_DAYS": [
   "= 22d200f8670d"
  ],
+ "DETAILS_MAX": [
+  "= a4ac914c09d7"
+ ],
+ "DOH_SERVERS": [
+  "= 591e7197cbdf"
+ ],
+ "DOH_TIMEOUT": [
+  "= 2ce6ddc84d93"
+ ],
  "DubPrefIn": [
   "class(BaseModel)"
  ],
@@ -212,6 +269,9 @@
  ],
  "FAIL_THRESHOLD": [
   "= 77de68daecd8"
+ ],
+ "FIRST_OF_TWO": [
+  "= affe98b89557"
  ],
  "FLOW_COOKIE": [
   "= 81211f7d3047"
@@ -227,6 +287,13 @@
  ],
  "FRIENDS_TTL": [
   "= 775bc5c30e27"
+ ],
+ "Failed": [
+  "= af412c9d7c04",
+  "class(Exception)"
+ ],
+ "Failed.__init__": [
+  "def(self, status: int, reason: str, *, network: bool=False, upstream: int | None=None)"
  ],
  "FavoriteIn": [
   "class(BaseModel)",
@@ -399,6 +466,12 @@
  "HubSocial.status_changed_from_thread": [
   "def(self) -> None"
  ],
+ "IMG_CACHE_DIR": [
+  "= 17a77c6d2166"
+ ],
+ "IMG_HOSTS": [
+  "= 4c48fbf539f6"
+ ],
  "ImportBlob": [
   "class(BaseModel)"
  ],
@@ -432,6 +505,9 @@
  "LOGIN_WINDOW": [
   "= f142b51ba867"
  ],
+ "LOW_WATER": [
+  "= 1469842b4307"
+ ],
  "ListItemIn": [
   "class(BaseModel)"
  ],
@@ -463,6 +539,12 @@
  "MAX_AGE": [
   "= e6c3dd630428"
  ],
+ "MAX_BYTES": [
+  "= 81ed0b2d74b5"
+ ],
+ "MAX_CACHE_BYTES": [
+  "= 9d8156b87ec7"
+ ],
  "MAX_ERROR_LENGTH": [
   "= ec7f1f650671"
  ],
@@ -471,6 +553,9 @@
  ],
  "MAX_GUESTS_PER_IP": [
   "= 22d200f8670d"
+ ],
+ "MAX_HOPS": [
+  "= 77de68daecd8"
  ],
  "MAX_QUEUE": [
   "= 8a12a315082a"
@@ -546,6 +631,12 @@
  "PAGE": [
   "= e1822db470e6"
  ],
+ "PER_HOST": [
+  "= c1dfd96eea8c"
+ ],
+ "PER_VISITOR": [
+  "= 1b6453892473"
+ ],
  "PLAYER_DIR": [
   "= 525c827940ab"
  ],
@@ -560,6 +651,12 @@
  ],
  "PROXY_HOSTS": [
   "= 02e35801a061"
+ ],
+ "PROXY_HOSTS_MAX": [
+  "= 310b86e0b62b"
+ ],
+ "PUBLIC_SUFFIX_FILE": [
+  "= f6af1a87f11c"
  ],
  "Presence": [
   "class()"
@@ -654,6 +751,15 @@
  "ProgressIn.title": [
   "str = f8ee4cc99729"
  ],
+ "ProxyHostIn": [
+  "class(BaseModel)"
+ ],
+ "ProxyHostIn.host": [
+  "str = d5c84139906c"
+ ],
+ "ProxyHostIn.via": [
+  "Literal['site', 'vpn'] = 95b81716351b"
+ ],
  "PublicOnlyBackend": [
   "class(httpcore.AsyncNetworkBackend)"
  ],
@@ -733,7 +839,12 @@
   "int | None = 6eef6648406c"
  ],
  "Refused": [
+  "= a51ad8f3824a",
+  "class(Exception)",
   "class(httpx.ConnectError)"
+ ],
+ "Refused.__init__": [
+  "def(self, reason: str, *, upstream: int | None=None)"
  ],
  "ReportIn": [
   "class(BaseModel)"
@@ -824,6 +935,9 @@
  "Settings.notice": [
   "dict[str, Any] = 5cf6b9898c7f"
  ],
+ "Settings.proxy_hosts": [
+  "tuple[dict[str, str], ...] = f9065fa73897"
+ ],
  "Settings.sources": [
   "tuple[dict[str, Any], ...] = f9065fa73897"
  ],
@@ -845,6 +959,9 @@
  ],
  "SettingsIn.notice": [
   "NoticeIn | None = 6eef6648406c"
+ ],
+ "SettingsIn.proxy_hosts": [
+  "list[ProxyHostIn] | None = f3703de764cd"
  ],
  "SettingsIn.sources": [
   "list[SourceIn] | None = 8a00905e1485"
@@ -869,6 +986,27 @@
  ],
  "SlidingWindow.retry_after": [
   "def(self, key: str) -> int"
+ ],
+ "Slots": [
+  "class()"
+ ],
+ "Slots.__init__": [
+  "def(self, total: int=TOTAL, per_visitor: int=PER_VISITOR, per_host: int=PER_HOST)"
+ ],
+ "Slots._count": [
+  "def(self, visitor: str, host: str, step: int) -> None"
+ ],
+ "Slots._free": [
+  "def(self, visitor: str, host: str) -> bool"
+ ],
+ "Slots._here": [
+  "def(self) -> asyncio.AbstractEventLoop"
+ ],
+ "Slots.acquire": [
+  "async def(self, visitor: str, host: str, wait: float) -> None"
+ ],
+ "Slots.release": [
+  "def(self, visitor: str, host: str) -> None"
  ],
  "SocialLink": [
   "class()"
@@ -954,10 +1092,26 @@
  "TIMEOUT": [
   "= 4fde6b87a266",
   "= 4fde6b87a266",
+  "= 908c75757e0e",
   "= db63fca62705"
+ ],
+ "TOTAL": [
+  "= 1574bddb75c7"
+ ],
+ "TTL": [
+  "= aea5b14bc5bf"
  ],
  "TTL_FRESH": [
   "= 1a50418c7d7f"
+ ],
+ "TTL_MAX": [
+  "= e26973e6ee8a"
+ ],
+ "TTL_MIN": [
+  "= 22d200f8670d"
+ ],
+ "TYPES": [
+  "= 6020ec603c55"
  ],
  "Tab": [
   "class()"
@@ -993,6 +1147,9 @@
   "= 243042ee209b",
   "= d6b3ee3cf2c5"
  ],
+ "VIA": [
+  "= c082f5493569"
+ ],
  "VK_SCORE": [
   "= 35c0ba310bf1"
  ],
@@ -1021,6 +1178,9 @@
  "WATCH_EVENT_HAS_PROGRESS_SQL": [
   "= 7feb4591118b"
  ],
+ "WILDCARD_DNS": [
+  "= 9401503e431c"
+ ],
  "WINDOW_HOURS": [
   "= 4d134bc07221"
  ],
@@ -1042,6 +1202,9 @@
  "_ALIAS": [
   "= c3d8b8221b6a"
  ],
+ "_ALLOWED": [
+  "= 9a589e9fcada"
+ ],
  "_ASSETS_DIR": [
   "= 82d1b344fe84"
  ],
@@ -1062,6 +1225,9 @@
  ],
  "_BLOCKED_HEADERS": [
   "= cf9816cd6025"
+ ],
+ "_BREAKER_MAX": [
+  "= e3cbba8883fe"
  ],
  "_BRIDGE": [
   "= 5890bf19f0fb"
@@ -1090,6 +1256,9 @@
  ],
  "_COOKIE_SECURE_DEFAULT": [
   "= 309580b974d5"
+ ],
+ "_DEADLINE": [
+  "= 57eb3a49d9ad"
  ],
  "_DEAD_SESSION": [
   "= b1eb27577455"
@@ -1136,17 +1305,26 @@
  "_HAPPY_EYEBALLS_DELAY": [
   "= bdedc3fe4985"
  ],
+ "_HEADERS": [
+  "= 93b739516f64"
+ ],
+ "_HEAD_MAX": [
+  "= fad8f775d153"
+ ],
  "_HLS_TYPE": [
   "= 7c442550060e"
+ ],
+ "_HOST": [
+  "= 68ddc8015530"
  ],
  "_HOST_HEADER_RE": [
   "= 92c76e04b7a3"
  ],
- "_IMG_HOSTS": [
-  "= 4c48fbf539f6"
+ "_IMG_HEADERS": [
+  "= 4cfcc8f6bfd3"
  ],
- "_IMG_TTL": [
-  "= aea5b14bc5bf"
+ "_IMG_MISSES": [
+  "= dc09fc5da1a2"
  ],
  "_INDEX_HTML": [
   "= 2f469a7f829a"
@@ -1160,6 +1338,9 @@
  "_KODIK_SKIN_CSS": [
   "= 53e0d154c4cd"
  ],
+ "_LABEL": [
+  "= c216f104f5e9"
+ ],
  "_LEGACY_PATHS": [
   "= 5ba758654a48"
  ],
@@ -1169,6 +1350,9 @@
  ],
  "_MAX_REDIRECTS": [
   "= 91032ad7bbcb"
+ ],
+ "_NAMES_MAX": [
+  "= e3cbba8883fe"
  ],
  "_NAT64": [
   "= b719543b575c"
@@ -1194,6 +1378,12 @@
  "_PROXY_VERSION": [
   "= 6d9afe2344ba"
  ],
+ "_RECORDS": [
+  "= bb5e37def701"
+ ],
+ "_REDIRECTS": [
+  "= 7c9f68f4190e"
+ ],
  "_REFRESH_MARGIN": [
   "= e6c3dd630428"
  ],
@@ -1202,6 +1392,9 @@
  ],
  "_REPORT_COLUMNS": [
   "= 8d9115176837"
+ ],
+ "_RETRY_PAUSE": [
+  "= 7177575ab526"
  ],
  "_RETRY_STATUS_CODES": [
   "= 15b9572724ca"
@@ -1247,6 +1440,9 @@
  ],
  "_SLOT": [
   "= c101fe481f61"
+ ],
+ "_SLOT_WAIT": [
+  "= c23f7da70705"
  ],
  "_SOCIAL_WHERE": [
   "= f03606f6f317"
@@ -1304,6 +1500,15 @@
  ],
  "_TITLE_MAX": [
   "= 310b86e0b62b"
+ ],
+ "_TOUCH_AFTER": [
+  "= 1c7f52642ccd"
+ ],
+ "_TRIES": [
+  "= da4b9237bacc"
+ ],
+ "_TUNNEL_ERRORS": [
+  "= 523a0914a231"
  ],
  "_TYPE_MODIFIERS": [
   "= 888677e45d35"
@@ -1365,8 +1570,14 @@
  "_ascii_url": [
   "def(url: str) -> str"
  ],
+ "_ask": [
+  "async def(server: str, name: str, code: int, kind: str) -> tuple[list[str], int]"
+ ],
  "_attach_shell": [
   "def(app, path: str) -> None"
+ ],
+ "_attempts": [
+  "async def(url: str, allowed: Callable[[httpx.URL], bool], via: str, key: str) -> tuple[bytes, str]"
  ],
  "_authorize_url": [
   "def() -> str"
@@ -1413,8 +1624,14 @@
  "_clean_video_frame": [
   "def(source_url: str, base_url: str, poster_url: str='', *, element_id: str='av-clean-video', sources: list[dict[str, str]] | None=None) -> Response"
  ],
+ "_cleaning": [
+  "= 97cdbdc7feff"
+ ],
  "_client": [
   "= 6eef6648406c"
+ ],
+ "_clients": [
+  "= bf21a9e8fbc5"
  ],
  "_context": [
   "def(session: str, field: str) -> str"
@@ -1437,6 +1654,12 @@
  "_delete": [
   "def(session: str) -> None"
  ],
+ "_doh": [
+  "= 6eef6648406c"
+ ],
+ "_doh_client": [
+  "def() -> httpx.AsyncClient"
+ ],
  "_domain_from_anchor": [
   "def(pattern: str) -> str | None"
  ],
@@ -1448,6 +1671,9 @@
  ],
  "_fetch_native": [
   "async def(path: str, params: dict) -> dict"
+ ],
+ "_fetch_once": [
+  "async def(url: str, allowed: Callable[[httpx.URL], bool], via: str, key: str, visitor: str) -> tuple[bytes, str]"
  ],
  "_fetch_recent": [
   "def(conn, user_id: int, *, offset: int=0, limit: int=10, group: str | None=None, day: str | None=None) -> list[dict[str, Any]]"
@@ -1488,6 +1714,9 @@
  "_get_client": [
   "async def() -> httpx.AsyncClient"
  ],
+ "_grow": [
+  "def(delta: int) -> None"
+ ],
  "_guess_base": [
   "def(url: str, base: str | None) -> str"
  ],
@@ -1512,6 +1741,9 @@
  "_httpx_limits": [
   "= f57f9067d46e"
  ],
+ "_image_hosts": [
+  "def() -> list[dict[str, Any]]"
+ ],
  "_in": [
   "def(ids: list[int]) -> str"
  ],
@@ -1525,6 +1757,7 @@
   "def(url: str) -> bool"
  ],
  "_is_ip": [
+  "def(host: str) -> bool",
   "def(host: str) -> bool"
  ],
  "_is_javascript": [
@@ -1578,6 +1811,9 @@
  "_load_raw": [
   "def() -> dict[str, Any]"
  ],
+ "_lock": [
+  "= c6d6acc28078"
+ ],
  "_log_refusal": [
   "= 2490ebf6e2b0"
  ],
@@ -1589,6 +1825,9 @@
  ],
  "_looks_textual": [
   "def(content_type: str) -> bool"
+ ],
+ "_lookup": [
+  "async def(server: str, name: str) -> tuple[list[str], int]"
  ],
  "_loop": [
   "async def(at: tuple[int, int], sleep: Callable[[float], Any]=asyncio.sleep) -> None"
@@ -1602,8 +1841,14 @@
  "_minutes": [
   "def(duration: str) -> float | None"
  ],
+ "_miss_budget": [
+  "def(ip: str)"
+ ],
  "_module_proxy_url": [
   "def(url: str, base: str) -> str"
+ ],
+ "_names": [
+  "= bf21a9e8fbc5"
  ],
  "_names_for": [
   "def(cur: Any, ids: list[int]) -> dict[int, str]"
@@ -1613,6 +1858,15 @@
  ],
  "_network": [
   "= c50c2fdd5566"
+ ],
+ "_note": [
+  "def(key: str, route: str, status: int | None, ok: bool) -> None"
+ ],
+ "_one_pass": [
+  "async def(url: str, allowed: Callable[[httpx.URL], bool], via: str, key: str) -> tuple[bytes, str]"
+ ],
+ "_open": [
+  "async def(route: str, url: str, allowed: Callable[[httpx.URL], bool], timeout: httpx.Timeout) -> httpx.Response"
  ],
  "_origin": [
   "def(url: str) -> str",
@@ -1625,6 +1879,9 @@
   "def(items: list, page: int, limit: int, has_next: bool) -> dict",
   "def(items: list[dict[str, Any]], key: str='id') -> dict[str, Any]"
  ],
+ "_parents": [
+  "@lru_cache(maxsize=1) def(rules: tuple[frozenset[str], frozenset[str], frozenset[str]]) -> frozenset[str]"
+ ],
  "_path_proxy_url": [
   "def(url: str, base: str, *, document: bool=False) -> str"
  ],
@@ -1635,6 +1892,7 @@
   "def(pattern: str) -> re.Pattern[str] | None"
  ],
  "_pending": [
+  "= bf21a9e8fbc5",
   "= bf21a9e8fbc5"
  ],
  "_pending_fetches": [
@@ -1652,11 +1910,17 @@
  "_pick_cvh_item": [
   "def(items: list[dict], episode: int, voice_code: str) -> dict | None"
  ],
+ "_pinned": [
+  "= 97cdbdc7feff"
+ ],
  "_player_proxy_null_origin_cors": [
   "@app.middleware('http') async def(request: Request, call_next)"
  ],
  "_points_lock": [
   "= c6d6acc28078"
+ ],
+ "_proxy_hosts_diff": [
+  "def(old: Any, new: list[dict[str, str]]) -> dict[str, Any]"
  ],
  "_proxy_url": [
   "def(url: str, base: str | None=None) -> str"
@@ -1678,6 +1942,12 @@
  ],
  "_rank": [
   "def(item: dict[str, Any]) -> tuple"
+ ],
+ "_raw": [
+  "async def(response: httpx.Response)"
+ ],
+ "_read": [
+  "async def(response: httpx.Response) -> tuple[bytes, str]"
  ],
  "_redact_url": [
   "def(url: str) -> str"
@@ -1703,8 +1973,14 @@
  "_resolve_kinds": [
   "def(group: str | None) -> list[str] | None"
  ],
+ "_resolve_once": [
+  "async def(name: str) -> list[str]"
+ ],
  "_resolve_template": [
   "def(template: str, **params: Any) -> str"
+ ],
+ "_resolving": [
+  "= bf21a9e8fbc5"
  ],
  "_response_headers": [
   "def(upstream: httpx.Response, *, html_frame: bool=False, origin: str='') -> dict[str, str]"
@@ -1748,6 +2024,9 @@
  "_rule_applies_to_player_url": [
   "def(modifiers: str) -> bool"
  ],
+ "_rules": [
+  "@lru_cache(maxsize=1) def() -> tuple[frozenset[str], frozenset[str], frozenset[str]]"
+ ],
  "_safe": [
   "def(item: dict) -> bool"
  ],
@@ -1787,6 +2066,9 @@
  "_site_origin": [
   "def(request: Request) -> str"
  ],
+ "_size": [
+  "= 6eef6648406c"
+ ],
  "_slugify": [
   "def(text: str) -> str"
  ],
@@ -1804,6 +2086,9 @@
  ],
  "_split": [
   "def(url: str)"
+ ],
+ "_start": [
+  "def(url: str, allowed: Callable[[httpx.URL], bool], via: str, key: str, visitor: str) -> asyncio.Task"
  ],
  "_startup": [
   "@app.on_event('startup') async def() -> None"
@@ -1851,6 +2136,9 @@
  ],
  "_too_short": [
   "def(card: dict) -> bool"
+ ],
+ "_tunnel": [
+  "async def(stream: httpcore.AsyncNetworkStream, address: str, port: int, timeout: float | None) -> None"
  ],
  "_unregistered": [
   "def(*_args, **_kwargs)"
@@ -2077,6 +2365,9 @@
  "bind_port": [
   "def() -> int"
  ],
+ "breaker": [
+  "= b3baedf540b2"
+ ],
  "build_batch": [
   "def() -> dict[str, Any]"
  ],
@@ -2103,6 +2394,9 @@
   "async def(payload: dict) -> dict",
   "def(method: str, path: str, *, token: str | None=None, body: dict[str, Any] | None=None, user_ip: str='', user_agent: str='') -> Any"
  ],
+ "canonical": [
+  "def(url: str) -> str"
+ ],
  "canonical_path": [
   "def(mal_id: int, slug: str) -> str"
  ],
@@ -2127,11 +2421,17 @@
  "clean_title": [
   "def(value: Any) -> str"
  ],
+ "cleanup": [
+  "def(limit: int | None=None, target: int | None=None) -> int | None"
+ ],
  "clear_env": [
   "def() -> None"
  ],
  "clear_session_cookie": [
   "def(resp: Response) -> None"
+ ],
+ "client": [
+  "def(route: str) -> httpx.AsyncClient"
  ],
  "client_id": [
   "def() -> str"
@@ -2178,6 +2478,9 @@
  "debug_check": [
   "@router.get('/debug/check') def(url: str=Query(..., min_length=4))"
  ],
+ "destinations_pinned": [
+  "def() -> bool"
+ ],
  "drop_session": [
   "def(session: str) -> None"
  ],
@@ -2202,6 +2505,9 @@
  ],
  "ensure_active": [
   "def(*, blocking: bool=True) -> bool"
+ ],
+ "entry_for": [
+  "def(host: str, hosts: Iterable[str]) -> str | None"
  ],
  "episodes": [
   "@router.get('/src/episodes') async def(key: str, source: str='anilibria')"
@@ -2231,7 +2537,8 @@
   "def(name: str) -> bool"
  ],
  "fetch": [
-  "async def(path: str, params: dict | None=None, *, timeout: float=25) -> tuple[bytes, str, int]"
+  "async def(path: str, params: dict | None=None, *, timeout: float=25) -> tuple[bytes, str, int]",
+  "async def(url: str, *, allowed: Callable[[httpx.URL], bool], via: str='site', key: str='', take: Callable[[], int]=lambda: 0, visitor: str='') -> tuple[bytes, str]"
  ],
  "fetch_and_store": [
   "async def(mal_id: int) -> dict[str, Any] | None"
@@ -2271,6 +2578,9 @@
  ],
  "forget_shiki_title": [
   "def(mal_id: int) -> bool"
+ ],
+ "forget_size": [
+  "def() -> None"
  ],
  "forget_title": [
   "def(mal_id: int) -> int"
@@ -2312,6 +2622,7 @@
   "def(request: Request) -> bool"
  ],
  "get": [
+  "async def(route: str, url: str, allowed: Callable[[httpx.URL], bool], timeout: httpx.Timeout=TIMEOUT) -> tuple[bytes, str]",
   "def(key: str) -> Any"
  ],
  "get_client": [
@@ -2334,6 +2645,9 @@
  ],
  "guard_source": [
   "async def(source: str, op: str, awaitable, timeout: float)"
+ ],
+ "has_suffix_below": [
+  "def(host: str) -> bool"
  ],
  "health": [
   "@router.get('/health') def()",
@@ -2369,6 +2683,9 @@
  "iframe_preference_score": [
   "def(url: str) -> int"
  ],
+ "img_hosts": [
+  "def() -> list[str]"
+ ],
  "import_localstorage": [
   "@router.post('/import-localstorage') def(blob: ImportBlob=Body(...), force: bool=Query(default=False), user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
  ],
@@ -2398,6 +2715,9 @@
  ],
  "is_public": [
   "def(address: str) -> bool"
+ ],
+ "is_public_suffix": [
+  "def(host: str) -> bool"
  ],
  "items_for": [
   "def(user_id: int, status: str | None) -> list[dict[str, Any]]"
@@ -2520,7 +2840,8 @@
   "def(token: str, user_ip: str='', user_agent: str='') -> None"
  ],
  "lookup": [
-  "async def(mal_id: int) -> dict[str, Any] | None"
+  "async def(mal_id: int) -> dict[str, Any] | None",
+  "def(key: str) -> tuple[bytes, str, bool] | None"
  ],
  "lookup_user": [
   "def(identity: str) -> dict[str, Any] | None"
@@ -2540,6 +2861,9 @@
  "mark_success": [
   "def(source: str, latency_ms: int | None=None) -> None"
  ],
+ "matches": [
+  "def(host: str, hosts: Iterable[str]) -> bool"
+ ],
  "native": [
   "def(source: str, route: str)"
  ],
@@ -2557,6 +2881,9 @@
  ],
  "norm_dub_name": [
   "def(name: str) -> str"
+ ],
+ "normalize_host": [
+  "def(raw: Any) -> str"
  ],
  "notice": [
   "def() -> dict[str, Any] | None"
@@ -2582,9 +2909,15 @@
  "parse_line": [
   "def(raw: str, rules: CompiledRules, *, regex_limit: int, snippet_limit: int) -> None"
  ],
+ "parse_proxy_hosts": [
+  "def(items: Iterable[Any], *, strict: bool) -> list[dict[str, str]]"
+ ],
  "password_login": [
   "def(email: str, password: str, request: Request) -> tuple[str, dict[str, Any]] | None",
   "def(email: str, password: str, user_ip: str='', user_agent: str='') -> dict[str, Any]"
+ ],
+ "path": [
+  "def(key: str) -> Path"
  ],
  "path_for": [
   "def(key: str, **params: Any) -> str"
@@ -2673,8 +3006,11 @@
  "proxy_anilist": [
   "@router.post('/proxy/anilist') async def(request: Request)"
  ],
+ "proxy_hosts": [
+  "def() -> list[str]"
+ ],
  "proxy_img": [
-  "@router.get('/proxy/img') async def(url: str=Query(...))"
+  "@router.get('/proxy/img') async def(request: Request, url: str=Query(...))"
  ],
  "proxy_jikan": [
   "@router.get('/proxy/jikan/{path:path}') async def(path: str, request: Request)"
@@ -2687,6 +3023,9 @@
  ],
  "proxy_url_refusal": [
   "def(url: str) -> str | None"
+ ],
+ "proxy_via": [
+  "def(host: str) -> str"
  ],
  "public_addresses": [
   "async def(host: str, port: int) -> list[str]"
@@ -2778,6 +3117,9 @@
  "request": [
   "async def(method: str, url: str, **kwargs) -> httpx.Response"
  ],
+ "resolve": [
+  "async def(name: str) -> list[str]"
+ ],
  "resolve_handle": [
   "def(handle: str) -> dict[str, Any] | None"
  ],
@@ -2831,6 +3173,9 @@
   "= f115762622b1",
   "= f115762622b1",
   "= f9207de8e1db"
+ ],
+ "routes": [
+  "= bf21a9e8fbc5"
  ],
  "row_to_public": [
   "def(row: tuple) -> dict[str, Any]"
@@ -2899,6 +3244,9 @@
   "async def() -> None",
   "async def() -> None",
   "async def() -> None",
+  "async def() -> None",
+  "async def() -> None",
+  "async def() -> None",
   "def() -> None"
  ],
  "sign": [
@@ -2910,6 +3258,9 @@
  ],
  "sitemap": [
   "@router.get('/sitemap.xml') def() -> Response"
+ ],
+ "slots": [
+  "= 6784d0834b7c"
  ],
  "snapshot": [
   "def(sources: Iterable[str] | None=None) -> dict[str, dict[str, object]]"
@@ -2977,6 +3328,9 @@
  "stop_watchdog": [
   "def() -> None"
  ],
+ "store": [
+  "def(key: str, content: bytes, content_type: str) -> None"
+ ],
  "store_title": [
   "def(payload: dict[str, Any]) -> dict[str, Any]"
  ],
@@ -3017,6 +3371,7 @@
   "def(token: str) -> dict[str, Any] | None"
  ],
  "transport": [
+  "def(**kwargs: typing.Any) -> httpx.AsyncHTTPTransport",
   "def(**kwargs: typing.Any) -> httpx.AsyncHTTPTransport"
  ],
  "unix": [
@@ -3033,6 +3388,12 @@
  ],
  "upsert_status": [
   "def(conn, user_id: int, mal_id: int, status: str | None, source: str, title: str='', poster_url: str='') -> None"
+ ],
+ "url_host": [
+  "def(url: httpx.URL | str) -> str"
+ ],
+ "url_refusal": [
+  "def(url: httpx.URL | str, hosts: Iterable[str]) -> str | None"
  ],
  "user_banned_values": [
   "def() -> str"
@@ -3054,6 +3415,9 @@
  ],
  "visible": [
   "def(items: list[Any], key: str='mal_id') -> list[Any]"
+ ],
+ "visitor_key": [
+  "def(ip: str) -> str"
  ],
  "vk_last": [
   "def(identities: list, scores: dict) -> list"

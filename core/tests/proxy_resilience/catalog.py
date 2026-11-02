@@ -13,8 +13,9 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi import HTTPException
 from core.api.sections import catalog as catalog_routes
-from core.classes import http_cache
+from core.classes import http_cache, image_proxy
 from core.modules import title_cache, title_pages
+from core.tests.image_proxy.lib import request
 
 
 class TitleCatalogTests(unittest.IsolatedAsyncioTestCase):
@@ -63,12 +64,12 @@ class RussianSearchTests(unittest.IsolatedAsyncioTestCase):
         ])
 
     async def test_shiki_image_proxy_accepts_current_host_but_not_lookalikes(self):
-        fetch = AsyncMock(return_value=(b"image", "image/jpeg", 200))
-        with patch.object(http_cache, "cached_fetch", fetch):
-            image = await catalog_routes.proxy_img("https://shikimori.io/system/animes/preview/42310.jpg")
+        fetch = AsyncMock(return_value=(b"image", "image/jpeg"))
+        with patch.object(image_proxy, "fetch", fetch):
+            image = await catalog_routes.proxy_img(request(), "https://shikimori.io/system/animes/preview/42310.jpg")
             self.assertEqual(image.body, b"image")
             with self.assertRaises(HTTPException) as error:
-                await catalog_routes.proxy_img("https://shikimori.io.evil.example/image.jpg")
+                await catalog_routes.proxy_img(request(), "https://shikimori.io.evil.example/image.jpg")
             self.assertEqual(error.exception.status_code, 403)
         fetch.assert_awaited_once()
 

@@ -30,7 +30,7 @@ env.load()  # до остальных импортов: настройки в co
 from core.admin import auth as admin_auth, router as admin_router, summary as admin_summary
 from core.api.sections import account, activity, auth, catalog, friends, health, lists, messages, profile, social_login
 from core.api.sections import random as random_api, realtime as realtime_ws, reports, sources as source_api
-from core.classes import http, http_cache
+from core.classes import http, http_cache, image_proxy
 from core.classes.adblock import engine as adblock
 from core.classes.jikan import catalog as jikan_catalog
 from core.classes.vpn import bridge as vpn_bridge
@@ -123,6 +123,7 @@ async def _shutdown() -> None:
     await player_proxy.shutdown()
     await adblock.shutdown()
     await jikan_catalog.shutdown()
+    await image_proxy.shutdown()
     await http_cache.shutdown()
     await http.shutdown()
     await sources.shutdown()

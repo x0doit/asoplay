@@ -1,5 +1,6 @@
 """
-Админ-API: обзор — версия и источники, люди, просмотры, популярное за неделю, кто сейчас на сайте.
+Админ-API: обзор — версия и источники, люди, просмотры, популярное за неделю, кто сейчас на сайте, как идут
+картинки через /proxy/img.
 
 Автор: Чепела Даниил Максимович.
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
@@ -19,6 +20,7 @@ from fastapi import APIRouter, Depends
 
 from core.admin import titles
 from core.admin.auth import admin_user, ok
+from core.classes import image_proxy
 from core.classes.clock import utc_now
 from core.classes.db import connect
 from core.config import env
@@ -100,7 +102,16 @@ def _summary() -> dict[str, Any]:
                           for m, v in top],
         "online": {"users": len(realtime.hub.by_user), "tabs": len(realtime.hub.conns)},
         "reports_open": reports_open,
+        "image_hosts": _image_hosts(),
     }
+
+
+def _image_hosts() -> list[dict[str, Any]]:
+    """Хосты /proxy/img — сначала каталога, потом из панели: как сервер к ним идёт и чем кончился последний запрос
+    мимо кеша с запуска (route, ok, status, at — null, пока его не было)."""
+    empty = {"route": None, "ok": None, "status": None, "at": None}
+    return [{"host": host, "via": site_settings.proxy_via(host)} | image_proxy.routes.get(host, empty)
+            for host in site_settings.img_hosts()]
 
 
 @router.get("/summary")

@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.testclient import TestClient
 from core.classes import as_sessions, http_cache
 from core.classes.jikan import catalog as jikan_catalog
-from core.functions import site_settings, sources as source_registry
+from core.functions import image_hosts, site_settings, sources as source_registry
 from core.modules import title_cache, title_render
 from core import core as main
 
@@ -71,7 +71,8 @@ class SiteEffectTests(unittest.TestCase):
             state = site_settings.public_state()
         self.assertEqual(state, {"notice": {"text": "Профилактика", "until": until}, "hidden": [2, 1535], "adult": [7],
                                  "pinned": [52991], "login": {"social": True, "password": False},
-                                 "sources": [s for s, _ in site_settings.SOURCES]})
+                                 "sources": [s for s, _ in site_settings.SOURCES], "proxy_hosts": [],
+                                 "img_hosts": list(image_hosts.IMG_HOSTS)})
         site_settings.state.settings = site_settings.Settings(notice={"text": "Профилактика", "until": int(time.time()) - 1})
         self.assertIsNone(site_settings.notice())
 

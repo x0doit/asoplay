@@ -28,6 +28,9 @@ PLAYER_DIR = ROOT / "design" / "EDDAS" / "player"
 # Рабочие файлы, вне git: HTTP-кеш, списки adblock, конфиг и журнал запущенного xray
 CACHE_DIR = CONFIG_DIR / "cache"
 ADBLOCK_CACHE_DIR = CACHE_DIR / "adblock"
+IMG_CACHE_DIR = CACHE_DIR / "img"  # картинки /proxy/img: своя папка с пределом размера (core/classes/image_cache.py)
+# Public Suffix List (publicsuffix.org, MPL-2.0): общие суффиксы не берутся строкой списка хостов панели
+PUBLIC_SUFFIX_FILE = CONFIG_DIR / "public_suffix_list.dat"
 XRAY_RUNTIME = CACHE_DIR / "xray-runtime.json"
 XRAY_LOG = CACHE_DIR / "xray.log"
 # Старые полные конфиги xray (теперь их задают AV_VPN_URL или AV_VPN_CONFIG) — там же, где были

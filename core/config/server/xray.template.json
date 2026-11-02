@@ -12,13 +12,13 @@
     {
       "listen": "127.0.0.1", "port": 10808, "protocol": "socks",
       "settings": { "auth": "noauth", "udp": true, "userLevel": 8 },
-      "sniffing": { "destOverride": ["http","tls","quic"], "enabled": true },
+      "sniffing": { "destOverride": ["http","tls","quic"], "enabled": true, "routeOnly": true },
       "tag": "socks"
     },
     {
       "listen": "127.0.0.1", "port": 10809, "protocol": "http",
       "settings": { "userLevel": 8 },
-      "sniffing": { "destOverride": ["http","tls","quic"], "enabled": true },
+      "sniffing": { "destOverride": ["http","tls","quic"], "enabled": true, "routeOnly": true },
       "tag": "http"
     },
     {
@@ -62,7 +62,7 @@
     }
   },
   "routing": {
-    "domainStrategy": "IPIfNonMatch",
+    "domainStrategy": "AsIs",
     "rules": [
       { "inboundTag": ["metrics_in"], "outboundTag": "metrics_out" },
       { "inboundTag": ["socks"], "outboundTag": "proxy", "port": "53" },

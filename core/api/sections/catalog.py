@@ -6,38 +6,31 @@ AniList, перевод Google и картинки с разрешённых х�
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
 Ответы апстримов идут через кеш на диске (core/classes/http_cache.py, cached_fetch — через модуль). Тайтлы, скрытые
-в панели Anime Social по жалобе правообладателя, не находятся и поиском (site_settings).
+в панели Anime Social по жалобе правообладателя, не находятся и поиском (site_settings). Картинки — со своим кешем
+и своими проверками (core/classes/image_proxy.py), хосты — каталога и из панели (core/functions/image_hosts.py).
 """
 from __future__ import annotations
 
 import json
-from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response
 
-from core.classes import http_cache
-from core.classes.http_cache import SHIKI_HEADERS, SHIKI_HOST, SHIKI_ORIGIN
+from core.classes import http_cache, image_proxy
+from core.classes.http_cache import SHIKI_HEADERS, SHIKI_ORIGIN
 from core.classes.jikan import catalog as jikan_catalog
-from core.functions import site_settings
+from core.functions import image_hosts, rate_limit, site_settings
 
 router = APIRouter()
 
-_IMG_HOSTS = (
-    "cdn.myanimelist.net",
-    "myanimelist.net",
-    "s4.anilist.co",
-    "img.anili.st",
-    SHIKI_HOST,
-    # Preserve compatibility with image URLs stored in older cache entries.
-    "shikimori.one",
-    "nyaa.shikimori.one",
-    "cache.libria.fun",
-    "static-libria.weekstorm.one",
-    "static.yani.tv",
-    "moe.shikimori.one",
-)
-_IMG_TTL = 86400 * 7
+# Картинка не исполняется как страница, даже если хост отдал SVG со скриптом, и браузер не угадывает её тип
+# Промахи кеша картинок на посетителя: каждый — выборка наверх, поэтому их число ограничено
+_IMG_MISSES = rate_limit.SlidingWindow(limit=240, window=60)
+_IMG_HEADERS = {
+    "Cache-Control": "public, max-age=86400, immutable",
+    "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
+    "X-Content-Type-Options": "nosniff",
+}
 
 
 @router.get("/shiki/anime/{mal_id}")
@@ -192,24 +185,38 @@ async def proxy_translate(q: str = Query(...), sl: str = "auto", tl: str = "ru")
     )
 
 
+def _miss_budget(ip: str):
+    """Можно ли посетителю начать ещё одну выборку наверх: 0 — да (и засчитать), иначе — через сколько секунд."""
+    def take() -> int:
+        """Засчитать промах, если предел не исчерпан."""
+        wait = _IMG_MISSES.retry_after(ip)
+        if not wait:
+            _IMG_MISSES.hit(ip)
+        return wait
+    return take
+
+
 @router.get("/proxy/img")
-async def proxy_img(url: str = Query(...)):
-    """Картинка с разрешённого хоста через кеш на неделю; чужой хост — 403."""
+async def proxy_img(request: Request, url: str = Query(...)):
+    """Картинка с хоста каталога или из панели через свой кеш на неделю; хост из панели с via "vpn" — через мост.
+    Неразборчивый адрес — 400, чужой хост, порт, IP или перенаправление на них — 403; промахи посетителя
+    кончились — 429, все места выборок заняты — 503."""
+    hosts = site_settings.img_hosts()
+    refusal = image_hosts.url_refusal(url, hosts)
+    if refusal:
+        raise HTTPException(400 if refusal == "bad url" else 403, refusal)
+    entry = image_hosts.entry_for(image_hosts.url_host(url), hosts) or ""
+    visitor = rate_limit.visitor_key(rate_limit.client_ip(request))
     try:
-        host = (urlparse(url).hostname or "").lower()
-    except ValueError:
-        raise HTTPException(400, "bad url")
-    if not any(host == h or host.endswith("." + h) for h in _IMG_HOSTS):
-        raise HTTPException(403, f"host not allowed: {host}")
-    content, ct, status = await http_cache.cached_fetch(
-        "GET", url, ttl=_IMG_TTL, timeout=15.0,
-        headers={"User-Agent": "Mozilla/5.0"},
-    )
-    if status != 200:
-        raise HTTPException(status, "img upstream status")
-    return Response(
-        content=content,
-        media_type=ct,
-        headers={"Cache-Control": "public, max-age=86400, immutable"},
-    )
+        content, ct = await image_proxy.fetch(
+            url, allowed=lambda target: image_hosts.url_refusal(target, hosts) is None,
+            via=site_settings.proxy_via(entry), key=entry, take=_miss_budget(visitor), visitor=visitor,
+        )
+    except image_proxy.Busy as exc:
+        raise HTTPException(exc.status, "busy", headers={"Retry-After": str(exc.retry_after)}) from exc
+    except image_proxy.Refused as exc:
+        raise HTTPException(403, "host not allowed") from exc
+    except image_proxy.Failed as exc:
+        raise HTTPException(exc.status, "img upstream status") from exc
+    return Response(content=content, media_type=ct, headers=_IMG_HEADERS)
 

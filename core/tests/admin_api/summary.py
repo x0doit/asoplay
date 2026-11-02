@@ -1,6 +1,6 @@
 """
-Обзор в панели: люди, просмотры, топ тайтлов, здоровье источников, открытые жалобы; время просмотра
-для обзора.
+Обзор в панели: люди, просмотры, топ тайтлов, здоровье источников, открытые жалобы, хосты картинок; время
+просмотра для обзора.
 
 Автор: Чепела Даниил Максимович.
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
@@ -11,7 +11,8 @@ import unittest
 from unittest.mock import patch
 
 from core.admin import summary as admin_summary
-from core.functions import source_health, watch_time
+from core.classes import image_proxy
+from core.functions import image_hosts, site_settings, source_health, watch_time
 
 from core.tests.admin_api.lib import PanelCase
 
@@ -46,7 +47,23 @@ class SummaryTests(PanelCase):
         self.assertTrue(data["health"]["ok"])
         self.assertEqual(data["reports_open"], 4)
         self.assertEqual(set(data), {"version", "started_at", "health", "users", "watch", "top_titles_7d", "online",
-                                     "reports_open"})
+                                     "reports_open", "image_hosts"})
+
+    def test_image_hosts_show_the_route_and_result_of_the_last_request(self):
+        state = patch.object(site_settings, "state", site_settings._State())
+        state.start()
+        self.addCleanup(state.stop)
+        site_settings.state.settings = site_settings.Settings(proxy_hosts=(
+            {"host": "myanimelist.net", "via": "vpn"}, {"host": "img.example.com", "via": "site"}))
+        last = {"route": "vpn", "ok": False, "status": 403, "at": 1793440000}
+        with patch.object(image_proxy, "routes", {"cdn.myanimelist.net": last}):
+            rows = self.panel.call("GET", "/api/admin/summary").json()["data"]["image_hosts"]
+        never = {"route": None, "ok": None, "status": None, "at": None}
+        self.assertEqual([row["host"] for row in rows], [*image_hosts.IMG_HOSTS, "img.example.com"])  # без повтора
+        self.assertEqual(rows[0], {"host": "cdn.myanimelist.net", "via": "vpn", **last})   # запись своего хоста,
+        self.assertEqual(rows[1], {"host": "myanimelist.net", "via": "vpn", **never})       # via — от строки панели
+        self.assertEqual(rows[2], {"host": "s4.anilist.co", "via": "site", **never})
+        self.assertEqual(rows[-1], {"host": "img.example.com", "via": "site", **never})
 
 
 class WatchTimeTests(unittest.TestCase):

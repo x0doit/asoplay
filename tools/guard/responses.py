@@ -44,15 +44,17 @@ HEADERS = ("content-type", "cache-control", "location", "x-robots-tag", "content
 # Параметры адреса, которые меняются при каждом запросе (PKCE в /auth/as/start)
 VOLATILE_QUERY = re.compile(r"((?:state|code_challenge|nonce)=)[^&]+")
 # Состояние процесса, а не кода: после перезапуска сервера (а сверка «до/после» всегда идёт через него) оно другое —
-# время сборки списков adblock и запуска, счётчики и задержки источников, открытые вкладки. Ключи остаются
-# в сравнении, значения — нет. «[]» — каждый элемент списка, путь без листа — всё под ним.
+# время сборки списков adblock и запуска, счётчики и задержки источников, открытые вкладки, последний запрос картинки
+# к каждому хосту. Ключи остаются в сравнении, значения — нет. «[]» — каждый элемент списка, путь без листа — всё
+# под ним.
 PROCESS_STATE = {
     "guest GET /health": ["adblock.updated_at", "adblock.refreshing", "source_health"],
     "guest GET /adblock/status": ["updated_at", "refreshing"],
     "guest GET /source-health": [""],
     "admin GET /api/admin/summary": ["data.started_at", "data.online", "data.health.sources[].latency_ms",
                                      "data.health.sources[].requests_24h", "data.health.sources[].fail_rate_24h",
-                                     "data.health.sources[].ok"],
+                                     "data.health.sources[].ok", "data.image_hosts[].route", "data.image_hosts[].ok",
+                                     "data.image_hosts[].status", "data.image_hosts[].at"],
 }
 # Данные, которые меняются сами, без нашего кода: каталог MAL и Shikimori через прокси обновляется, когда истекает
 # кеш, карта сайта прирастает тайтлами, которые кто-то открыл, журнал панели — каждым действием администратора. У них

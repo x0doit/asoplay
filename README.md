@@ -65,8 +65,9 @@ JavaScript, бэкенд работает на Python/FastAPI, а пользов
   остаётся, видео нет, для поисковиков — 451), закрепить в карусели главной («Рекомендуем»),
   пометить 18+ (метка и вопрос «Мне есть 18» перед видео), сбросить его кеш. Ещё — плашка-объявление
   на сайте, выключатели входа по почте и через AnimeSocial, включение и порядок источников видео,
-  «Обзор» (здоровье источников, люди, просмотры, топ недели) и журнал действий. Правка из панели
-  сразу видна на открытых страницах.
+  список хостов картинок, которые идут через прокси сайта (напрямую или через VPN-мост),
+  «Обзор» (здоровье источников, люди, просмотры, топ недели, как идут картинки) и журнал действий.
+  Правка из панели сразу видна на открытых страницах.
 - **Автоматические статусы списков**: auto-watching, auto-completed и
   stale auto-dropped на основе реального прогресса просмотра.
 - **Реальная логика просмотра**: прогресс фиксируется по событиям плеера, а не
@@ -74,7 +75,9 @@ JavaScript, бэкенд работает на Python/FastAPI, а пользов
 - **Публичные профили** со списками, которые учитывают настройки приватности,
   и графиком активности.
 - **Прокси, health-state и кэш во время работы** для внешних API, источников
-  видео, данных и изображений.
+  видео, данных и изображений. Обложка, которая не открылась у посетителя напрямую (ошибка или
+  6 секунд без ответа), приходит через `/proxy/img`, и дальше картинки этого хоста у него сутки идут
+  через прокси сразу.
 - **Опциональный xray bridge (VLESS + Reality или Shadowsocks)** для окружений,
   где внешние anime API недоступны напрямую.
 - **Интерфейс на дизайн-системе EDDAS**, общей с AnimeSocial: светлая и тёмная
@@ -167,6 +170,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │       └── kodik-skin.css      AsoPlayer/Kodik visual skin
 ├── js/
 │   ├── account.js              auth UI, личные разделы, store, профили
+│   ├── images.js               картинки чужих хостов: напрямую или через /proxy/img, запасной путь и память
 │   ├── navigation.js           каркас: лист «Ещё», поиск в шапке, тема, активный раздел
 │   ├── profile-activity.js     группировка дневника и календарь активности
 │   ├── realtime.js             живое соединение вкладки с сервером (WebSocket /ws)
@@ -210,7 +214,9 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── friends.py          друзья из AnimeSocial: id с кешем, люди, статусы, вызовы соцсети от имени человека
 │   │   ├── realtime.py         хаб живых соединений: вкладки, кадры, фон; realtime_presence.py — присутствие
 │   │   │                       друзьям, realtime_social.py — события соцсети и состояние сервера
-│   │   ├── site_settings.py    что решила панель: пометки тайтлов, плашка, функции, источники
+│   │   ├── site_settings.py    что решила панель: пометки тайтлов, плашка, функции, источники, хосты картинок
+│   │   ├── image_hosts.py      хосты /proxy/img: каталога и из панели, правило имени, проверка адреса
+│   │   ├── public_suffix.py    общие суффиксы (Public Suffix List): ни их, ни их родителей нельзя внести в список панели
 │   │   ├── video_reports.py    жалобы «Не работает»: причины, статусы, очистка текста — для раздела и панели
 │   │   ├── lists.py            list/status/favorite domain и auto-rules; счётчики и записи публичного профиля
 │   │   ├── lists_sweep.py      правило 30 дней по расписанию: раз в сутки, замок, догон после простоя
@@ -236,7 +242,12 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── token_box.py        шифрование токенов соцсети в базе (AES-GCM)
 │   │   ├── http.py             клиенты (напрямую и через VPN-мост), маршрут для хоста, темп запросов к MAL
 │   │   ├── http_cache.py       кеш апстримов на диске, повторы и паузы апстримов, один запрос на одинаковые
-│   │   ├── http_public.py      выход только на публичные адреса: сетевой слой клиента прокси плеера
+│   │   ├── http_public.py      выход только на публичные адреса: сетевой слой клиентов прокси плеера и картинок
+│   │   ├── http_bridge.py      выход через VPN-мост: имя — DoH по мосту, CONNECT ровно на проверенный адрес
+│   │   ├── image_proxy.py      картинки /proxy/img: кеш, одна выборка, старая копия, пределы выборок
+│   │   ├── image_fetch.py      картинка одним путём: перенаправления с проверкой, только картинки без сжатия
+│   │   ├── image_cache.py      кеш картинок на диске: срок, предел 1 ГБ, уборка сразу при переполнении
+│   │   ├── image_limits.py     места выборок картинок (всего, на посетителя, на хост) и пауза хоста после сбоев
 │   │   ├── jikan/              каталог MAL: catalog.py (запросы, кеш, лимит, фильтры), php_bridge.py (запуск PHP)
 │   │   ├── jikan/php/          PHP-мост, Composer manifest и lockfile
 │   │   ├── adblock/            блокировщик плеера: rules.py (разбор фильтров AdGuard), engine.py (списки, проверка)
@@ -249,8 +260,10 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── animesocial.py      AnimeSocial URL/media configuration
 │   │   ├── animesocial.json    public URL/media mapping для AnimeSocial
 │   │   ├── db.php              формат DB-конфига AnimeSocial
+│   │   ├── public_suffix_list.dat Public Suffix List от Mozilla (MPL-2.0, шапку не трогать); обновить — скачать
+│   │   │                       https://publicsuffix.org/list/public_suffix_list.dat на его место, перезапустить
 │   │   ├── server/             шаблон xray-конфига и unit systemd
-│   │   └── cache/              рабочие файлы: HTTP-кеш, adblock, xray (вне git)
+│   │   └── cache/              рабочие файлы: HTTP-кеш, картинки, adblock, xray (вне git)
 │   ├── tests/                  проверки ядра: раздел — test_{раздел}.py, большой — вход и папка частей;
 │   │                           запуск run.py, как запускать и что нужно — README.md
 │   └── migrations/
@@ -345,6 +358,22 @@ python -B -m core
 http://127.0.0.1:8787
 ```
 
+Приложение слушает только 127.0.0.1; наружу его отдаёт обратный прокси (nginx, на проде — aaPanel). Он ставит
+`X-Real-IP` сам и работает с AsoPlay только без своего кеша. aaPanel включает `proxy_cache cache_one` для всех
+сайтов в своём `proxy.conf`, а с кешем nginx не передаёт приложению `Range`: большой MP4 из VK не перематывается,
+серия не доигрывает до конца, и автопереключение серий не срабатывает. Кеш выключается для сайта отдельным
+файлом, который aaPanel не перезаписывает при правке сайта:
+
+```nginx
+# /www/server/panel/vhost/nginx/extension/<сайт>/asoplay.conf
+proxy_cache off;
+proxy_buffering off;
+```
+
+Кеш в настройках обратного прокси aaPanel не включайте: он кеширует всё подряд, не глядя на `Set-Cookie`
+и `Cache-Control`. После правки nginx и после каждой выкатки — проверка против сайта:
+`SITE=https://<сайт> node tools/qa/eddas-qa.cjs autonext`.
+
 Health endpoint:
 
 ```text
@@ -422,6 +451,14 @@ Backend читает runtime settings из `.env`, `core/config/db.php` и
   напрямую.
 - `SS_ADDRESS`, `SS_PORT`, `SS_METHOD`, `SS_PASSWORD` — Shadowsocks для старых
   серверов; используются, только если `AV_VPN_URL` не задан.
+- `AV_VPN_CONFIG` — путь к полному конфигу xray вместо шаблона; используется,
+  только если не заданы ни `AV_VPN_URL`, ни Shadowsocks. Входам со sniffing
+  AsoPlay всегда ставит `routeOnly`: имя из TLS только выбирает маршрут, а
+  назначение остаётся проверенным IP. `routing.domainStrategy` остаётся вашим:
+  при `IPIfNonMatch` xray разрешает это имя своим DNS, и запрос может уйти мимо
+  VPN. Это утечка имени, а не выход во внутреннюю сеть; чтобы её не было,
+  ставьте `AsIs`, как в шаблоне. Картинки идут только через xray, запущенный
+  самим AsoPlay: чужой xray на том же порту для них не используется.
 
 Production secrets должны храниться только на сервере. Нельзя коммитить реальные
 пароли, токены, proxy credentials, session data или приватные ключи.
@@ -512,6 +549,11 @@ UNIQUE KEY uq_act_dedup (user_id, day, kind, mal_id, meta(64))
 - AsoPlay Shield проксирует player-ресурсы через same-origin слой, фильтрует
   рекламные URL и блокирует popup/top-navigation сценарии.
 - Прокси ограничены конкретными сценариями для API и media-файлов.
+- `/proxy/img` берёт картинки только с хостов каталога и из списка панели и только с публичных адресов: через
+  VPN-мост имя разрешается DoH по самому мосту, и мост подключается ровно к проверенному адресу. Каждое
+  перенаправление проверяется, с https на http — отказ. Отдаются только JPEG, PNG, GIF, WebP и AVIF без сжатия,
+  до 8 МБ — с `Content-Security-Policy: sandbox` и `X-Content-Type-Options: nosniff`. Промахи кеша ограничены
+  на посетителя, выборки наверх — по числу сразу, кеш — по размеру.
 - `robots.txt` закрывает внутренние account/auth/proxy/source endpoints.
 
 ---
@@ -597,8 +639,9 @@ JavaScript, the backend runs on Python/FastAPI, and user data is stored in MySQL
   copyright complaint (the page stays, the video goes, search engines get 451), pinned to the home
   carousel («Рекомендуем»), marked 18+ (a label and a «Мне есть 18» question before the video), and
   have its cache reset. There is also a site notice, switches for mail sign-in and sign-in with
-  AnimeSocial, enabling and ordering video sources, an overview (source health, people, watching,
-  the week's top) and an audit log. A change in the panel shows on open pages at once.
+  AnimeSocial, enabling and ordering video sources, the list of image hosts that go through the site's
+  proxy (directly or through the VPN bridge), an overview (source health, people, watching, the week's
+  top, how images get through) and an audit log. A change in the panel shows on open pages at once.
 - **Automatic list statuses** driven by real watch progress: auto-watching,
   auto-completed and stale auto-dropped states.
 - **Real watch-progress logic** driven by player events instead of wall-clock
@@ -606,7 +649,9 @@ JavaScript, the backend runs on Python/FastAPI, and user data is stored in MySQL
 - **Public profiles** with lists that respect privacy settings and activity
   graph rendering.
 - **Runtime proxy, health state and cache** for external APIs, video sources,
-  data and media images.
+  data and media images. A cover that does not open for a visitor directly (an error or 6 seconds without an
+  answer) comes through `/proxy/img`, and that host's images then go through the proxy for that visitor for a
+  day.
 - **Optional xray bridge (VLESS + Reality or Shadowsocks)** for environments
   where upstream anime metadata APIs are blocked.
 - **EDDAS interface** shared with AnimeSocial: light and dark themes, and a phone
@@ -702,6 +747,7 @@ Key capabilities:
 │       └── kodik-skin.css      AsoPlayer/Kodik visual skin
 ├── js/
 │   ├── account.js              auth UI, personal sections, store, profiles
+│   ├── images.js               images from other hosts: direct or through /proxy/img, the fallback and its memory
 │   ├── navigation.js           shell: "Ещё" sheet, header search, theme, active section
 │   ├── profile-activity.js     diary grouping and activity calendar
 │   ├── realtime.js             the tab's live connection to the server (WebSocket /ws)
@@ -745,7 +791,9 @@ Key capabilities:
 │   │   ├── friends.py          friends from AnimeSocial: cached ids, people, statuses, calls on a person's behalf
 │   │   ├── realtime.py         the live connection hub: tabs, frames, background; realtime_presence.py —
 │   │   │                       presence to friends, realtime_social.py — social events and server status
-│   │   ├── site_settings.py    what the panel decided: title flags, notice, features, sources
+│   │   ├── site_settings.py    what the panel decided: title flags, notice, features, sources, image hosts
+│   │   ├── image_hosts.py      /proxy/img hosts: the catalog's and the panel's, the name rule, the address check
+│   │   ├── public_suffix.py    public suffixes (Public Suffix List): the panel's list takes neither them nor their parents
 │   │   ├── video_reports.py    «Не работает» reports: kinds, statuses, text cleanup — for the section and the panel
 │   │   ├── lists.py            list/status/favorite domain and auto-rules; counts and entries for the public profile
 │   │   ├── lists_sweep.py      the 30-day rule on a schedule: once a day, a lock, catching up after downtime
@@ -771,7 +819,12 @@ Key capabilities:
 │   │   ├── token_box.py        encryption of social network tokens at rest (AES-GCM)
 │   │   ├── http.py             clients (direct and through the VPN bridge), route per host, MAL pacing
 │   │   ├── http_cache.py       upstream disk cache, retries and upstream pauses, one request for equal ones
-│   │   ├── http_public.py      connections to public addresses only: the player proxy client's network layer
+│   │   ├── http_public.py      connections to public addresses only: the player and image proxy clients' layer
+│   │   ├── http_bridge.py      out through the VPN bridge: names via DoH over the bridge, CONNECT to the checked address
+│   │   ├── image_proxy.py      /proxy/img images: cache, one fetch, the old copy, fetch limits
+│   │   ├── image_fetch.py      one image over one path: checked redirects, images only, no compression
+│   │   ├── image_cache.py      the image disk cache: lifetime, a 1 GB limit, cleaned at once when over it
+│   │   ├── image_limits.py     image fetch places (in all, per visitor, per host) and a host's rest after failures
 │   │   ├── jikan/              MAL catalog: catalog.py (requests, cache, rate limit, filters), php_bridge.py (PHP runs)
 │   │   ├── jikan/php/          PHP bridge, Composer manifest and lockfile
 │   │   ├── adblock/            player ad-block: rules.py (AdGuard filter parsing), engine.py (lists, checks)
@@ -784,8 +837,10 @@ Key capabilities:
 │   │   ├── animesocial.py      AnimeSocial URL/media configuration
 │   │   ├── animesocial.json    AnimeSocial public URL/media mapping
 │   │   ├── db.php              AnimeSocial DB config format
+│   │   ├── public_suffix_list.dat Mozilla's Public Suffix List (MPL-2.0, keep its header); to update, download
+│   │   │                       https://publicsuffix.org/list/public_suffix_list.dat over it and restart
 │   │   ├── server/             xray config template and the systemd unit
-│   │   └── cache/              work files: HTTP cache, adblock, xray (not in git)
+│   │   └── cache/              work files: HTTP cache, images, adblock, xray (not in git)
 │   ├── tests/                  core checks: a section is test_{section}.py, a big one is an entry and a parts
 │   │                           folder; run.py runs them, README.md says how and what each needs
 │   └── migrations/
@@ -881,6 +936,22 @@ Default local URL:
 http://127.0.0.1:8787
 ```
 
+The app listens on 127.0.0.1 only; a reverse proxy (nginx, aaPanel on prod) serves it outside. The proxy sets
+`X-Real-IP` itself and must run without its own cache. aaPanel turns on `proxy_cache cache_one` for every site in
+its `proxy.conf`, and with a cache on nginx does not pass `Range` to the app: a big VK MP4 cannot be seeked, an
+episode does not play to its end, and auto-next never fires. Turn the cache off for the site in a separate file
+that aaPanel does not rewrite when the site is edited:
+
+```nginx
+# /www/server/panel/vhost/nginx/extension/<site>/asoplay.conf
+proxy_cache off;
+proxy_buffering off;
+```
+
+Do not enable the cache in aaPanel's reverse proxy settings: it caches everything, ignoring `Set-Cookie` and
+`Cache-Control`. After an nginx change and after every deploy, check against the site:
+`SITE=https://<site> node tools/qa/eddas-qa.cjs autonext`.
+
 Health endpoint:
 
 ```text
@@ -960,6 +1031,15 @@ Important environment groups:
   first for 10 minutes. Players always connect directly.
 - `SS_ADDRESS`, `SS_PORT`, `SS_METHOD`, `SS_PASSWORD` — Shadowsocks for older
   servers; used only when `AV_VPN_URL` is not set.
+- `AV_VPN_CONFIG` — path to a full xray config used instead of the template;
+  used only when neither `AV_VPN_URL` nor Shadowsocks is set. AsoPlay always
+  sets `routeOnly` on inbounds with sniffing: the name from TLS only picks the
+  route, and the destination stays the checked IP. `routing.domainStrategy`
+  stays yours: with `IPIfNonMatch` xray resolves that name with its own DNS, and
+  the query may go past the VPN. That leaks the name but does not reach the
+  internal network; to avoid it, use `AsIs`, as the template does. Images go
+  only through an xray that AsoPlay started itself: another xray on the same
+  port is not used for them.
 
 Production secrets must stay outside Git. Never commit real passwords, tokens,
 private proxy credentials, session data or private keys.
@@ -1052,6 +1132,12 @@ UNIQUE KEY uq_act_dedup (user_id, day, kind, mal_id, meta(64))
 - AsoPlay Shield routes player resources through a same-origin layer, filters
   ad URLs and blocks popup/top-navigation flows.
 - Proxy endpoints are constrained to specific API/media scenarios.
+- `/proxy/img` takes images only from the catalog's hosts and the panel's list and only from public addresses:
+  through the VPN bridge a name is resolved by DoH over the bridge itself, and the bridge connects to exactly the
+  checked address. Every redirect is checked, and https to http is refused. Only JPEG, PNG, GIF, WebP and AVIF
+  without compression are served, up to 8 MB, with `Content-Security-Policy: sandbox` and
+  `X-Content-Type-Options: nosniff`. Cache misses are limited per visitor, upstream fetches by how many run at
+  once, and the cache by size.
 - `robots.txt` blocks internal account/auth/proxy/source endpoints.
 
 ---

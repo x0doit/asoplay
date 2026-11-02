@@ -11,6 +11,7 @@
 
 import * as account from "./js/account.js?v=20261030-online1";
 import { setupNavigation, setActiveSection, SheetDrag } from "./js/navigation.js?v=20261030-live1";
+import * as images from "./js/images.js?v=20261031-img1";
 import * as realtime from "./js/realtime.js?v=20261030-live1";
 import * as site from "./js/site.js?v=20261030-admin1";
 import { getTrailerId, bindTrailer } from "./js/trailer.js?v=20261029-eddas2";
@@ -48,7 +49,8 @@ const ANILIST_DIRECT = "https://graphql.anilist.co";
 const SHIKI_ORIGIN = "https://shikimori.io";
 const JIKAN = () => `${BACKEND}/proxy/jikan`;
 const ANILIST = () => state.useProxy ? `${BACKEND}/proxy/anilist` : ANILIST_DIRECT;
-const imgUrl = (u) => (u && state.proxyImages ? `${BACKEND}/proxy/img?url=${encodeURIComponent(u)}` : (u || ""));
+// Картинки чужих хостов: напрямую или через /proxy/img — по правилам js/images.js
+const imgUrl = (u) => images.url(u);
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -230,7 +232,6 @@ const state = {
   autoNext: true,     // guests default ON; authed loaded from /account/settings
   backendAvailable: false,
   useProxy: false,
-  proxyImages: false,
   backendSources: [],
   user: null,         // set by account.setup/refresh
   current: null,      // currently-mounted Player
@@ -508,7 +509,7 @@ async function enrichWithShiki(container, list, limit) {
     // Доливаем обложку, если её не было или она битая (пустой src / крестик
     // на сломанном домене). Shikimori image шлёт поле вида
     //   { original: "/system/animes/original/XXXX.jpg", preview: "...", "x96": "..." }
-    // Превращаем в абсолютный URL + проксируем через /proxy/img если VPN.
+    // Превращаем в абсолютный URL; через /proxy/img — по правилам js/images.js.
     const img = $(".av-card-img img", c);
     if (img) {
       const shikiImg = entry.image;
@@ -3615,11 +3616,12 @@ function _migrateHashOnBoot() {
 }
 
 // ---------- backend status ----------
-function applyBackendStatus({ ok, sources, vpn, site: panel }) {
+function applyBackendStatus({ ok, sources, site: panel }) {
   state.backendAvailable = ok;
   state.useProxy = ok;
-  state.proxyImages = ok && vpn;
   state.backendSources = sources || [];
+  // Какие картинки идут через /proxy/img: хосты из панели — сразу, остальные — запасным путём (js/images.js)
+  images.configure({ backend: BACKEND, available: ok, proxyHosts: panel?.proxy_hosts, imgHosts: panel?.img_hosts });
   // Плашка, скрытые и 18+ тайтлы, способы входа и порядок источников — из панели Anime Social
   site.apply(panel);
 }
@@ -3673,6 +3675,7 @@ bind();
 
 (async function boot() {
   await refreshBackend();
+  images.install();  // до первой картинки на странице: запасной путь через /proxy/img
   await account.setup({
     state,
     backendUrl: BACKEND,

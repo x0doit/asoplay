@@ -23,6 +23,8 @@ from core.functions import site_settings
 
 router = APIRouter()
 
+DETAILS_MAX = 2000  # столько знаков JSON подробностей влезает в запись журнала
+
 
 def unix(value: datetime | None) -> int | None:
     """Время из базы (UTC) — в Unix-секунды для панели."""
@@ -30,11 +32,11 @@ def unix(value: datetime | None) -> int | None:
 
 
 def audit(cur: Any, user_id: int, action: str, target: str, details: dict[str, Any] | None = None) -> None:
-    """Записать действие в той же транзакции, что и само изменение. Не влезает в 2000 символов — вместо
+    """Записать действие в той же транзакции, что и само изменение. Не влезает в DETAILS_MAX символов — вместо
     обрезанного (и уже не JSON) — что именно меняли."""
     text = json.dumps(details or {}, ensure_ascii=False)
-    if len(text) > 2000:
-        text = json.dumps({"changed": sorted(details or {})}, ensure_ascii=False)[:2000]
+    if len(text) > DETAILS_MAX:
+        text = json.dumps({"changed": sorted(details or {})}, ensure_ascii=False)[:DETAILS_MAX]
     cur.execute(
         "INSERT INTO aviev_admin_audit (user_id, action, target, details, at) VALUES (%s, %s, %s, %s, %s)",
         (user_id, action, target[:128], text, utc_now()),
