@@ -1229,6 +1229,9 @@
   "= 243042ee209b",
   "= d6b3ee3cf2c5"
  ],
+ "UNAVAILABLE": [
+  "= 5e788bec4caf"
+ ],
  "URL_STALE_AFTER": [
   "= 77de68daecd8"
  ],
@@ -1726,9 +1729,6 @@
  ],
  "_charset_from_content_type": [
   "def(content_type: str) -> str"
- ],
- "_check_one": [
-  "def(how: str, plain: str, stored: str, salt: str | None) -> bool"
  ],
  "_clamp_days": [
   "def(days: int | None) -> int"
@@ -2276,6 +2276,9 @@
  ],
  "_tunnel": [
   "async def(stream: httpcore.AsyncNetworkStream, address: str, port: int, timeout: float | None) -> None"
+ ],
+ "_unavailable": [
+  "def() -> HTMLResponse"
  ],
  "_unregistered": [
   "def(*_args, **_kwargs)"
@@ -2861,9 +2864,6 @@
  "is_available": [
   "def(source: str) -> bool"
  ],
- "is_banned": [
-  "def(status_col_name: str | None, value: Any) -> bool"
- ],
  "is_disabled_player_url": [
   "def(url: str) -> bool"
  ],
@@ -2973,7 +2973,6 @@
   "= 32d06339fc74",
   "= 331c30afefaa",
   "= 3acb6a6c60f8",
-  "= 3acb6a6c60f8",
   "= 48bd8c61a38f",
   "= 48bd8c61a38f",
   "= 6cddf65a201a",
@@ -2990,6 +2989,7 @@
   "= a4c65cd75c4e",
   "= b3b24f687743",
   "= b424f540bc0b",
+  "= b868a9c74338",
   "= bd836eb04249",
   "= c37b55460f21",
   "= cc6e10537509",
@@ -3015,9 +3015,6 @@
  "lookup": [
   "async def(mal_id: int) -> dict[str, Any] | None",
   "def(key: str) -> tuple[bytes, str, bool] | None"
- ],
- "lookup_user": [
-  "def(identity: str) -> dict[str, Any] | None"
  ],
  "main": [
   "def() -> None",
@@ -3399,6 +3396,9 @@
  "send_message": [
   "@router.post('/messages/{peer_id}') def(peer_id: int, payload: MessageIn, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]"
  ],
+ "serialize_public": [
+  "def(row: dict[str, Any]) -> dict[str, Any]"
+ ],
  "serialize_user": [
   "def(row: dict[str, Any]) -> dict[str, Any]"
  ],
@@ -3611,9 +3611,6 @@
  "url_refusal": [
   "def(url: httpx.URL | str, hosts: Iterable[str]) -> str | None"
  ],
- "user_banned_values": [
-  "def() -> str"
- ],
  "user_column": [
   "def(env_key: str) -> str | None"
  ],
@@ -3622,9 +3619,6 @@
  ],
  "utc_now": [
   "def() -> datetime"
- ],
- "verify_password": [
-  "def(plain: str, stored_hash: str, salt: str | None) -> bool"
  ],
  "videos": [
   "@router.get('/src/videos') async def(key: str, source: str='anilibria')"

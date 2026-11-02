@@ -119,13 +119,8 @@ def user_table() -> str | None:
 
 
 def user_column(env_key: str) -> str | None:
-    """Колонка таблицы людей из AV_USER_ID_COL, AV_USER_LOGIN_COL, AV_USER_EMAIL_COL, AV_USER_HASH_COL и т. п."""
+    """Колонка таблицы людей из AV_USER_ID_COL, AV_USER_LOGIN_COL, AV_USER_EMAIL_COL, AV_USER_NAME_COL и т. п."""
     return os.environ.get(env_key)
-
-
-def user_banned_values() -> str:
-    """AV_USER_BANNED_VALUES — значения колонки статуса, при которых вход закрыт, через запятую."""
-    return os.environ.get("AV_USER_BANNED_VALUES", "").strip()
 
 
 def register_url_override() -> str:

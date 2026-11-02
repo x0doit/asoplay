@@ -1,17 +1,18 @@
 """
-Лимит попыток входа по паролю: скользящее окно, адрес посетителя за прокси, вход через соцсеть.
-Живую базу не трогают.
+Вход по паролю — только через соцсеть: скользящее окно попыток, адрес посетителя за прокси, проверка пароля соцсетью;
+вход через неё выключен — 503 «login_unavailable», пароль AsoPlay сам не проверяет никогда. Живую базу не трогают.
 
 Автор: Чепела Даниил Максимович.
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 """
+import importlib.util
 import unittest
 from unittest.mock import patch
 
 from fastapi import HTTPException, Response
 from starlette.requests import Request
 from core.api.sections import auth as auth_routes
-from core.classes import accounts, as_api, as_sessions, passwords
+from core.classes import accounts, as_api, as_sessions, db
 from core.functions import rate_limit, sessions, social_login
 
 
@@ -71,88 +72,63 @@ class ClientIpTests(unittest.TestCase):
         self.assertEqual(rate_limit.client_ip(make_request("127.0.0.1", {"X-Real-IP": "evil"})), "127.0.0.1")
 
 
-class LoginLimitTests(unittest.TestCase):
+class Login(unittest.TestCase):
+    """Лимиты на 15 минут с поддельными часами; к базе обращаться нельзя — db.connect под подделкой падает."""
+
     def setUp(self):
         self.clock = FakeClock()
-        self.banned = 0
-        patches = [
-            patch.object(auth_routes, "_login_by_ip", rate_limit.SlidingWindow(20, auth_routes.LOGIN_WINDOW, clock=self.clock)),
-            patch.object(auth_routes, "_login_by_identity", rate_limit.SlidingWindow(8, auth_routes.LOGIN_WINDOW, clock=self.clock)),
-            patch.object(accounts, "lookup_user", side_effect=self.lookup),
-            patch.object(passwords, "verify_password", side_effect=lambda plain, stored, salt: plain == "right-password"),
-            patch.object(accounts, "introspect_schema", return_value={"status_col": "banned"}),
-            patch.object(accounts, "serialize_user", side_effect=lambda row: {"id": row["id_col"]}),
-            patch.object(sessions, "create_session", return_value="t" * 64),
-            # Без ключей соцсети пароль сверяется по её таблице
-            patch.object(as_sessions, "enabled", return_value=False),
-        ]
-        for p in patches:
+        self.ip_window = rate_limit.SlidingWindow(20, auth_routes.LOGIN_WINDOW, clock=self.clock)
+        self.login_window = rate_limit.SlidingWindow(8, auth_routes.LOGIN_WINDOW, clock=self.clock)
+        for p in (patch.object(auth_routes, "_login_by_ip", self.ip_window),
+                  patch.object(auth_routes, "_login_by_identity", self.login_window),
+                  patch.object(db, "connect", side_effect=AssertionError("the login must not open the database"))):
             p.start()
             self.addCleanup(p.stop)
 
-    def lookup(self, identity):
-        if identity.lower() != "sakura":
-            return None
-        return {"id_col": 7, "login_col": "sakura", "hash_col": "stored", "salt_col": None, "status_col": self.banned}
-
     def attempt(self, login, password, ip="198.51.100.9"):
-        request = make_request("127.0.0.1", {"X-Real-IP": ip})
+        request = make_request("127.0.0.1", {"X-Real-IP": ip, "User-Agent": "Mozilla/5.0 Firefox/131"})
+        response = Response()
         try:
-            auth_routes.auth_login(auth_routes.LoginIn(login=login, password=password), request, Response())
-            return 200, {}
+            body = auth_routes.auth_login(auth_routes.LoginIn(login=login, password=password), request, response)
+            return 200, body, response
         except HTTPException as exc:
-            return exc.status_code, exc.headers or {}
-
-    def test_eight_wrong_passwords_lock_the_login_even_for_the_right_one(self):
-        for _ in range(8):
-            self.assertEqual(self.attempt("sakura", "wrong")[0], 401)
-        status, headers = self.attempt("Sakura", "right-password", ip="198.51.100.10")
-        self.assertEqual(status, 429)
-        self.assertEqual(headers.get("Retry-After"), str(auth_routes.LOGIN_WINDOW))
-
-    def test_twenty_failures_from_one_address_lock_that_address_only(self):
-        for i in range(20):
-            self.assertEqual(self.attempt(f"user{i}", "wrong")[0], 401)
-        self.assertEqual(self.attempt("sakura", "right-password")[0], 429)
-        self.assertEqual(self.attempt("sakura", "right-password", ip="198.51.100.11")[0], 200)
-
-    def test_a_successful_login_resets_the_login_counter(self):
-        for _ in range(7):
-            self.attempt("sakura", "wrong")
-        self.assertEqual(self.attempt("sakura", "right-password")[0], 200)
-        for _ in range(7):
-            self.assertEqual(self.attempt("sakura", "wrong")[0], 401)
-        self.assertEqual(self.attempt("sakura", "right-password")[0], 200)
-
-    def test_the_lock_expires_after_the_window(self):
-        for _ in range(8):
-            self.attempt("sakura", "wrong")
-        self.assertEqual(self.attempt("sakura", "right-password")[0], 429)
-        self.clock.now += auth_routes.LOGIN_WINDOW + 1
-        self.assertEqual(self.attempt("sakura", "right-password")[0], 200)
-
-    def test_a_ban_is_revealed_only_with_the_right_password(self):
-        self.banned = 1
-        self.assertEqual(self.attempt("sakura", "wrong")[0], 401)
-        self.assertEqual(self.attempt("sakura", "right-password")[0], 403)
+            return exc.status_code, exc.headers or {}, response
 
 
+class WithoutTheSocialNetwork(Login):
+    def test_login_is_unavailable_before_any_limit_or_password_check(self):
+        social = []
+        with patch.object(as_sessions, "enabled", return_value=False), \
+                patch.object(as_api, "password_login", side_effect=lambda *a: social.append(a)):
+            for _ in range(30):
+                status, _, _ = self.attempt("sakura@example.test", "right-password")
+                self.assertEqual(status, 503)
+            try:
+                auth_routes.auth_login(auth_routes.LoginIn(login="x", password="y"), make_request(), Response())
+            except HTTPException as exc:
+                self.assertEqual(exc.detail, "login_unavailable")
+        self.assertEqual(social, [])
+        self.assertEqual((self.ip_window.retry_after("198.51.100.9"), self.login_window.retry_after("sakura@example.test")),
+                         (0, 0))  # попытки не считаются: пароль никто не проверял
 
-class SocialPasswordLoginTests(unittest.TestCase):
-    """С ключами соцсети форма почты входит через её POST /auth/login: пароль проверяет соцсеть, а у человека
-    появляется сессия AsoPlay в соцсети, как после входа кнопкой."""
+    def test_asoplay_has_no_password_check_of_its_own(self):
+        self.assertIsNone(importlib.util.find_spec("core.classes.passwords"))
+        self.assertFalse(hasattr(accounts, "lookup_user"))
+        self.assertFalse(hasattr(auth_routes, "passwords") or hasattr(auth_routes, "accounts"))
+
+
+class SocialPasswordLoginTests(Login):
+    """Форма почты входит через POST /auth/login соцсети: пароль проверяет соцсеть, а у человека появляется сессия
+    AsoPlay в соцсети, как после входа кнопкой."""
 
     def setUp(self):
-        self.clock = FakeClock()
+        super().setUp()
         self.banned = False
         self.social_calls = []
         self.answer = self.social_network
         self.inserted, self.logged_out, self.revoked, self.ended = [], [], [], []
         self.profile = {"id": 7, "name": "Сакура Харуно"}
         patches = [
-            patch.object(auth_routes, "_login_by_ip", rate_limit.SlidingWindow(20, auth_routes.LOGIN_WINDOW, clock=self.clock)),
-            patch.object(auth_routes, "_login_by_identity", rate_limit.SlidingWindow(8, auth_routes.LOGIN_WINDOW, clock=self.clock)),
-            patch.object(accounts, "lookup_user", side_effect=AssertionError("the social network checks the password")),
             patch.object(as_sessions, "enabled", return_value=True),
             patch.object(as_api, "password_login", side_effect=lambda *a: self.answer(*a)),
             patch.object(as_api, "logout", side_effect=lambda token, *_: self.logged_out.append(token)),
@@ -173,15 +149,6 @@ class SocialPasswordLoginTests(unittest.TestCase):
         return {"tokens": {"access_token": "asa_x", "refresh_token": "asr_x", "expires_in": 3600},
                 "user": {"id": 7, "banned": self.banned}}
 
-    def attempt(self, login, password, ip="198.51.100.9"):
-        request = make_request("127.0.0.1", {"X-Real-IP": ip, "User-Agent": "Mozilla/5.0 Firefox/131"})
-        response = Response()
-        try:
-            body = auth_routes.auth_login(auth_routes.LoginIn(login=login, password=password), request, response)
-            return 200, body, response
-        except HTTPException as exc:
-            return exc.status_code, exc.headers or {}, response
-
     def test_the_social_network_checks_the_password_and_the_session_is_linked(self):
         status, body, response = self.attempt("sakura@example.test", "right-password")
         self.assertEqual((status, body), (200, {"ok": True, "user": self.profile}))
@@ -189,13 +156,34 @@ class SocialPasswordLoginTests(unittest.TestCase):
         self.assertEqual(self.inserted, [("t" * 64, 7)])
         self.assertEqual(self.social_calls, [("sakura@example.test", "198.51.100.9", "Mozilla/5.0 Firefox/131")])
 
-    def test_wrong_passwords_count_towards_the_local_limit_too(self):
+    def test_eight_wrong_passwords_lock_the_login_even_for_the_right_one(self):
         for _ in range(8):
             self.assertEqual(self.attempt("sakura@example.test", "wrong")[0], 401)
         calls = len(self.social_calls)
         status, headers, _ = self.attempt("Sakura@example.test", "right-password", ip="198.51.100.10")
         self.assertEqual((status, headers.get("Retry-After")), (429, str(auth_routes.LOGIN_WINDOW)))
         self.assertEqual(len(self.social_calls), calls)          # заблокированная попытка до соцсети не доходит
+
+    def test_twenty_failures_from_one_address_lock_that_address_only(self):
+        for i in range(20):
+            self.assertEqual(self.attempt(f"user{i}@example.test", "wrong")[0], 401)
+        self.assertEqual(self.attempt("sakura@example.test", "right-password")[0], 429)
+        self.assertEqual(self.attempt("sakura@example.test", "right-password", ip="198.51.100.11")[0], 200)
+
+    def test_a_successful_login_resets_the_login_counter(self):
+        for _ in range(7):
+            self.attempt("sakura@example.test", "wrong")
+        self.assertEqual(self.attempt("sakura@example.test", "right-password")[0], 200)
+        for _ in range(7):
+            self.assertEqual(self.attempt("sakura@example.test", "wrong")[0], 401)
+        self.assertEqual(self.attempt("sakura@example.test", "right-password")[0], 200)
+
+    def test_the_lock_expires_after_the_window(self):
+        for _ in range(8):
+            self.attempt("sakura@example.test", "wrong")
+        self.assertEqual(self.attempt("sakura@example.test", "right-password")[0], 429)
+        self.clock.now += auth_routes.LOGIN_WINDOW + 1
+        self.assertEqual(self.attempt("sakura@example.test", "right-password")[0], 200)
 
     def test_the_social_network_limit_comes_with_its_wait(self):
         def limited(*_):

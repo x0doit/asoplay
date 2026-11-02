@@ -1,11 +1,13 @@
 """
-Аккаунты AnimeSocial: схема таблицы аккаунтов, поиск по логину или почте, @handle, человек для ответа, бан.
+Аккаунты AnimeSocial: схема таблицы аккаунтов, @handle, человек для ответа и для открытого профиля.
 
 Автор: Чепела Даниил Максимович.
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
 Таблица и столбцы определяются при первом обращении (у соцсети — Just_accounts); их можно задать через
-AV_USER_TABLE и AV_USER_*_COL. Пароли — core/classes/passwords.py, сессии AsoPlay — core/functions/sessions.py.
+AV_USER_TABLE и AV_USER_*_COL. Пароль AsoPlay не читает и не проверяет — это делает соцсеть (core/api/sections/auth.py);
+сессии AsoPlay — core/functions/sessions.py. Открытый профиль получает только id, имя, аватар и alias: почта и логин
+есть лишь в собственной сессии человека.
 """
 from __future__ import annotations
 
@@ -29,8 +31,8 @@ def introspect_schema() -> dict[str, Any]:
     """Pick the AnimeSocial users-table layout: table name + essential columns.
 
     Respects env overrides (AV_USER_TABLE / AV_USER_ID_COL / AV_USER_LOGIN_COL /
-    AV_USER_EMAIL_COL / AV_USER_HASH_COL / AV_USER_SALT_COL / AV_USER_NAME_COL)
-    when auto-detection picks the wrong table / column.
+    AV_USER_EMAIL_COL / AV_USER_NAME_COL and the rest) when auto-detection picks the wrong table / column.
+    Password columns are not picked: AsoPlay never reads them.
     """
     global _schema_cache
     if _schema_cache is not None:
@@ -44,7 +46,8 @@ def introspect_schema() -> dict[str, Any]:
 
         if override_table:
             if override_table not in all_tables:
-                raise HTTPException(500, f"AV_USER_TABLE='{override_table}' not found")
+                log.error("AV_USER_TABLE='%s' not found", override_table)
+                raise HTTPException(500, "accounts schema unavailable")
             user_table = override_table
         else:
             prefix = db_config()["prefix"]
@@ -61,10 +64,8 @@ def introspect_schema() -> dict[str, Any]:
                     key=len,
                 )
                 if not candidates:
-                    raise HTTPException(
-                        500,
-                        "No users-like table found. Set AV_USER_TABLE env var.",
-                    )
+                    log.error("No users-like table found; set AV_USER_TABLE")
+                    raise HTTPException(500, "accounts schema unavailable")
                 user_table = candidates[0]
 
         cur.execute(f"DESCRIBE `{user_table}`")
@@ -75,14 +76,16 @@ def introspect_schema() -> dict[str, Any]:
         forced = config.user_column(env_key)
         if forced:
             if forced not in columns:
-                raise HTTPException(500, f"{env_key}='{forced}' absent from `{user_table}`")
+                log.error("%s='%s' absent from `%s`", env_key, forced, user_table)
+                raise HTTPException(500, "accounts schema unavailable")
             return forced
         for opt in options:
             if opt in columns:
                 return opt
         if optional:
             return None
-        raise HTTPException(500, f"Could not auto-detect column for {env_key} in `{user_table}`")
+        log.error("Could not auto-detect column for %s in `%s`", env_key, user_table)
+        raise HTTPException(500, "accounts schema unavailable")
 
     schema = {
         "user_table": user_table,
@@ -91,8 +94,6 @@ def introspect_schema() -> dict[str, Any]:
             "AV_USER_LOGIN_COL", ["login", "username", "user_name", "nickname", "nick"], optional=True
         ),
         "email_col": _pick("AV_USER_EMAIL_COL", ["email", "mail", "e_mail"], optional=True),
-        "hash_col": _pick("AV_USER_HASH_COL", ["password", "passwd", "password_hash", "hash", "pwd"]),
-        "salt_col": _pick("AV_USER_SALT_COL", ["salt", "password_salt", "user_salt"], optional=True),
         "name_col": _pick(
             "AV_USER_NAME_COL", ["name", "display_name", "full_name", "nickname", "nick", "login", "username"],
             optional=True,
@@ -120,48 +121,18 @@ def introspect_schema() -> dict[str, Any]:
 
 
 # ---------- user lookup ----------
-def lookup_user(identity: str) -> dict[str, Any] | None:
-    """Строка аккаунта по логину или почте (ключи — столбцы схемы) или None."""
-    schema = introspect_schema()
-    ident_cols = [schema["login_col"], schema["email_col"]]
-    ident_cols = [c for c in ident_cols if c]
-    if not ident_cols:
-        raise HTTPException(500, "Neither login nor email column detected on users table")
-
-    select_cols = ["id_col", "hash_col", "salt_col", "name_col", "login_col", "email_col",
-                   "avatar_col", "status_col", "handle_col"]
-    picked = {k: schema[k] for k in select_cols if schema.get(k)}
-    sql_cols = ", ".join(f"`{v}`" for v in picked.values())
-    where = " OR ".join([f"`{c}` = %s" for c in ident_cols])
-    params = [identity] * len(ident_cols)
-
-    with connect() as conn:
-        cur = conn.cursor()
-        cur.execute(f"SELECT {sql_cols} FROM `{schema['user_table']}` WHERE {where} LIMIT 1", params)
-        row = cur.fetchone()
-
-    if not row:
-        return None
-
-    out: dict[str, Any] = {}
-    for key, col in zip(picked.keys(), row):
-        out[key] = col
-    return out
-
-
 def resolve_handle(handle: str) -> dict[str, Any] | None:
-    """Превращает @alias или @profile{id} в запись пользователя.
-    Используется для публичного профиля. Возвращает serialize_user() или None."""
+    """@alias или @profile{id} — человек для открытого профиля (serialize_public) или None. Почту и логин не
+    выбирает: в открытый профиль они не попадают."""
     handle = (handle or "").strip().lstrip("@")
     if not handle:
         return None
 
     schema = introspect_schema()
-    select_cols = [
-        "id_col", "login_col", "email_col", "name_col", "avatar_col",
-        "handle_col", "status_col", "hash_col", "salt_col",
-    ]
+    select_cols = ["id_col", "name_col", "avatar_col", "handle_col", "status_col"]
     picked = {k: schema[k] for k in select_cols if schema.get(k)}
+    if picked.get("name_col") in (schema.get("login_col"), schema.get("email_col")):
+        picked.pop("name_col")  # «имя», найденное в столбце логина или почты, в открытый профиль не идёт
     sql_cols = ", ".join(f"`{v}`" for v in picked.values())
 
     # /@profile{id} — прямой резолв по user_id.
@@ -178,7 +149,7 @@ def resolve_handle(handle: str) -> dict[str, Any] | None:
             row = cur.fetchone()
         if not row:
             return None
-        return serialize_user(dict(zip(picked.keys(), row)))
+        return serialize_public(dict(zip(picked.keys(), row)))
 
     # /@alias — только если в схеме есть handle-колонка.
     if not schema.get("handle_col"):
@@ -193,7 +164,7 @@ def resolve_handle(handle: str) -> dict[str, Any] | None:
         row = cur.fetchone()
     if not row:
         return None
-    return serialize_user(dict(zip(picked.keys(), row)))
+    return serialize_public(dict(zip(picked.keys(), row)))
 
 
 def _handle_for(user_id: int, alias: str | None) -> str:
@@ -225,18 +196,20 @@ def serialize_user(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def is_banned(status_col_name: str | None, value: Any) -> bool:
-    """True when the user should be refused login. AnimeSocial's `Just_accounts`
-    uses a `banned` column where 1 = banned; other schemas may store
-    `status='banned'` or `is_active=0`. Env override: AV_USER_BANNED_VALUES
-    (comma-separated)."""
-    if value is None or not status_col_name:
-        return False
-    env = config.user_banned_values()
-    if env:
-        banned_set = {v.strip().lower() for v in env.split(",") if v.strip()}
-    elif status_col_name.lower() in ("banned", "blocked", "is_banned", "is_blocked"):
-        banned_set = {"1", "true", "yes", "on"}
-    else:
-        banned_set = {"0", "false", "no", "banned", "blocked", "disabled", "inactive"}
-    return str(value).strip().lower() in banned_set
+def serialize_public(row: dict[str, Any]) -> dict[str, Any]:
+    """Человек для открытого профиля: id, имя, alias, @handle, аватары и ссылки — без почты и логина. Имени нет —
+    вместо него handle (alias или profile{id}), никогда не почта и не логин."""
+    user_id = int(row["id_col"])
+    photo = row.get("avatar_col")
+    alias = row.get("handle_col")
+    handle = _handle_for(user_id, alias)
+    return {
+        "id": user_id,
+        "name": row.get("name_col") or handle,
+        "alias": alias if isinstance(alias, str) and alias else None,
+        "handle": handle,
+        "profile_path": f"/@{handle}",
+        "avatar": animesocial.avatar_url(user_id, photo, "medium"),
+        "avatar_small": animesocial.avatar_url(user_id, photo, "small"),
+        "profile_url": animesocial.profile_url(user_id),
+    }

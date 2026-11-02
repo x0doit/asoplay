@@ -239,8 +239,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   └── player_hosts.py     политика плееров: белый список хостов прокси, VK, неиграющие плееры
 │   ├── classes/
 │   │   ├── db.py               подключение к базе AnimeSocial: настройки, соединение, проверка для /health
-│   │   ├── accounts.py         аккаунты соцсети: схема таблицы, поиск, @handle, бан
-│   │   ├── passwords.py        проверка пароля по хешу: bcrypt, argon2, sha*, md5, DLE
+│   │   ├── accounts.py         аккаунты соцсети: схема таблицы, @handle, открытый профиль без почты и логина
 │   │   ├── as_api.py           клиент API v2 AnimeSocial
 │   │   ├── as_sessions.py      сессии соцсети у сессий AsoPlay (токены, обновление, выход); включён ли вход
 │   │   ├── as_realtime.py      соединение сервер–сервер с realtime AnimeSocial
@@ -839,8 +838,7 @@ Key capabilities:
 │   │   └── player_hosts.py     player policy: the proxy host list, VK, players that do not play
 │   ├── classes/
 │   │   ├── db.py               AnimeSocial DB connection: settings, connect, the /health probe
-│   │   ├── accounts.py         social network accounts: table layout, lookup, @handle, ban
-│   │   ├── passwords.py        password check against the stored hash: bcrypt, argon2, sha*, md5, DLE
+│   │   ├── accounts.py         social network accounts: table layout, @handle, public profile without e-mail or login
 │   │   ├── as_api.py           AnimeSocial API v2 client
 │   │   ├── as_sessions.py      social network sessions of AsoPlay sessions (tokens, refresh, logout); login on/off
 │   │   ├── as_realtime.py      server-to-server link with AnimeSocial realtime

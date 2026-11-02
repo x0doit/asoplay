@@ -269,6 +269,8 @@ function _loginErrorMessage(exc) {
   if (exc?.status === 401 || exc?.status === 422) return authConfig.as_login ? "Неправильная почта или пароль." : "Неправильный логин или пароль.";
   if (exc?.status === 403 && /password_login_disabled/.test(exc.message)) return "Вход по почте сейчас выключен.";
   if (exc?.status === 403) return "Аккаунт заблокирован.";
+  // Вход через соцсеть выключен на сервере — пароль AsoPlay сам не проверяет
+  if (exc?.status === 503 && /login_unavailable/.test(exc.message)) return "Вход временно недоступен.";
   if (exc?.status === 503) return `${socialSiteName()} не отвечает. Попробуйте войти чуть позже.`;
   if (exc?.status === 429) {
     const minutes = Math.max(1, Math.ceil((exc.retryAfter || 900) / 60));

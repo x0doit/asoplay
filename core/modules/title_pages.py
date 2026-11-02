@@ -27,31 +27,39 @@ from core.modules import title_cache, title_render
 router = APIRouter()
 
 
+def _unavailable() -> HTMLResponse:
+    """Общая оболочка с 503: база или каталог недоступны; текст сбоя наружу не идёт."""
+    shell = title_render.render_generic()
+    shell.status_code = 503
+    shell.headers["Retry-After"] = "30"
+    shell.headers["X-Robots-Tag"] = "noindex"
+    return shell
+
+
 # ---------- public routes ----------
 @router.get("/anime/{stub}/", response_class=HTMLResponse)
 @router.get("/anime/{stub}", response_class=HTMLResponse)
 async def canonical_title(stub: str):
-    """Страница тайтла /anime/{mal_id}-{slug}/. Нет в кеше — из каталога; каталог недоступен — общая оболочка
-    с 503, нет в MAL — заглушка 404; запись устарела — из кеша, обновление в фоне; slug не тот — 301 на
-    канонический адрес; скрыт панелью — 451 и noindex."""
+    """Страница тайтла /anime/{mal_id}-{slug}/. Нет в кеше — из каталога; база или каталог недоступны — общая
+    оболочка с 503 (подробность — в журнале), нет в MAL — заглушка 404; запись устарела — из кеша, обновление в фоне;
+    slug не тот — 301 на канонический адрес; скрыт панелью — 451 и noindex."""
     m = re.match(r"^(\d{1,9})(?:-([a-z0-9-]+))?$", stub)
     if not m:
         raise HTTPException(404, "bad anime path")
     mal_id = int(m.group(1))
     incoming_slug = m.group(2) or ""
 
-    info = title_cache.load_cached(mal_id)
+    try:
+        info = title_cache.load_cached(mal_id)
+    except HTTPException:
+        return _unavailable()
     if info is not None and title_cache.stale(info):
         title_cache.refresh_later(mal_id)
     if info is None:
         try:
             info = await title_cache.fetch_and_store(mal_id)
         except HTTPException:
-            shell = title_render.render_generic()
-            shell.status_code = 503
-            shell.headers["Retry-After"] = "30"
-            shell.headers["X-Robots-Tag"] = "noindex"
-            return shell
+            return _unavailable()
         if info is None:
             # ID нет ни в кеше, ни в MAL (например, уже удалён или это невалидный
             # id типа 2). Отдаём HTML-оболочку SPA со статусом 404 + noindex,
