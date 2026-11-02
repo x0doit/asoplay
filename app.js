@@ -3454,7 +3454,9 @@ class Player {
     playerUrl += playerVolume.fragment(frameHost);
     let iframe = c.querySelector("iframe");
     const hardenFrame = (node, sameOrigin = false) => {
-      node.allow = "autoplay; fullscreen; picture-in-picture; encrypted-media";
+      // Документ плеера за прокси — в CSP-песочнице без allow-same-origin, его адрес непрозрачный. Если прокси на другом
+      // адресе, чем страница (локально), разрешение без «*» с ним не совпадало и полного экрана в плеере не было
+      node.allow = "autoplay *; fullscreen *; picture-in-picture *; encrypted-media *";
       node.removeAttribute("allowfullscreen");
       node.referrerPolicy = "no-referrer";
       node.setAttribute("sandbox", `allow-scripts allow-presentation${sameOrigin ? " allow-same-origin" : ""}`);
