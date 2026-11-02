@@ -83,6 +83,19 @@ module.exports = {
     await frameColumns(page);
     await page.waitForTimeout(600);
     await shot(page, "chat-1280");
+    // «Наверх» не ложится на отправку: низ чата у нижнего края окна — кнопки не видно; чат закрыт — она вернулась
+    await page.evaluate(() => window.scrollBy(0, document.querySelector(".chat-panel").getBoundingClientRect().bottom - innerHeight));
+    await page.waitForTimeout(500);
+    const totop = await page.evaluate(() => {
+      const send = document.querySelector('.chat-compose button[aria-label="Отправить"]').getBoundingClientRect();
+      const hit = document.elementFromPoint(send.right - 4, send.top + send.height / 2);
+      return { scrollY: Math.round(scrollY), shown: document.querySelector("#toTop").classList.contains("show"), send: !!hit?.closest(".chat-compose") };
+    });
+    await shot(page, "chat-1280-bottom");
+    await page.click(".sp-chat__btn");
+    const back = await until(page, () => document.querySelector("#toTop").classList.contains("show"), null, 3000);
+    await check(page, "chat 1280: «Наверх» hides while it would cover the chat (the send button stays reachable) and comes back when the chat closes",
+      totop.scrollY > 400 && !totop.shown && totop.send && back, JSON.stringify({ ...totop, back }));
     await ctx.close();
   },
 

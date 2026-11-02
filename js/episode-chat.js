@@ -7,7 +7,8 @@
  *
  * Плеер (app.js) сообщает время видео (time), умеет ли он перематывать (setSeek) и смену серии (setEpisode). Данные —
  * js/chat-data.js, список — js/chat-view.js, действия — js/chat-actions.js, полоски — js/chat-strips.js, разметка
- * значка и панели — js/chat-panel.js.
+ * значка и панели — js/chat-panel.js. Открытие и закрытие объявляются событием av:chat на document: по нему
+ * кнопка «Наверх» (app.js) не ложится поверх чата.
  * Раскладка: от 1024 px чат стоит в колонке справа от плеера (на 1024–1311 колонка встаёт туда только с чатом),
  * уже — лист снизу под видео, без затемнения; страница под ним не прокручивается, поле держится над клавиатурой.
  * Число у значка живёт по живому соединению; после обрыва связи открытое окно перечитывается. Переключатель
@@ -118,6 +119,7 @@ export class EpisodeChat {
     this.strips.start();
     this._load();
     this._dates = setInterval(() => this.view.refreshDates(), 60_000);
+    document.dispatchEvent(new CustomEvent("av:chat", { detail: { open: true } }));
   }
 
   /** Закрыть: «Эпизоды» на месте, поверх видео ничего нет. */
@@ -136,6 +138,7 @@ export class EpisodeChat {
     this.actions.closeMenu();
     this.strips.stop();
     clearInterval(this._dates);
+    document.dispatchEvent(new CustomEvent("av:chat", { detail: { open: false } }));
   }
 
   /** Окно вокруг текущей минуты: загрузка, потом список или пусто; отказ — ошибка с «Повторить». force — по нажатию

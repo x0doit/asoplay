@@ -13,7 +13,7 @@ import * as account from "./js/account.js?v=20261102-chat1";
 import { setupNavigation, setActiveSection, SheetDrag } from "./js/navigation.js?v=20261030-live1";
 import * as images from "./js/images.js?v=20261031-img1";
 import * as realtime from "./js/realtime.js?v=20261102-chat1";
-import { EpisodeChat } from "./js/episode-chat.js?v=20261102-chat1";
+import { EpisodeChat } from "./js/episode-chat.js?v=20261103-totop1";
 import * as site from "./js/site.js?v=20261030-admin1";
 import { getTrailerId, bindTrailer } from "./js/trailer.js?v=20261029-eddas2";
 
@@ -3687,9 +3687,19 @@ function bind() {
   closeMobileMenu = setupNavigation({ nav });
 
   const toTop = $("#toTop");
-  window.addEventListener("scroll", () => {
-    if (toTop) toTop.classList.toggle("show", window.scrollY > 400);
-  });
+  // «Наверх» прячется, пока лежала бы поверх открытого чата серии: внизу чата «Войти» и отправка
+  const overChat = () => {
+    const chat = document.querySelector(".chat-panel:not([hidden])");
+    if (!chat) return false;
+    const a = chat.getBoundingClientRect(), b = toTop.getBoundingClientRect();
+    return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  };
+  const syncToTop = () => {
+    if (toTop) toTop.classList.toggle("show", window.scrollY > 400 && !overChat());
+  };
+  window.addEventListener("scroll", syncToTop);
+  window.addEventListener("resize", syncToTop);
+  document.addEventListener("av:chat", syncToTop);
   toTop?.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
 
   window.addEventListener("popstate", () => router());
