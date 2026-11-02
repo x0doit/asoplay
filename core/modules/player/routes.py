@@ -26,6 +26,7 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response, Streamin
 from core.classes import http_public
 from core.classes.adblock import engine as adblock
 from core.config import config
+from core.functions import site_settings
 from core.functions.player_hosts import is_disabled_player_url, proxy_url_refusal, vk_video_ref
 
 log = logging.getLogger("asoplay.player_proxy")
@@ -972,7 +973,8 @@ async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = 
                  referer: str | None = None) -> Response:
     if not _valid_http_url(url):
         raise HTTPException(400, "invalid player url")
-    if is_disabled_player_url(url):
+    # Выключенный вид плеера (панель) — и его запросы: старые вкладки с открытым кадром не гоняют их через сервер
+    if is_disabled_player_url(url) or site_settings.player_off(url):
         raise HTTPException(403, "player disabled")
     blocked, reason = adblock.should_block(url)
     if blocked:
@@ -1099,6 +1101,8 @@ def kodik_skin_css():
 
 @router.get("/frame")
 async def frame(request: Request, url: str = Query(..., min_length=8)):
+    if site_settings.player_off(url):
+        raise HTTPException(403, "player disabled")
     vk_ref = vk_video_ref(url)
     if vk_ref:
         return await _vk_frame(request, vk_ref)

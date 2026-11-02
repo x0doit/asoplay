@@ -10,7 +10,8 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
     главной, adult — 18+;
   - настройки (aviev_site_settings): notice — плашка на сайте, features — какие функции включены,
     sources — какие источники видео включены и в каком порядке, proxy_hosts — хосты, чьи картинки браузер
-    сразу берёт через /proxy/img (core/functions/image_hosts.py).
+    сразу берёт через /proxy/img (core/functions/image_hosts.py), players_off — выключенные виды плееров:
+    их озвучек нет в выборе, их кадры и запросы прокси — 403.
 
 Сайт спрашивает это на каждой странице, поэтому всё держится в памяти процесса: читается из базы при старте и
 меняется вместе с базой в момент правки из панели (бэкенд работает одним процессом). Вкладкам состояние уходит
@@ -27,7 +28,7 @@ from typing import Any, Callable
 
 from core.classes import as_sessions
 from core.classes.db import connect
-from core.functions import image_hosts
+from core.functions import image_hosts, player_hosts
 
 log = logging.getLogger("asoplay.site_settings")
 
@@ -65,6 +66,9 @@ class Settings:
     features: dict[str, bool] = field(default_factory=lambda: {"comments": True, "password_login": True, "as_login": True})
     sources: tuple[dict[str, Any], ...] = ()
     proxy_hosts: tuple[dict[str, str], ...] = ()  # [{host, via}]; пусто, пока панель не сохранила список
+    # Выключенные виды плееров (player_hosts.PLAYER_KINDS). Пока панель не сохранила — Alloha: его API не отвечает
+    # адресам серверов (02.11), а AsoPlay всегда на сервере
+    players_off: tuple[str, ...] = ("alloha",)
 
 
 class _State:
@@ -94,6 +98,8 @@ class _State:
         features = stored.get("features") if isinstance(stored.get("features"), dict) else {}
         sources = stored.get("sources") if isinstance(stored.get("sources"), list) else []
         proxy_hosts = stored.get("proxy_hosts") if isinstance(stored.get("proxy_hosts"), list) else []
+        players_off = (tuple(dict.fromkeys(k for k in stored["players_off"] if k in player_hosts.PLAYER_KINDS))
+                       if isinstance(stored.get("players_off"), list) else defaults.players_off)
         with self._lock:
             self.flags = Flags(
                 hidden=frozenset(int(r[0]) for r in rows if r[1]),
@@ -106,6 +112,7 @@ class _State:
                 features={k: bool(features.get(k, v)) for k, v in defaults.features.items()},
                 sources=tuple(s for s in sources if isinstance(s, dict) and s.get("id") in SOURCE_NAMES),
                 proxy_hosts=tuple(image_hosts.parse_proxy_hosts(proxy_hosts, strict=False)),
+                players_off=players_off,
             )
 
 
@@ -198,6 +205,11 @@ def source_enabled(source: str) -> bool:
     if source not in SOURCE_NAMES:
         return True
     return source in source_order()
+
+
+def player_off(url: str) -> bool:
+    """Адрес кадра или запроса плеера выключенного вида (players_off)."""
+    return player_hosts.player_kind(url) in state.settings.players_off
 
 
 def proxy_hosts() -> list[str]:

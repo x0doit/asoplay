@@ -1,6 +1,6 @@
 """
-Настройки сайта из панели: источники, способы входа, объявление, хосты картинок через прокси; сохраняется только
-изменённое, вкладки узнают сразу.
+Настройки сайта из панели: источники, способы входа, объявление, хосты картинок через прокси, выключенные виды
+плееров; сохраняется только изменённое, вкладки узнают сразу.
 
 Автор: Чепела Даниил Максимович.
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
@@ -50,6 +50,7 @@ class SettingsTests(PanelCase):
                 features=self.stored.get("features", current.features),
                 sources=tuple(self.stored.get("sources", ())),
                 proxy_hosts=tuple(self.stored.get("proxy_hosts", ())),
+                players_off=tuple(self.stored.get("players_off", current.players_off)),
             )
         site_settings.state.load = load
         original = self.cursor.execute
@@ -65,7 +66,9 @@ class SettingsTests(PanelCase):
             data = self.panel.call("GET", "/api/admin/settings").json()["data"]
         self.assertEqual([s["id"] for s in data["sources"]][:3], ["yummy_anime", "oldyummy", "animego"])
         self.assertEqual(data["sources"][0], {"id": "yummy_anime", "name": "YummyAnime", "enabled": True, "order": 1})
-        self.assertEqual(data["available"], {"as_login": False, "password_login": True, "comments": False, "vpn": True})
+        self.assertEqual(data["available"], {"as_login": False, "password_login": True, "comments": False, "vpn": True,
+                                             "players": ["alloha", "kodik", "cvh", "sibnet", "vk"]})
+        self.assertEqual(data["players_off"], ["alloha"])  # пока панель не сохранила: Alloha не пускает серверы
         self.assertEqual(data["notice"], {"text": "", "until": None})
         self.assertEqual(data["proxy_hosts"], [])
 
@@ -86,6 +89,19 @@ class SettingsTests(PanelCase):
              "changed": [{"host": "img.example.com", "via": "vpn", "was": "site"}], "omitted": 0},
         ])
         self.assertEqual(site_settings.proxy_via("cdn.img.example.com"), "vpn")
+
+    def test_players_are_switched_off_by_kind_and_audited_as_players(self):
+        resp = self.panel.call("PUT", "/api/admin/settings", {"players_off": ["alloha", "nope"]})
+        self.assertEqual((resp.status_code, resp.json()["error"]["code"]), (422, "unknown_player"))
+        self.assertEqual(self.panel.call("PUT", "/api/admin/settings", {"players_off": []}).status_code, 200)
+        self.assertFalse(site_settings.player_off("https://alloha.yani.tv/?token_movie=1"))  # включён обратно
+        self.panel.call("PUT", "/api/admin/settings", {"players_off": ["vk", "alloha", "vk"]})
+        self.assertEqual(self.stored["players_off"], ["vk", "alloha"])
+        self.assertTrue(site_settings.player_off("https://x.vkvideo.cloud/0/a.m3u8"))  # и потоки вида
+        audit = [(params[1], json.loads(params[3])) for _, params in self.cursor.sql("INSERT INTO aviev_admin_audit")]
+        self.assertEqual(audit, [("settings.players", {"added": [], "removed": ["alloha"]}),
+                                 ("settings.players", {"added": ["vk", "alloha"], "removed": []})])
+        self.assertEqual(self.announced, [{"players_off"}, {"players_off"}])
 
     def test_a_wrong_host_is_refused_with_its_own_text(self):
         for bad in ("https://img.example.com", "img.example.com/x", "img.example.com:8080", "127.0.0.1", "[::1]",

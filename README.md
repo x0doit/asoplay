@@ -218,7 +218,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── friends.py          друзья из AnimeSocial: id с кешем, люди, статусы, вызовы соцсети от имени человека
 │   │   ├── realtime.py         хаб живых соединений: вкладки, кадры, фон; realtime_presence.py — присутствие
 │   │   │                       друзьям, realtime_social.py — события соцсети и состояние сервера
-│   │   ├── site_settings.py    что решила панель: пометки тайтлов, плашка, функции, источники, хосты картинок
+│   │   ├── site_settings.py    что решила панель: пометки тайтлов, плашка, функции, источники, хосты картинок,
+│   │   │                       выключенные виды плееров
 │   │   ├── image_hosts.py      хосты /proxy/img: каталога и из панели, правило имени, проверка адреса
 │   │   ├── public_suffix.py    общие суффиксы (Public Suffix List): ни их, ни их родителей нельзя внести в список панели
 │   │   ├── video_reports.py    жалобы «Не работает»: причины, статусы, очистка текста — для раздела и панели
@@ -815,7 +816,8 @@ Key capabilities:
 │   │   ├── friends.py          friends from AnimeSocial: cached ids, people, statuses, calls on a person's behalf
 │   │   ├── realtime.py         the live connection hub: tabs, frames, background; realtime_presence.py —
 │   │   │                       presence to friends, realtime_social.py — social events and server status
-│   │   ├── site_settings.py    what the panel decided: title flags, notice, features, sources, image hosts
+│   │   ├── site_settings.py    what the panel decided: title flags, notice, features, sources, image hosts,
+│   │   │                       player kinds switched off
 │   │   ├── image_hosts.py      /proxy/img hosts: the catalog's and the panel's, the name rule, the address check
 │   │   ├── public_suffix.py    public suffixes (Public Suffix List): the panel's list takes neither them nor their parents
 │   │   ├── video_reports.py    «Не работает» reports: kinds, statuses, text cleanup — for the section and the panel

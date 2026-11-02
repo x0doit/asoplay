@@ -21,7 +21,7 @@ from core.classes import as_sessions
 from core.classes.clock import utc_now
 from core.classes.db import connect
 from core.classes.vpn import bridge as vpn_bridge
-from core.functions import image_hosts, site_settings, video_reports
+from core.functions import image_hosts, player_hosts, site_settings, video_reports
 
 router = APIRouter()
 
@@ -63,6 +63,7 @@ class SettingsIn(BaseModel):
     features: FeaturesIn | None = None
     sources: list[SourceIn] | None = Field(default=None, max_length=50)
     proxy_hosts: list[ProxyHostIn] | None = Field(default=None, max_length=image_hosts.PROXY_HOSTS_MAX)
+    players_off: list[str] | None = Field(default=None, max_length=len(player_hosts.PLAYER_KINDS))
 
 
 def _settings_view() -> dict[str, Any]:
@@ -73,11 +74,12 @@ def _settings_view() -> dict[str, Any]:
         "features": dict(current.features),
         "sources": site_settings.sources_view(),
         "proxy_hosts": [dict(item) for item in current.proxy_hosts],
+        "players_off": list(current.players_off),
         # Что можно включить: вход через Anime Social — только при ключах клиента в .env AsoPlay,
         # комментариев на AsoPlay пока нет
         # vpn — работает ли VPN-мост на сервере сейчас (via "vpn" без него идёт напрямую)
         "available": {"as_login": as_sessions.enabled(), "password_login": True, "comments": False,
-                      "vpn": vpn_bridge.is_active()},
+                      "vpn": vpn_bridge.is_active(), "players": list(player_hosts.PLAYER_KINDS)},
     }
 
 
@@ -142,6 +144,13 @@ def settings_put(body: SettingsIn, admin: int = Depends(admin_user)) -> dict[str
             raise AdminError(422, "invalid_host", f"Неверный хост: {exc.args[0]}{why}") from exc
         if proxy_hosts != list(current.proxy_hosts):
             changes["proxy_hosts"] = proxy_hosts
+    if body.players_off is not None:
+        unknown = sorted(set(body.players_off) - set(player_hosts.PLAYER_KINDS))
+        if unknown:
+            raise AdminError(422, "unknown_player", "Нет таких плееров: " + ", ".join(unknown))
+        players_off = list(dict.fromkeys(body.players_off))
+        if players_off != list(current.players_off):
+            changes["players_off"] = players_off
     if not changes:
         return ok(_settings_view())
     now = utc_now()
@@ -153,8 +162,14 @@ def settings_put(body: SettingsIn, admin: int = Depends(admin_user)) -> dict[str
                    ON DUPLICATE KEY UPDATE value = VALUES(value), updated_by = VALUES(updated_by), updated_at = VALUES(updated_at)""",
                 (name, json.dumps(value, ensure_ascii=False), admin, now),
             )
-        # Как показывает панель: settings.notice | settings.features | settings.sources | settings.proxy_hosts
+        # Как показывает панель: settings.notice | settings.features | settings.sources | settings.proxy_hosts |
+        # settings.players (выключенные виды плееров: added — выключены, removed — включены)
         for name, value in changes.items():
+            if name == "players_off":
+                details = {"added": [k for k in value if k not in current.players_off],
+                           "removed": [k for k in current.players_off if k not in value]}
+                audit(cur, admin, "settings.players", "settings:players", details)
+                continue
             details = _proxy_hosts_diff(current.proxy_hosts, value) if name == "proxy_hosts" else {name: value}
             audit(cur, admin, f"settings.{name}", f"settings:{name}", details)
         conn.commit()

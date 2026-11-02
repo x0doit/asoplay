@@ -41,6 +41,32 @@ PROXY_HOSTS = (
 )
 
 
+# Вид плеера по хосту (и пути у CVH): по нему плееры выключаются из панели (site_settings.players_off) и считаются
+# их отказы. Хосты вида — и сам плеер, и его потоки: у выключенного вида прокси не ходит ни туда, ни туда
+PLAYER_KINDS = ("alloha", "kodik", "cvh", "sibnet", "vk")
+_KIND_HOSTS = {
+    # cdn.plyr.io — общая библиотека; сейчас её берёт только Alloha. Возьмёт другой плеер — вынести из вида alloha
+    "alloha": ("alloha.yani.tv", "vkvideo.cloud", "cdn.plyr.io"),
+    "kodik": ("kodikplayer.com", "kodikres.com", "solodcdn.com"),
+    "cvh": ("cdnvideohub.com",),
+    "sibnet": ("sibnet.ru",),
+}
+
+
+def player_kind(url: str) -> str | None:
+    """Вид плеера по адресу его кадра или запроса: alloha, kodik, cvh, sibnet, vk; чужой адрес — None."""
+    try:
+        _, host, path = _split(url)
+    except ValueError:
+        return None
+    if path.endswith("/iframecvh.html"):
+        return "cvh"
+    if _is_vk_host(host) or path.rsplit("/", 1)[-1] in _VK_WRAPPER_NAMES:
+        return "vk"
+    return next((kind for kind, domains in _KIND_HOSTS.items()
+                 if any(host == domain or host.endswith("." + domain) for domain in domains)), None)
+
+
 def _split(url: str):
     """Адрес → (разобранный адрес, хост строчными без точки в конце, путь без %-кодов строчными без / в конце)."""
     parsed = urlsplit((url or "").strip())

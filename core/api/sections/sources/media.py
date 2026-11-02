@@ -15,7 +15,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from core.functions import native_sources, source_filters, sources
+from core.functions import native_sources, site_settings, source_filters, sources
 from core.functions.player_hosts import iframe_preference_score, is_disabled_player_url
 
 log = logging.getLogger("asoplay")  # тот же журнал, что у core.py до деления
@@ -133,7 +133,8 @@ async def videos(key: str, source: str = "anilibria"):
 
         async def fetch_one(s):
             """Видео одной озвучки за 8 секунд; выключенный плеер или ошибка — пусто."""
-            if is_disabled_player_url(getattr(s, "url", None) or ""):
+            player_url = getattr(s, "url", None) or ""
+            if is_disabled_player_url(player_url) or site_settings.player_off(player_url):
                 return []
             async with sem:
                 try:

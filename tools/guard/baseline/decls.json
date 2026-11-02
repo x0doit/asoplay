@@ -661,6 +661,9 @@
  "PLAYER_DIR": [
   "= 525c827940ab"
  ],
+ "PLAYER_KINDS": [
+  "= bee26b69819f"
+ ],
  "PLAYER_MAX_TEXT_REWRITE": [
   "= 1f132d14ed70"
  ],
@@ -989,6 +992,9 @@
  "Settings.notice": [
   "dict[str, Any] = 5cf6b9898c7f"
  ],
+ "Settings.players_off": [
+  "tuple[str, ...] = 7e4e25bbf0bd"
+ ],
  "Settings.proxy_hosts": [
   "tuple[dict[str, str], ...] = f9065fa73897"
  ],
@@ -1013,6 +1019,9 @@
  ],
  "SettingsIn.notice": [
   "NoticeIn | None = 6eef6648406c"
+ ],
+ "SettingsIn.players_off": [
+  "list[str] | None = 55d5c52344ce"
  ],
  "SettingsIn.proxy_hosts": [
   "list[ProxyHostIn] | None = f3703de764cd"
@@ -1410,6 +1419,9 @@
  ],
  "_JS_DIR": [
   "= c43aeeb3b05d"
+ ],
+ "_KIND_HOSTS": [
+  "= 970142ede466"
  ],
  "_KODIK_SKIN_CSS": [
   "= 53e0d154c4cd"
@@ -3072,8 +3084,14 @@
  "player_document": [
   "@router.get('/documents/{scheme}/{host}/{path:path}') async def(request: Request, scheme: str, host: str, path: str)"
  ],
+ "player_kind": [
+  "def(url: str) -> str | None"
+ ],
  "player_module": [
   "@router.get('/modules/{scheme}/{host}/{path:path}') async def(request: Request, scheme: str, host: str, path: str)"
+ ],
+ "player_off": [
+  "def(url: str) -> bool"
  ],
  "player_sources": [
   "def() -> list[str]"
