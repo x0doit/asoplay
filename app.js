@@ -2670,6 +2670,7 @@ class Player {
     this._autoFired = false;
     this._playStartedAt = 0;
     this._sawPlaybackSignal = false;
+    this._playheadMin = 0;
     this._onMessage = (e) => {
       if (this.destroyed) return;
       const iframe = this._iframeEl;
@@ -2709,6 +2710,7 @@ class Player {
         if (n != null) {
           this._lastTime = n;
           if (n > 0) this._sawPlaybackSignal = true;
+          if (n > 0 && (!this._playheadMin || n < this._playheadMin)) this._playheadMin = n;
           const epNum = this.episodes[this.currentEp]?.num;
           const secs = Math.floor(n);
           const dur = Math.floor(this._duration || 0);
@@ -2736,13 +2738,16 @@ class Player {
     if (this._autoFired || this.destroyed) return;
     if (!state.autoNext) return;
     if (this.currentEp >= this.episodes.length - 1) return;
-    const elapsedMs = Date.now() - (this._playStartedAt || 0);
-    if (elapsedMs < 60_000) return;
     // Some embedded players emit broad "complete" messages before the actual
     // media end. If we still know the playhead is behind the duration, do not
     // skip the final seconds.
     if (this._duration > 30 && this._lastTime > 0 && this._lastTime < this._duration - 1) return;
-    if (kind === "ended" && this._duration > 30 && elapsedMs < this._duration * 500) return;
+    // A playhead that reached the end from earlier in this episode is a real
+    // end: watched through, started mid-episode, rewound or seeked there. Only
+    // a bare end signal waits for the clock: a minute and half the episode.
+    const played = this._duration > 30 && this._lastTime - this._playheadMin >= 3;
+    const elapsedMs = Date.now() - (this._playStartedAt || 0);
+    if (!played && (elapsedMs < 60_000 || (this._duration > 30 && elapsedMs < this._duration * 500))) return;
     this._autoFired = true;
     this.playEpisode(this.currentEp + 1);
   }
@@ -3224,6 +3229,7 @@ class Player {
     this._duration = 0;
     this._playStartedAt = Date.now();
     this._sawPlaybackSignal = false;
+    this._playheadMin = 0;
     this._lastCompleteSignalEp = null;
     this._armFallback();
     $$("#avEpisodesList .ep-row").forEach((b, idx) => b.classList.toggle("active", idx === i));
