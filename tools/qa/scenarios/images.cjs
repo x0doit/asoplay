@@ -7,7 +7,12 @@
  *
  * Автор: Чепела Даниил Максимович.
  */
+const { execFileSync } = require("child_process");
+const fs = require("fs");
 const http = require("http");
+const https = require("https");
+const os = require("os");
+const path = require("path");
 const { SITE, check, shot, settle } = require("../lib.cjs");
 
 const MAL = /^https:\/\/cdn\.myanimelist\.net\//;
@@ -32,13 +37,27 @@ async function liveStatus(page, site = {}) {
 }
 
 // Свой хост картинок на localhost: /drip.jpg отдаёт настоящую обложку по капле (начало — сразу, дальше по килобайту
-// раз в полсекунды), /hang.jpg не отвечает вовсе. Страница видит его как http://drip.example на обычном порту
-// (свой порт сервер не примет — такой адрес на прокси не идёт вовсе), а Playwright ведёт запросы сюда
+// раз в полсекунды), /hang.jpg не отвечает вовсе. Страница видит его как drip.example на обычном порту (свой порт
+// сервер не примет — такой адрес на прокси не идёт вовсе), а Playwright ведёт запросы сюда. Схема — как у страницы:
+// http-картинку на https-странице Chrome сам переводит на https, и подмена её бы не поймала. Для https — одноразовый
+// самоподписанный сертификат (openssl), контекст проверки принимает его (ignoreHTTPSErrors)
+function dripCert() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "asoplay-qa-drip-"));
+  try {
+    execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", "/CN=drip.example",
+      "-keyout", path.join(dir, "key.pem"), "-out", path.join(dir, "cert.pem")], { stdio: "ignore" });
+    return { key: fs.readFileSync(path.join(dir, "key.pem")), cert: fs.readFileSync(path.join(dir, "cert.pem")) };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 async function dripHost() {
   const cover = Buffer.from(await (await fetch(SITE + "/proxy/img?url="
     + encodeURIComponent("https://cdn.myanimelist.net/images/anime/1223/96541.jpg"))).arrayBuffer());
+  const scheme = new URL(SITE).protocol;
   const sockets = new Set(), timers = new Set();
-  const server = http.createServer((req, res) => {
+  const serve = (req, res) => {
     if (req.url !== "/drip.jpg") return;  // /hang.jpg — ни байта
     res.writeHead(200, { "content-type": "image/jpeg", "content-length": cover.length });
     let sentBytes = Math.min(4096, cover.length);
@@ -49,12 +68,13 @@ async function dripHost() {
       if (sentBytes >= cover.length) { clearInterval(timer); res.end(); }
     }, 500);
     timers.add(timer);
-  });
+  };
+  const server = scheme === "https:" ? https.createServer(dripCert(), serve) : http.createServer(serve);
   server.on("connection", socket => { sockets.add(socket); socket.on("close", () => sockets.delete(socket)); });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   return {
-    url: "http://drip.example",
-    real: `http://127.0.0.1:${server.address().port}`,
+    url: `${scheme}//drip.example`,
+    real: `${scheme}//127.0.0.1:${server.address().port}`,
     stop: () => { timers.forEach(clearInterval); sockets.forEach(s => s.destroy()); server.close(); },
   };
 }
@@ -139,10 +159,14 @@ module.exports = {
     // сервер не примет (свой порт), — только напрямую
     const health = await (await fetch(SITE + "/health")).json();
     const host = await dripHost();
-    const thin = await browser.newContext({ viewport: { width: 1280, height: 860 }, locale: "ru-RU" });
+    const thin = await browser.newContext({ viewport: { width: 1280, height: 860 }, locale: "ru-RU",
+      ignoreHTTPSErrors: true });
+    // Против прода страница публичная, а хост картинок — на 127.0.0.1: такие запросы Chrome без разрешения обрывает
+    // (Local Network Access, net::ERR_FAILED). Локально страница сама на 127.0.0.1, разрешение не нужно
+    await thin.grantPermissions(["local-network-access"]).catch(() => {});
     const line = await thin.newPage();
     await liveStatus(line, { img_hosts: [...health.site.img_hosts, "drip.example"] });
-    await line.route(/^http:\/\/drip\.example\//, route => route.continue({ url: route.request().url()
+    await line.route(/^https?:\/\/drip\.example\//, route => route.continue({ url: route.request().url()
       .replace(host.url, host.real) }));
     const odd = "https://cdn.myanimelist.net:8443/images/anime/1/1.jpg";
     await line.route(/\/proxy\/jikan\//, async route => {
