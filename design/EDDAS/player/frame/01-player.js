@@ -18,6 +18,8 @@
   const qualityMenu = document.getElementById("av-quality-menu");
   const fullscreen = document.getElementById("av-fullscreen");
   const sources = @@sources_json@@;
+  // Адреса страниц AsoPlay (их ставит сервер): перемотку и полный экран кадр принимает только от страницы с таким адресом
+  const pageOrigins = @@page_origins@@;
   if (@@hls_only@@ && !video.canPlayType("application/vnd.apple.mpegurl")) {
     const note = document.getElementById("av-note");
     note.textContent = "Этот браузер не воспроизводит такой поток. Откройте серию в Chrome, Edge или Safari.";

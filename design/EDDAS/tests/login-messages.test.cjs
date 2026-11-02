@@ -15,7 +15,8 @@ const { join } = require('node:path');
 const vm = require('node:vm');
 
 const source = readFileSync(join(__dirname, '../../../js/account.js'), 'utf8');
-const body = source.match(/function _loginErrorMessage\(exc\) \{[\s\S]*?\n\}\n/)[0];
+// \r?\n: на Windows с core.autocrlf файл выгружается с CRLF
+const body = source.match(/function _loginErrorMessage\(exc\) \{[\s\S]*?\r?\n\}\r?\n/)[0];
 const context = {
   authConfig: { as_login: true },
   socialSiteName: () => 'Anime Social',

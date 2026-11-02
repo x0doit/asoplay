@@ -64,6 +64,9 @@ module.exports = {
       const epsMax = await page.$eval("#avEpisodesList", el => Math.round(parseFloat(getComputedStyle(el).maxHeight)));
       await check(page, `phone ${theme}: episode list stays under half the screen`, epsMax <= Math.round(844 * 0.52) + 1, `max-height ${epsMax}`);
       await shot(page, `phone-${theme}-player`);
+      // Озвучки грузятся с источника: нажимать, когда кнопка уже знает озвучку (под нагрузкой прогона это дольше 1,2 с)
+      await page.waitForFunction(() => (document.querySelector("#avDubTrigger .sp-dub-label")?.textContent || "").trim() !== "Озвучка",
+        null, { timeout: 15000 }).catch(() => {});
       await page.tap("#avDubTrigger"); await page.waitForTimeout(500);
       await check(page, `phone ${theme}: dub sheet opens`, await page.isVisible(".sp-dub-panel"));
       await shot(page, `phone-${theme}-dub-sheet`);

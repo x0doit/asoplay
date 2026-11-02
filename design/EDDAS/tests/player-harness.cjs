@@ -25,6 +25,10 @@ function harness(api = {}, globals = {}) {
       return nodes.get(selector);
     },
     $$: () => [],
+    // Чат серии (js/episode-chat.js) создаётся при показе серии — в песочнице он пустой
+    EpisodeChat: class { setSeek() {} setEpisode() {} show() {} time() {} destroy() {} },
+    account: {}, realtime: {}, SheetDrag: {}, BACKEND: '',
+    document: { addEventListener() {}, removeEventListener() {} },
     ...globals,
   });
   vm.runInContext(playerSource + '\nglobalThis.Player = Player;\nglobalThis.playerVolume = playerVolume;', context);

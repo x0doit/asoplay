@@ -154,17 +154,32 @@
   seek.addEventListener("pointerdown", () => { seeking = true; });
   seek.addEventListener("pointerup", () => { seeking = false; syncProgress(); });
   seek.addEventListener("change", () => { seeking = false; syncProgress(); });
-  fullscreen.addEventListener("click", () => {
+  // Во весь экран раскрывает страница — свой контейнер вместе с полосками чата серии. Не смогла (браузер не передал ей
+  // нажатие) или молчит 600 мс (вкладка со старым кодом) — кадр раскрывается сам; на iPhone — родной режим видео.
+  // Раскрыта ли страница, видно и по размеру кадра: ответ страницы может не пройти проверку адреса
+  let pageFullscreen = false;
+  let askTimer = 0;
+  const screenSized = () => Math.abs(innerWidth - screen.width) < 8 && Math.abs(innerHeight - screen.height) < 8;
+  const ownFullscreen = () => {
+    const root = document.documentElement;
+    if (!document.fullscreenElement && root.requestFullscreen) root.requestFullscreen().catch(() => {});
+  };
+  const toggleFullscreen = () => {
     const root = document.documentElement;
     if (document.fullscreenElement) {
       document.exitFullscreen && document.exitFullscreen();
-    } else if (root.requestFullscreen) {
-      root.requestFullscreen().catch(() => {});
-    } else if (video.webkitEnterFullscreen) {
+    } else if (!root.requestFullscreen && video.webkitEnterFullscreen) {
       video.webkitEnterFullscreen();
+    } else {
+      const leaving = pageFullscreen || screenSized();
+      try { parent.postMessage({ type: "asoplay:fullscreen" }, "*"); } catch (_) {}
+      clearTimeout(askTimer);
+      if (!leaving) askTimer = setTimeout(() => { if (!screenSized()) ownFullscreen(); }, 600);
     }
     showControls();
-  });
+  };
+  fullscreen.addEventListener("click", toggleFullscreen);
+  video.addEventListener("dblclick", toggleFullscreen);
   document.addEventListener("mousemove", showControls, true);
   document.addEventListener("pointermove", showControls, true);
   document.addEventListener("focusin", showControls, true);
@@ -179,7 +194,19 @@
   }, true);
   window.addEventListener("message", (event) => {
     const data = event && event.data;
-    if (data && typeof data === "object" && data.type === "asoplay:capture-screenshot") captureScreenshot();
+    if (!data || typeof data !== "object") return;
+    if (data.type === "asoplay:capture-screenshot") { captureScreenshot(); return; }
+    if (event.source !== window.parent || !Array.isArray(pageOrigins) || !pageOrigins.includes(event.origin)) return;
+    if (data.type === "asoplay:seek" && Number.isFinite(data.time) && data.time >= 0) {
+      const duration = Number.isFinite(video.duration) ? video.duration : 0;
+      try { video.currentTime = duration > 0 ? Math.min(data.time, Math.max(0, duration - 1)) : data.time; } catch (_) {}
+      syncProgress();
+      showControls();
+    } else if (data.type === "asoplay:fullscreen-state") {
+      pageFullscreen = data.on === true;
+      clearTimeout(askTimer);
+      if (data.failed === true) ownFullscreen();
+    }
   });
   video.addEventListener("loadedmetadata", sendTime);
   video.addEventListener("durationchange", sendTime);
@@ -195,6 +222,8 @@
   video.addEventListener("ended", () => send("kodik_player_video_ended"));
   video.addEventListener("error", () => { showStart(); document.body.classList.remove("controls-hidden"); });
   setInterval(sendTime, 1000);
+  // Странице: этот плеер умеет перематывать — минуты в чате серии становятся кнопками
+  try { parent.postMessage({ type: "asoplay:frame-ready", seek: true }, "*"); } catch (_) {}
   try { video.load(); } catch (_) {}
   syncToggle();
   syncProgress();

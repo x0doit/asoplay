@@ -1437,7 +1437,7 @@
   "= 4bd953ce9154"
  ],
  "_FRAME_PAGE": [
-  "= 5ec23ffb06f5"
+  "= 44f369365cac"
  ],
  "_FRAME_SANDBOX": [
   "= 708cdc188489"
@@ -1800,7 +1800,7 @@
   "def(days: int | None) -> int"
  ],
  "_clean_video_frame": [
-  "def(source_url: str, base_url: str, poster_url: str='', *, element_id: str='av-clean-video', sources: list[dict[str, str]] | None=None) -> Response"
+  "def(source_url: str, base_url: str, poster_url: str='', *, element_id: str='av-clean-video', sources: list[dict[str, str]] | None=None, page_origins: list[str] | None=None) -> Response"
  ],
  "_cleaning": [
   "= 97cdbdc7feff"
@@ -2067,6 +2067,9 @@
  "_page": [
   "def(items: list, page: int, limit: int, has_next: bool) -> dict",
   "def(items: list[dict[str, Any]], key: str='id') -> dict[str, Any]"
+ ],
+ "_page_origins": [
+  "def(request: Request) -> list[str]"
  ],
  "_parents": [
   "@lru_cache(maxsize=1) def(rules: tuple[frozenset[str], frozenset[str], frozenset[str]]) -> frozenset[str]"

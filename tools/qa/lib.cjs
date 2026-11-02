@@ -98,8 +98,6 @@ const STATUS = { ok: true, sources: [], vpn: false };  // запуск допи�
 // QA-FLAKY-1 (после шага 5 рефакторинга): плеер под нагрузкой ждёт по времени, а не признака готовности (CODEX)
 const KNOWN_FLAKY = new Map([
   ["dub choice changes the label and closes the menu", "QA-FLAKY-1"],
-  ["landscape 844: player head and video fit between the bars", "QA-FLAKY-1"],
-  ["landscape 740: player head and video fit between the bars", "QA-FLAKY-1"],
 ]);
 
 async function check(page, name, cond, detail = "") {

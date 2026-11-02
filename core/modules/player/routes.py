@@ -72,7 +72,8 @@ def _fill(template: str, **values: str) -> str:
     return _SLOT.sub(lambda m: values[m.group(1)], template)
 
 
-_FRAME_PAGE = _template("frame.html", {"safe_id", "proxied_src", "poster_attr", "sources_json", "hls_only"},
+_FRAME_PAGE = _template("frame.html", {"safe_id", "proxied_src", "poster_attr", "sources_json", "hls_only",
+                                      "page_origins"},
                         frame_js=("frame/01-player.js", "frame/02-controls.js"))
 _BRIDGE_PAGE = _template("bridge.html", {"kodik_skin", "base_js", "is_kodik_js", "is_alloha_js", "proxy_version"},
                          bridge_js=("bridge/01-shield.js", "bridge/02-urls.js", "bridge/03-network.js",
@@ -419,6 +420,14 @@ def _site_origin(request: Request) -> str:
     return f"{proto}://{host}" if proto in {"http", "https"} and _HOST_HEADER_RE.fullmatch(host) else ""
 
 
+def _page_origins(request: Request) -> list[str]:
+    """Адреса страниц сайта, от которых кадр плеера принимает перемотку и полный экран: сайт, каким его видит браузер,
+    AV_SITE_URL и AV_ALLOWED_ORIGINS — как у живого соединения. Кадр может прийти с другого адреса, чем страница
+    (локально страница 127.0.0.1, кадр — localhost), поэтому одного адреса запроса мало."""
+    found = [_site_origin(request), config.SITE_URL, *(o for o in config.ALLOWED_ORIGINS if o != "*")]
+    return list(dict.fromkeys(o.rstrip("/") for o in found if o))
+
+
 def _response_headers(upstream: httpx.Response, *, html_frame: bool = False, origin: str = "") -> dict[str, str]:
     headers: dict[str, str] = {
         "Access-Control-Allow-Origin": "*",
@@ -667,6 +676,7 @@ def _clean_video_frame(
     *,
     element_id: str = "av-clean-video",
     sources: list[dict[str, str]] | None = None,
+    page_origins: list[str] | None = None,
 ) -> Response:
     source_items: list[dict[str, str]] = []
     seen_urls: set[str] = set()
@@ -690,8 +700,10 @@ def _clean_video_frame(
     proxied_poster = html.escape(_proxy_url(poster_url, base_url), quote=True) if poster_url else ""
     poster_attr = f' poster="{proxied_poster}"' if proxied_poster else ""
     sources_json = json.dumps(source_items, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    # Адреса страниц сайта: только от них кадр принимает перемотку и полный экран (чат серии)
+    origins_json = json.dumps(page_origins or []).replace("</", "<\\/")
     body = _fill(_FRAME_PAGE, safe_id=safe_id, proxied_src=proxied_src, poster_attr=poster_attr,
-                 sources_json=sources_json, hls_only="true" if hls_only else "false")
+                 sources_json=sources_json, hls_only="true" if hls_only else "false", page_origins=origins_json)
     headers = {
         "Cache-Control": "no-store",
         "Content-Security-Policy": (
@@ -775,6 +787,7 @@ async def _cvh_frame(request: Request, iframe_url: str) -> Response:
         poster_url,
         element_id="av-cvh-video",
         sources=source_items,
+        page_origins=_page_origins(request),
     )
 
 
@@ -827,7 +840,8 @@ async def _sibnet_frame(request: Request, iframe_url: str) -> Response:
     ), text)
     source_url = urljoin(str(frame_resp.url), source_url)
     poster_url = urljoin(str(frame_resp.url), poster_url) if poster_url else ""
-    return _clean_video_frame(source_url, str(frame_resp.url), poster_url, element_id="av-sibnet-video")
+    return _clean_video_frame(source_url, str(frame_resp.url), poster_url, element_id="av-sibnet-video",
+                              page_origins=_page_origins(request))
 
 
 _VK_STREAM_KEYS = ("hls_ondemand", "hls")
@@ -898,7 +912,8 @@ async def _vk_frame(request: Request, ref: dict[str, str]) -> Response:
             sources += _hls_quality_sources(master, _decode_text(playlist))
     except httpx.HTTPError:
         pass  # Auto still plays the adaptive master playlist.
-    return _clean_video_frame(master, "https://vk.com/", element_id="av-vk-video", sources=sources)
+    return _clean_video_frame(master, "https://vk.com/", element_id="av-vk-video", sources=sources,
+                              page_origins=_page_origins(request))
 
 
 def _is_kodik_base(base: str) -> bool:

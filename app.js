@@ -9,10 +9,11 @@
  * any attempt to do so surfaces a guest-gate.
  */
 
-import * as account from "./js/account.js?v=20261102-login1";
+import * as account from "./js/account.js?v=20261102-chat1";
 import { setupNavigation, setActiveSection, SheetDrag } from "./js/navigation.js?v=20261030-live1";
 import * as images from "./js/images.js?v=20261031-img1";
-import * as realtime from "./js/realtime.js?v=20261030-live1";
+import * as realtime from "./js/realtime.js?v=20261102-chat1";
+import { EpisodeChat } from "./js/episode-chat.js?v=20261102-chat1";
 import * as site from "./js/site.js?v=20261030-admin1";
 import { getTrailerId, bindTrailer } from "./js/trailer.js?v=20261029-eddas2";
 
@@ -1877,6 +1878,8 @@ class Player {
     this._frameHost = "";
     this._frameIsKodik = false;
     this._kodikVolumeSent = false;
+    this._chat = null;
+    this._seekKind = null;
     this._playerContextMenuEl = null;
     this._onPlayerContextMenu = null;
     this._onPlayerMenuOutside = null;
@@ -2141,6 +2144,7 @@ class Player {
     $$("#avEpisodesList .ep-row").forEach((b, idx) => b.classList.toggle("active", idx === this.currentEp));
     const ep = this.episodes[this.currentEp];
     $("#avEpInfo").innerHTML = `<span class="sp-ep-num">${ep.num}</span><span class="sp-ep-title">${esc(ep.name)}</span>`;
+    this._chatEpisode(ep.num);
     const p = $("#avPrevEp"), n = $("#avNextEp");
     if (p) p.disabled = this.currentEp === 0;
     if (n) n.disabled = this.currentEp === this.episodes.length - 1;
@@ -2212,6 +2216,15 @@ class Player {
   // (>=92% или финишный хвост), стартуем со следующей. Иначе — с той же,
   // чтобы пользователь мог продолжить с места паузы.
   _resumeIndex() {
+    // ?ep=N — ссылка ветки комментариев серии (уведомление об ответе): эта серия и открытый чат
+    const params = new URLSearchParams(location.search);
+    const askedEp = Number(params.get("ep") || 0);
+    if (askedEp) {
+      params.delete("ep");
+      history.replaceState(history.state, "", location.pathname + (params.size ? `?${params}` : "") + location.hash);
+      const askedIdx = this.episodes.findIndex(e => Number(e.num) === askedEp);
+      if (askedIdx >= 0) { this._openChatOnce = true; return askedIdx; }
+    }
     const tabEp = this._readTabEpisodeNum();
     if (tabEp) {
       const tabIdx = this.episodes.findIndex(e => Number(e.num) === tabEp);
@@ -2508,6 +2521,54 @@ class Player {
     return false;
   }
 
+  // Чат серии (js/episode-chat.js): значок у «Эпизод N», комментарии этой серии, полоски поверх видео
+  _chatEpisode(num) {
+    if (this.destroyed || !num) return;
+    if (!this._chat) {
+      this._chat = new EpisodeChat({
+        malId: this.malId, backend: BACKEND, user: () => state.user, seek: t => this._seekPlayer(t),
+        ago: account.ago, site: () => account.socialSiteUrl(), gate: () => account.openGate("comments"),
+        confirm: account.confirmWithCountdown, dialog: account.openDialog,
+        watch: objects => realtime.watchComments(objects), sheetDrag: SheetDrag,
+      });
+      this._chat.setSeek(!!this._seekKind);
+      this._onFullscreen = () => {
+        const on = !!document.fullscreenElement && document.fullscreenElement === $(".sp-video");
+        this._iframeEl?.contentWindow?.postMessage({ type: "asoplay:fullscreen-state", on }, "*");
+      };
+      document.addEventListener("fullscreenchange", this._onFullscreen);
+    }
+    this._chat.setEpisode(num);
+    if (this._openChatOnce) { this._openChatOnce = false; this._chat.show(); }
+  }
+
+  // Перемотка: наш кадр — asoplay:seek, Kodik — его API; другие плееры не умеют, минуты в чате — простой текст
+  _setSeek(kind) {
+    this._seekKind = kind;
+    this._chat?.setSeek(!!kind);
+  }
+
+  _seekPlayer(t) {
+    const target = this._iframeEl?.contentWindow;
+    if (!target || !this._seekKind) return;
+    const time = Math.max(0, Math.floor(Number(t) || 0));
+    if (this._seekKind === "frame") target.postMessage({ type: "asoplay:seek", time }, "*");
+    else target.postMessage({ key: "kodik_player_api", value: { method: "seek", seconds: time } }, "*");
+  }
+
+  // Наш кадр сообщил, что умеет перематывать, или просит раскрыть на весь экран контейнер видео вместе с полосками
+  _handleChatFrameMessage(data) {
+    if (data?.type === "asoplay:frame-ready") { this._setSeek(data.seek === true ? "frame" : null); return true; }
+    if (data?.type !== "asoplay:fullscreen") return false;
+    const box = $(".sp-video");
+    // failed — страница не смогла (браузер не передал ей нажатие): кадр раскрывается сам, без полосок
+    const reply = (on, failed = false) => this._iframeEl?.contentWindow?.postMessage({ type: "asoplay:fullscreen-state", on, failed }, "*");
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    else if (box?.requestFullscreen) box.requestFullscreen().then(() => reply(true)).catch(() => reply(false, true));
+    else reply(false, true);
+    return true;
+  }
+
   _playerAnimeUrl() {
     try {
       return new URL(location.pathname || `/anime/${this.malId}/`, location.origin).href;
@@ -2652,6 +2713,7 @@ class Player {
       if (d && typeof d === "object" && this._handlePlayerContextMenuMessage(d)) return;
       if (d && typeof d === "object" && this._handlePlayerScreenshotMessage(d)) return;
       if (d && typeof d === "object" && this._handlePlayerVolumeMessage(d)) return;
+      if (d && typeof d === "object" && this._handleChatFrameMessage(d)) return;
       this._dubSawEvent = true;
       const since = Date.now() - (this._playStartedAt || 0);
       if (since < 5000) return;
@@ -2675,6 +2737,7 @@ class Player {
       if (k.includes("time_update") || k === "timeupdate") {
         if (n != null) {
           this._lastTime = n;
+          this._chat?.time(n, this._duration);
           if (n > 0) this._sawPlaybackSignal = true;
           if (n > 0 && (!this._playheadMin || n < this._playheadMin)) this._playheadMin = n;
           const epNum = this.episodes[this.currentEp]?.num;
@@ -3206,6 +3269,7 @@ class Player {
     if (!ep) return;
     this._rememberTabEpisode(ep.num);
     $("#avEpInfo").innerHTML = `<span class="sp-ep-num">${ep.num}</span><span class="sp-ep-title">${esc(ep.name)}</span>`;
+    this._chatEpisode(ep.num);
     const p = $("#avPrevEp"), n = $("#avNextEp");
     if (p) p.disabled = i === 0;
     if (n) n.disabled = i === this.episodes.length - 1;
@@ -3467,11 +3531,13 @@ class Player {
       if (iframe.src.split("#")[0] !== playerUrl.split("#")[0]) {
         iframe.src = playerUrl;
         this._kodikVolumeSent = false;
+        this._setSeek(this._frameIsKodik ? "kodik" : null);
       }
       this._iframeEl = iframe;
       return;
     }
     this._kodikVolumeSent = false;
+    this._setSeek(this._frameIsKodik ? "kodik" : null);
     iframe = document.createElement("iframe");
     // Harden third-party players: keep playback features, block popups and
     // top-level navigation attempts from ad scripts inside the iframe.
@@ -3514,6 +3580,9 @@ class Player {
     if (this._shotNoticeTimer) clearTimeout(this._shotNoticeTimer);
     this._hidePlayerContextMenu();
     if (this._onMessage) window.removeEventListener("message", this._onMessage);
+    if (this._onFullscreen) document.removeEventListener("fullscreenchange", this._onFullscreen);
+    this._chat?.destroy();
+    this._chat = null;
     if (this._shellCleanup) this._shellCleanup();
     this.destroyPlayer();
   }
