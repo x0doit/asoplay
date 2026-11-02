@@ -282,7 +282,7 @@ def status_changed() -> None:
 
 
 def lists_changed(user_id: int, items: list[dict[str, Any]]) -> None:
-    """Из потока: правило 30 дней перенесло тайтлы человека — его вкладки перекрашивают списки."""
+    """Из потока: сервер перенёс тайтлы человека (правило 30 дней, досмотр) — его вкладки перекрашивают списки."""
     hub.lists_changed_from_thread(user_id, items)
 
 

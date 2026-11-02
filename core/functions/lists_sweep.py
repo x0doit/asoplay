@@ -60,7 +60,8 @@ def seconds_to_next(now: datetime, at: tuple[int, int]) -> float:
 
 
 def announce(entries: list[tuple[int, dict[str, Any]]]) -> None:
-    """Пачка перенесена: каждому человеку — кадр «lists» со своими записями во все его вкладки."""
+    """Тайтлы перенесены — пачка этого правила или досмотр (title_completion.announce): каждому человеку кадр «lists»
+    со своими записями во все его вкладки."""
     by_user: dict[int, list[dict[str, Any]]] = {}
     for user_id, entry in entries:
         by_user.setdefault(user_id, []).append(entry)

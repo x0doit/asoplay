@@ -11,6 +11,7 @@ core/functions/activity_feed.py, маршруты /account/activity — в core/
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from core.classes.clock import utc_now
 
@@ -41,8 +42,8 @@ DEDUP_BY_TITLE_PER_DAY = {
 
 
 def record_event(conn, user_id: int, *, kind: str, mal_id: int | None = None,
-                 meta: str | None = None) -> None:
-    """Пишет событие в aviev_activity.
+                 meta: str | None = None, at: datetime | None = None) -> None:
+    """Пишет событие в aviev_activity; at — когда это было (по нему и день графика), без него — сейчас.
 
     Для watch_* дедуп по (user, day, kind, mal_id, ep) — разные серии
     считаются отдельно, но пауза/перемотка на одной серии в тот же день — нет.
@@ -54,7 +55,7 @@ def record_event(conn, user_id: int, *, kind: str, mal_id: int | None = None,
         log.debug("record_event: unknown kind=%s", kind)
         return
     stored_meta = "" if kind in DEDUP_BY_TITLE_PER_DAY else (meta or "")
-    now = utc_now()
+    now = at or utc_now()
     cur = conn.cursor()
     cur.execute(
         """INSERT IGNORE INTO aviev_activity

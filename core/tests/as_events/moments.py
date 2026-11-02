@@ -93,7 +93,8 @@ class Completed(unittest.TestCase):
         conn.commit = lambda: order.append("commit")
         with patch.object(progress_event, "connect", return_value=conn), \
                 patch.object(progress_event, "upsert_episode_progress"), \
-                patch.object(progress_event, "fetch_entry", side_effect=[None, None, {"status": "completed"}]), \
+                patch.object(progress_event, "fetch_entry", side_effect=[None, {"status": "completed"}]), \
+                patch.object(progress_event, "auto_complete", return_value={"status": "completed"}), \
                 patch.object(progress_event, "auto_add_enabled", return_value=True), \
                 patch.object(progress_event, "upsert_status"), patch.object(progress_event, "record_event"), \
                 patch.object(progress_event, "watched_seconds", return_value=0), \

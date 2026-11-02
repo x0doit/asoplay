@@ -20,7 +20,9 @@ from core.classes.clock import utc_now
 from core.classes.db import connect
 from core.functions import as_events, lists_sweep, title_completion
 from core.functions.activity import record_event
-from core.functions.lists import auto_add_enabled, fetch_entry, sweep_dropped_after_30_days, upsert_status
+from core.functions.lists import (
+    auto_add_enabled, auto_complete, fetch_entry, sweep_dropped_after_30_days, upsert_status,
+)
 from core.functions.progress import auto_watching_qualified, history_qualified, upsert_episode_progress
 from core.functions.sessions import current_user_required
 from core.functions.watch_time import watched_seconds
@@ -122,8 +124,8 @@ def progress_event(
                 )
 
         # 3) auto-rule: последняя серия по каталогу сервера (не число серий от плеера; строгое равенство — у части
-        #    источников нумерация сквозная) → completed (auto); запирают только ручные completed/dropped/postponed.
-        #    Событие completed для соцсети — не здесь: его засчитывает сам досмотр (upsert_episode_progress).
+        #    источников нумерация сквозная) → completed (auto) по lists.auto_complete: запирают ручная очистка и ручные
+        #    completed/dropped/postponed. Событие completed для соцсети — не здесь: его засчитывает сам досмотр.
         last = title_completion.last_episode(cur, event.mal_id)
         is_last = (
             bool(last) and event.episode_num == last
@@ -131,25 +133,8 @@ def progress_event(
             and (event.seconds >= event.duration * 0.85
                  or event.seconds >= event.duration - 60)
         )
-        if auto_ok and is_last:
-            entry = fetch_entry(conn, user["id"], event.mal_id)
-            prev_status = entry.get("status") if entry else None
-            prev_source = entry.get("status_source") if entry else None
-            unlocked = (
-                prev_status in (None, "watching", "planned")
-                and not (prev_source == "manual" and prev_status in ("dropped", "postponed", "completed"))
-            )
-            if unlocked and prev_status != "completed":
-                upsert_status(
-                    conn, user["id"], event.mal_id,
-                    status="completed", source="auto",
-                    title=event.title, poster_url=event.poster_url,
-                )
-                applied.append("completed")
-                record_event(
-                    conn, user["id"], kind="complete",
-                    mal_id=event.mal_id, meta="auto",
-                )
+        if is_last and auto_complete(conn, user["id"], event.mal_id, title=event.title, poster_url=event.poster_url):
+            applied.append("completed")
 
         # 4) activity: базовое событие «продолжаю смотреть» c эпизодом в meta.
         record_event(

@@ -31,7 +31,7 @@ from core.classes.db import connect
 from core.classes.http_cache import SHIKI_HEADERS, SHIKI_ORIGIN
 from core.classes.jikan import catalog as jikan_catalog
 from core.config.config import SITE_URL
-from core.functions import as_events, title_completion
+from core.functions import title_completion
 
 log = logging.getLogger("asoplay.title_cache")
 
@@ -115,8 +115,8 @@ def stale(info: dict[str, Any]) -> bool:
 
 def store_title(payload: dict[str, Any], *, sweep: bool = True) -> dict[str, Any]:
     """Записать тайтл из каталога в кеш — новый или поверх прежнего. Запись узнала, что тайтл вышел целиком, —
-    досмотр тем, кто уже досмотрел его последнюю серию (title_completion.title_finished; sweep=False — без этого,
-    для подсчёта досылки). Возвращает mal_id, slug, cached_at и fresh_until."""
+    досмотр и списки тем, кто уже досмотрел его последнюю серию (title_completion.title_finished; sweep=False — без
+    этого, для подсчёта досылки). Возвращает mal_id, slug, cached_at и fresh_until."""
     now = utc_now()
     fresh_until = now + TTL_FRESH
     mal_id = int(payload["mal_id"])
@@ -126,7 +126,7 @@ def store_title(payload: dict[str, Any], *, sweep: bool = True) -> dict[str, Any
         slug = f"mal-{mal_id}"
     # slug uniqueness — if taken by a different mal_id, suffix the mal_id
     finished = sweep and str(payload.get("airing_status") or "").strip() == title_completion.FINISHED
-    queued = 0
+    found = None
     with connect() as conn:
         cur = conn.cursor()
         before = title_completion.last_episode(cur, mal_id) if finished else None
@@ -186,10 +186,10 @@ def store_title(payload: dict[str, Any], *, sweep: bool = True) -> dict[str, Any
         )
         total = int(payload.get("episodes_total") or 0)
         if finished and total and before != total:  # тайтл впервые известен как вышедший — или сменилось число серий
-            queued = title_completion.title_finished(conn, mal_id, total, now)
+            found = title_completion.title_finished(conn, payload, total, now)
         conn.commit()
-    if queued:
-        as_events.wake()
+    if found:
+        title_completion.announce(*found)
     return {"mal_id": mal_id, "slug": slug, "cached_at": now.isoformat(), "fresh_until": fresh_until.isoformat()}
 
 

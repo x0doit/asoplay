@@ -2416,7 +2416,8 @@
   "def() -> str | None"
  ],
  "announce": [
-  "def(entries: list[tuple[int, dict[str, Any]]]) -> None"
+  "def(entries: list[tuple[int, dict[str, Any]]]) -> None",
+  "def(events: int, moved: list[tuple[int, dict[str, Any]]]) -> None"
  ],
  "app": [
   "= 29d68d469c61"
@@ -2480,6 +2481,9 @@
  ],
  "auto_add_enabled": [
   "def(conn, user_id: int) -> bool"
+ ],
+ "auto_complete": [
+  "def(conn, user_id: int, mal_id: int, *, at: datetime | None=None, title: str='', poster_url: str='') -> dict[str, Any] | None"
  ],
  "auto_watching_qualified": [
   "def(seconds: int, duration: int) -> bool"
@@ -2941,6 +2945,9 @@
  "lists_changed": [
   "def(user_id: int, items: list[dict[str, Any]]) -> None"
  ],
+ "lists_moved": [
+  "= 6eef6648406c"
+ ],
  "lists_sweep_at": [
   "def() -> str"
  ],
@@ -3252,7 +3259,7 @@
   "def(conn: Any, user_id: int, kind: str, mal_id: int, *, episode: int=0, score: int | None=None, at: datetime | None=None) -> bool"
  ],
  "record_event": [
-  "def(conn, user_id: int, *, kind: str, mal_id: int | None=None, meta: str | None=None) -> None"
+  "def(conn, user_id: int, *, kind: str, mal_id: int | None=None, meta: str | None=None, at: datetime | None=None) -> None"
  ],
  "recover_url": [
   "def() -> str"
@@ -3555,7 +3562,7 @@
   "def(mal_ids: Iterable[int]) -> dict[int, tuple[str, str]]"
  ],
  "title_finished": [
-  "def(conn: Any, mal_id: int, last: int, now: datetime) -> int"
+  "def(conn: Any, payload: dict[str, Any], last: int, now: datetime) -> tuple[int, list[tuple[int, dict[str, Any]]]]"
  ],
  "title_name": [
   "def(cur: Any, mal_id: int) -> str"

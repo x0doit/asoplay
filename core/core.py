@@ -113,9 +113,11 @@ async def _startup() -> None:
     await realtime.startup()
     await as_events_sender.startup(realtime.hub.social)
     # Досмотр тайтла, которого нет в кеше страниц: каталог грузит title_cache, досмотр засчитает проверка после
-    # записи страницы (core/functions/title_completion.py). Подключается здесь, до первого запроса
+    # записи страницы (core/functions/title_completion.py), а списки, которые она поменяла, уйдут людям кадром
+    # «lists», как у правила 30 дней. Подключается здесь, до первого запроса
     title_cache.bind_loop(asyncio.get_running_loop())
     title_completion.unknown_title = title_cache.refresh_soon
+    title_completion.lists_moved = lists_sweep.announce
     await lists_sweep.startup()
 
 

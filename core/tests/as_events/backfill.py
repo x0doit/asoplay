@@ -111,12 +111,15 @@ class Backfill(unittest.TestCase):
                 raise OSError("catalog down")
             return {"slug": "death-note"}
 
-        async def no_wait(_):
-            return None
+        waits = []
+
+        async def no_wait(seconds):
+            waits.append(seconds)
         with patch.object(title_cache, "fetch_and_store", fetch), patch.object(backfill.asyncio, "sleep", no_wait), \
                 contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(backfill.load_unknown_titles(cur, datetime(2026, 10, 29, 22, 0)), (1, 1))
         self.assertEqual(calls, [(1535, False), (2, False)])  # без проверки досмотра: события пишет только --apply
+        self.assertEqual(waits, [3.0])  # с сервером — до 50 запросов в минуту, ниже предела каталога
 
     def test_without_a_time_zone_database_it_refuses_before_touching_the_database(self):
         out = io.StringIO()
