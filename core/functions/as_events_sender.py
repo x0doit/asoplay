@@ -79,10 +79,16 @@ class Sender:
             except Exception:  # noqa: BLE001 — события остаются в очереди, следующий шаг их отправит
                 log.exception("Anime Social events sender step failed")
                 await asyncio.sleep(5)
+            # Шаг, который ни разу не ждал по-настоящему, не должен держать цикл событий: без этого сервер
+            # перестаёт отвечать и не переподключается (02.11 на проде так дошло до OOM)
+            await asyncio.sleep(0)
 
     async def _step(self) -> None:
         """Соединение готово — пакет из очереди; нет событий или соединения — ждать."""
         if not self.link.ready or self._forbidden_in == self.link.generation:
+            # Пробуждение без соединения ничего не даст, а взведённый флаг вернул бы ожидание сразу — цикл
+            # крутился бы вхолостую. Гасим: ready от соединения разбудит снова
+            self._woken.clear()
             await self._rest()
             return
         self._woken.clear()  # до чтения очереди: пробуждение после него не потеряется

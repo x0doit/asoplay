@@ -176,3 +176,26 @@ class Waking(SenderCase):
             threading.Thread(target=as_events.wake).start()
             frame = await self.frames(2, wait=1.0)
         self.assertEqual(frame["events"][0]["score"], 8)
+
+
+class NoLink(SenderCase):
+    async def test_waking_without_a_link_does_not_spin_and_lets_the_loop_run(self):
+        # Обрыв 02.11 на проде: сохранение прогресса будило отправителя, пока соединения не было, — ожидание
+        # возвращалось сразу, цикл событий вставал (ни /health, ни переподключения), память росла до OOM
+        takes, beats = [], []
+        self.sender._take = lambda: takes.append(1) or self.take()
+        self.link.ready = False
+
+        async def heartbeat():
+            while True:
+                beats.append(time.monotonic())
+                await asyncio.sleep(0.01)
+        task = asyncio.create_task(heartbeat())
+        try:
+            for _ in range(5):
+                threading.Thread(target=as_events.wake).start()
+                await asyncio.sleep(0.05)
+        finally:
+            task.cancel()
+        self.assertGreater(len(beats), 15)  # цикл событий жив: соседняя задача шла всё время
+        self.assertEqual(takes, [])         # без соединения очередь не читается
