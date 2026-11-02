@@ -11,6 +11,7 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 import unittest
 from unittest.mock import AsyncMock, patch
 
+import httpx
 from fastapi import HTTPException
 
 from core.functions.player_hosts import proxy_url_refusal
@@ -92,3 +93,24 @@ class RefusalLog(unittest.TestCase):
         self.assertIn("player proxy refused evil.test (host not allowed)", lines[0])
         self.assertIn("4 more for this host", lines[-1])
         self.assertIn("11 more for other hosts not logged", lines[-1])
+
+
+class UpstreamFailure(unittest.IsolatedAsyncioTestCase):
+    async def test_an_upstream_error_is_a_short_502_and_its_text_goes_to_the_log(self):
+        with patch.object(player, "_send", AsyncMock(side_effect=httpx.ConnectError("secret upstream detail"))), \
+                patch.object(player, "_log_upstream_failure", player._RefusalLog("upstream failed for")), \
+                self.assertLogs(player.log, "INFO") as logs, self.assertRaises(HTTPException) as error:
+            await player.proxy(request(), KODIK, None)
+        self.assertEqual((error.exception.status_code, error.exception.detail), (502, "player_upstream_failed"))
+        self.assertIn("player proxy upstream failed for kodikplayer.com (ConnectError: secret upstream detail)",
+                      logs.output[0])
+
+    async def test_addresses_in_the_error_text_lose_their_query(self):
+        text = "bad redirect: 'https://cdn.example/hls/seg1.ts?token=SECRET&e=1#t' and wss://x.example/a?k=SECRET"
+        with patch.object(player, "_send", AsyncMock(side_effect=httpx.RemoteProtocolError(text))), \
+                patch.object(player, "_log_upstream_failure", player._RefusalLog("upstream failed for")), \
+                self.assertLogs(player.log, "INFO") as logs, self.assertRaises(HTTPException):
+            await player.proxy(request(), KODIK, None)
+        self.assertIn("https://cdn.example/hls/seg1.ts'", logs.output[0])
+        self.assertIn("wss://x.example/a", logs.output[0])
+        self.assertNotIn("SECRET", logs.output[0])

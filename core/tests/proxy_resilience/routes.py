@@ -172,3 +172,19 @@ class SourceRouteTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(await client.search("frieren"), [])
         finally:
             await client.close()
+
+
+class SourceErrorTests(unittest.IsolatedAsyncioTestCase):
+    async def test_source_errors_are_short_502s_and_their_text_stays_in_the_log(self):
+        from core.api.sections.sources import media, search
+        calls = ((lambda: media.dubs_for_episode("k", "anilibria"), "sources_failed"),
+                 (lambda: media.videos("k", "anilibria"), "videos_failed"),
+                 (lambda: search.episodes("k", "anilibria"), "episodes_failed"))
+        with patch.object(source_registry, "get", return_value=object()), \
+                patch.object(source_registry, "source_call", AsyncMock(side_effect=RuntimeError("secret source detail"))):
+            for call, code in calls:
+                with self.subTest(code=code), self.assertLogs("asoplay", "ERROR") as logs, \
+                        self.assertRaises(HTTPException) as error:
+                    await call()
+                self.assertEqual((error.exception.status_code, error.exception.detail), (502, code))
+                self.assertIn("secret source detail", str(logs.records[0].exc_info[1]))

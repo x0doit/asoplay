@@ -1533,7 +1533,7 @@
   "def(self, host: str, reason: str) -> None"
  ],
  "_RefusalLog.__init__": [
-  "def(self) -> None"
+  "def(self, what: str='refused') -> None"
  ],
  "_ResourceTagParser": [
   "class(HTMLParser)"
@@ -1633,6 +1633,9 @@
  ],
  "_UNSUPPORTED_MODIFIERS": [
   "= 288901d6b8f4"
+ ],
+ "_URL_TAIL": [
+  "= bfceba9419c6"
  ],
  "_USERS_CHUNK": [
   "= f83a383c0fa8"
@@ -1928,6 +1931,9 @@
  ],
  "_log_refusal": [
   "= 2490ebf6e2b0"
+ ],
+ "_log_upstream_failure": [
+  "= 3b9359d87b84"
  ],
  "_login_by_identity": [
   "= d5b13a078488"
@@ -2348,6 +2354,9 @@
  ],
  "_with_as": [
   "def(path: str, outcome: str) -> str"
+ ],
+ "_without_query": [
+  "def(text: str) -> str"
  ],
  "_workers": [
   "= 6f8742e0e742"

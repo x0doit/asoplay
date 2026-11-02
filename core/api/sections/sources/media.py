@@ -47,7 +47,7 @@ async def dubs_for_episode(key: str, source: str = "anilibria"):
         raise
     except Exception as exc:
         log.exception("sources failed")
-        raise HTTPException(502, f"sources failed: {exc}")
+        raise HTTPException(502, "sources_failed") from exc  # подробность — в журнале
 
     seen: dict[tuple[str, str], dict] = {}
     scores: dict[tuple[str, str], int] = {}
@@ -170,7 +170,7 @@ async def videos(key: str, source: str = "anilibria"):
         raise
     except Exception as exc:
         log.exception("videos failed")
-        raise HTTPException(502, f"videos failed: {exc}")
+        raise HTTPException(502, "videos_failed") from exc  # подробность — в журнале
 
     def score(v):
         """Порядок видео: m3u8 раньше mp4, затем по качеству."""

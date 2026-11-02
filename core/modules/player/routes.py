@@ -210,13 +210,15 @@ async def _get_client() -> httpx.AsyncClient:
 
 
 class _RefusalLog:
-    """Refusal lines in the log: at most one per host a minute and LINES a minute for all hosts, so requests to
-    random hosts cannot flood the log. Refusals left out are counted into the next line."""
+    """Lines about refused (or failed) hosts in the log: at most one per host a minute and LINES a minute for all
+    hosts, so requests to random hosts cannot flood the log. Events left out are counted into the next line.
+    what — the verb of the line: «refused» by default, «upstream failed for» for upstream errors."""
 
     WINDOW = 60.0
     LINES = 30
 
-    def __init__(self) -> None:
+    def __init__(self, what: str = "refused") -> None:
+        self._what = what
         self._hosts: dict[str, list] = {}  # host -> [when its line was written, refusals since then]
         self._minute: float | None = None
         self._lines = 0
@@ -241,13 +243,21 @@ class _RefusalLog:
         self._lines += 1
         quiet = entry[1] if entry is not None else 0
         dropped, self._dropped = self._dropped, 0
-        log.info("player proxy refused %s (%s)%s%s", host, reason,
+        log.info("player proxy %s %s (%s)%s%s", self._what, host, reason,
                  f"; {quiet} more for this host since its last line" if quiet else "",
                  f"; {dropped} more for other hosts not logged" if dropped else "")
         self._hosts[host] = [now, 0]
 
 
 _log_refusal = _RefusalLog()
+_log_upstream_failure = _RefusalLog("upstream failed for")  # текст ошибки источника — сюда, не в ответ
+# Адрес в тексте ошибки httpx (например, Location в «bad redirect») — до хоста и пути: в query бывают токены плеера
+_URL_TAIL = re.compile(r"([a-z][a-z0-9+.-]*://[^\s'\"?#]*)[?#][^\s'\"]*", re.I)
+
+
+def _without_query(text: str) -> str:
+    """Текст ошибки для журнала: у адресов в нём срезаны query и фрагмент."""
+    return _URL_TAIL.sub(r"\1", text)
 
 
 async def _send(method: str, url: str, *, stream: bool = False, **kwargs: Any) -> httpx.Response:
@@ -995,7 +1005,8 @@ async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = 
     except http_public.Refused as exc:
         raise HTTPException(403, "player host not allowed") from exc
     except httpx.HTTPError as exc:
-        raise HTTPException(502, f"player proxy upstream failed: {exc}") from exc
+        _log_upstream_failure(urlparse(url).netloc, f"{type(exc).__name__}: {_without_query(str(exc))}")
+        raise HTTPException(502, "player_upstream_failed") from exc
 
     final_url = str(upstream.url)
     if is_disabled_player_url(final_url):

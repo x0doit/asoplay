@@ -142,7 +142,7 @@ async def episodes(key: str, source: str = "anilibria"):
         raise
     except Exception as exc:
         log.exception("episodes failed")
-        raise HTTPException(502, f"episodes failed: {exc}")
+        raise HTTPException(502, "episodes_failed") from exc  # подробность — в журнале
 
     out = []
     for idx, e in enumerate(episodes_list):
