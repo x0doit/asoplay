@@ -74,7 +74,6 @@ def robots() -> PlainTextResponse:
         "Disallow: /random",
         "Disallow: /health",
         "Disallow: /sources",
-        "Disallow: /title-pages/",
         f"Sitemap: {SITE_URL}/sitemap.xml",
     ]
     return PlainTextResponse(

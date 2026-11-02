@@ -439,13 +439,6 @@ const api = {
   backendEpisodes: (k, s) => fetchJson(`${BACKEND}/src/episodes?key=${encodeURIComponent(k)}&source=${s}`, { timeout: 12000 }),
   backendSources: (k, s) => fetchJson(`${BACKEND}/src/dubs?key=${encodeURIComponent(k)}&source=${s}`, { timeout: 15000 }),
   backendVideos: (k, s) => fetchJson(`${BACKEND}/src/videos?key=${encodeURIComponent(k)}&source=${s}`, { timeout: 20000 }),
-
-  recordTitlePage: (payload) => fetch(`${BACKEND}/title-pages/record`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload),
-  }).catch(() => null),
 };
 
 // ---------- cards + grid ----------
@@ -1299,7 +1292,6 @@ async function viewAnime(malId) {
     applyShiki(malId, a, shiki);
     const newTitles = [shiki.russian, ...(shiki.synonyms || [])].filter(Boolean);
     if (newTitles.length) player.addTitles(newTitles);
-    _recordTitlePage(malId, a, shiki);
   });
 
   anilistP
@@ -1307,10 +1299,6 @@ async function viewAnime(malId) {
     .finally(() => setTimeout(() => { if (!player.destroyed) ensureRussianDescription(); }, 400));
   charsP.then(chars => { if (!player.destroyed) renderCharacters(chars); });
   recsP.then(recs => { if (!player.destroyed) renderRecommendations(recs); });
-
-  // If Shikimori is slow, still record the English-only snapshot so the
-  // canonical page gets cached quickly for crawlers.
-  setTimeout(() => _recordTitlePage(malId, a, null), 2500);
 }
 
 function _consumeSSRPreload(expectedMalId) {
@@ -1323,28 +1311,6 @@ function _consumeSSRPreload(expectedMalId) {
   } catch { /* ignore */ }
   return null;
 }
-
-function _recordTitlePage(malId, a, shiki) {
-  if (_recordedTitles.has(malId)) return;
-  _recordedTitles.add(malId);
-  api.recordTitlePage({
-    mal_id: malId,
-    title_ru: shiki?.russian || "",
-    title_en: a.title_english || a.title || "",
-    title_jp: a.title_japanese || "",
-    synopsis: (a.synopsis || "").replace(/\[.*?\]/g, "").trim().slice(0, 5000),
-    poster_url: a.images?.jpg?.large_image_url || a.images?.jpg?.image_url || "",
-    banner_url: a.images?.jpg?.large_image_url || "",
-    year: a.year || null,
-    kind: a.type || "",
-    airing_status: a.status || "",
-    episodes_total: a.episodes || null,
-    score: a.score || null,
-    genres: (a.genres || []).map(g => g.name).filter(Boolean),
-    studios: (a.studios || []).map(s => s.name).filter(Boolean).join(", "),
-  });
-}
-const _recordedTitles = new Set();
 
 function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis }) {
   const cleanup = [];

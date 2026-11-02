@@ -108,7 +108,6 @@
   "GET,HEAD,OPTIONS,POST /seria/{rest:path}",
   "GET,HEAD,OPTIONS,POST /video/{rest:path}",
   "GET,HEAD,OPTIONS,POST /uv/{rest:path}",
-  "POST /title-pages/record",
   "GET /anime/{stub}",
   "GET /anime/{stub}/",
   "GET /sitemap.xml",
@@ -5259,43 +5258,6 @@
     "summary": "Videos"
    }
   },
-  "/title-pages/record": {
-   "post": {
-    "requestBody": {
-     "content": {
-      "application/json": {
-       "schema": {
-        "$ref": "#/components/schemas/RecordIn@6f456e35"
-       }
-      }
-     },
-     "required": true
-    },
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "additionalProperties": true,
-         "title": "Response Title Record Title Pages Record Post",
-         "type": "object"
-        }
-       }
-      }
-     },
-     "422": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
-        }
-       }
-      }
-     }
-    },
-    "summary": "Title Record"
-   }
-  },
   "/uv/{rest}": {
    "get": {
     "parameters": [
@@ -5574,7 +5536,6 @@
   "{\"ProgressIn@edebfdb1\": {\"properties\": {\"duration\": {\"default\": 0, \"maximum\": 200000.0, \"minimum\": 0.0, \"title\": \"Duration\", \"type\": \"integer\"}, \"episode_num\": {\"maximum\": 10000.0, \"minimum\": 1.0, \"title\": \"Episode Num\", \"type\": \"integer\"}, \"episodes_total\": {\"default\": 0, \"maximum\": 10000.0, \"minimum\": 0.0, \"title\": \"Episodes Total\", \"type\": \"integer\"}, \"poster_url\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Poster Url\", \"type\": \"string\"}, \"seconds\": {\"maximum\": 200000.0, \"minimum\": 0.0, \"title\": \"Seconds\", \"type\": \"integer\"}, \"title\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title\", \"type\": \"string\"}}, \"required\": [\"episode_num\", \"seconds\"], \"title\": \"ProgressIn\", \"type\": \"object\"}}",
   "{\"ProxyHostIn@b57302aa\": {\"properties\": {\"host\": {\"maxLength\": 300, \"minLength\": 1, \"title\": \"Host\", \"type\": \"string\"}, \"via\": {\"default\": \"site\", \"enum\": [\"site\", \"vpn\"], \"title\": \"Via\", \"type\": \"string\"}}, \"required\": [\"host\"], \"title\": \"ProxyHostIn\", \"type\": \"object\"}}",
   "{\"RatingIn@06d6aff6\": {\"properties\": {\"score\": {\"maximum\": 10.0, \"minimum\": 1.0, \"title\": \"Score\", \"type\": \"integer\"}}, \"required\": [\"score\"], \"title\": \"RatingIn\", \"type\": \"object\"}}",
-  "{\"RecordIn@6f456e35\": {\"properties\": {\"airing_status\": {\"default\": \"\", \"maxLength\": 24, \"title\": \"Airing Status\", \"type\": \"string\"}, \"banner_url\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Banner Url\", \"type\": \"string\"}, \"episodes_total\": {\"anyOf\": [{\"type\": \"integer\"}, {\"type\": \"null\"}], \"title\": \"Episodes Total\"}, \"genres\": {\"items\": {\"type\": \"string\"}, \"title\": \"Genres\", \"type\": \"array\"}, \"kind\": {\"default\": \"\", \"maxLength\": 24, \"title\": \"Kind\", \"type\": \"string\"}, \"mal_id\": {\"maximum\": 10000000.0, \"minimum\": 1.0, \"title\": \"Mal Id\", \"type\": \"integer\"}, \"poster_url\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Poster Url\", \"type\": \"string\"}, \"score\": {\"anyOf\": [{\"type\": \"number\"}, {\"type\": \"null\"}], \"title\": \"Score\"}, \"studios\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Studios\", \"type\": \"string\"}, \"synopsis\": {\"default\": \"\", \"maxLength\": 20000, \"title\": \"Synopsis\", \"type\": \"string\"}, \"title_en\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title En\", \"type\": \"string\"}, \"title_jp\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title Jp\", \"type\": \"string\"}, \"title_ru\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title Ru\", \"type\": \"string\"}, \"year\": {\"anyOf\": [{\"type\": \"integer\"}, {\"type\": \"null\"}], \"title\": \"Year\"}}, \"required\": [\"mal_id\"], \"title\": \"RecordIn\", \"type\": \"object\"}}",
   "{\"ReportIn@187c883a\": {\"properties\": {\"dub\": {\"default\": \"\", \"maxLength\": 200, \"title\": \"Dub\", \"type\": \"string\"}, \"episode\": {\"anyOf\": [{\"maximum\": 65535.0, \"minimum\": 1.0, \"type\": \"integer\"}, {\"type\": \"null\"}], \"title\": \"Episode\"}, \"kind\": {\"title\": \"Kind\", \"type\": \"string\"}, \"mal_id\": {\"exclusiveMaximum\": 10000000.0, \"exclusiveMinimum\": 0.0, \"title\": \"Mal Id\", \"type\": \"integer\"}, \"player\": {\"default\": \"\", \"maxLength\": 100, \"title\": \"Player\", \"type\": \"string\"}, \"source\": {\"default\": \"\", \"maxLength\": 64, \"title\": \"Source\", \"type\": \"string\"}, \"text\": {\"default\": \"\", \"maxLength\": 2000, \"title\": \"Text\", \"type\": \"string\"}}, \"required\": [\"mal_id\", \"kind\"], \"title\": \"ReportIn\", \"type\": \"object\"}}",
   "{\"ReportPatch@b8d71a2b\": {\"properties\": {\"note\": {\"default\": \"\", \"maxLength\": 1000, \"title\": \"Note\", \"type\": \"string\"}, \"status\": {\"title\": \"Status\", \"type\": \"string\"}}, \"required\": [\"status\"], \"title\": \"ReportPatch\", \"type\": \"object\"}}",
   "{\"SettingsIn@26a952e3\": {\"properties\": {\"auto_add_lists\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Auto Add Lists\"}, \"autonext\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Autonext\"}, \"extra\": {\"anyOf\": [{\"additionalProperties\": true, \"type\": \"object\"}, {\"type\": \"null\"}], \"title\": \"Extra\"}}, \"title\": \"SettingsIn\", \"type\": \"object\"}}",

@@ -202,9 +202,10 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── auth.py             подпись, повторы, ошибки, обёртка ответов, страницы
 │   │   └── reports.py, audit.py, settings.py, titles.py, summary.py   разделы панели
 │   ├── modules/
-│   │   ├── title_pages.py      /anime/{id}-{slug}/: страница тайтла, запись кеша с фронтенда, маршруты оболочки SPA
+│   │   ├── title_pages.py      /anime/{id}-{slug}/: страница тайтла, маршруты оболочки SPA
 │   │   ├── title_render.py     HTML страницы тайтла: мета-теги, Open Graph, JSON-LD; общая оболочка и заглушка 404
-│   │   ├── title_cache.py      кеш страниц тайтлов (aviev_title_pages), адрес страницы, заполнение из каталога
+│   │   ├── title_cache.py      кеш страниц тайтлов (aviev_title_pages): пишет только сервер из каталога,
+│   │   │                       устаревшие обновляет в фоне; адрес страницы
 │   │   ├── seo.py              /sitemap.xml и /robots.txt
 │   │   ├── profile_pages.py    /@handle: страница профиля для поисковиков и превью ссылок (SSR)
 │   │   └── player/routes.py    same-origin player proxy, Shield, iframe bridge
@@ -276,7 +277,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │       ├── 2026-10-30_as_sessions.sql            сессии входа через AnimeSocial
 │       ├── 2026-10-30_presence.sql               настройки присутствия на AsoPlay
 │       ├── 2026-10-31_task_runs.sql              отметки фоновых задач (правило 30 дней)
-│       └── 2026-11-02_as_events.sql              очередь событий просмотра для соцсети
+│       ├── 2026-11-02_as_events.sql              очередь событий просмотра для соцсети
+│       └── 2026-11-02_title_pages_server.sql     кеш страниц тайтлов — только с сервера
 ├── design/EDDAS/player/        тексты кадров плеера: страница кадра, мост, ошибка, щит, скин Kodik; их читает
 │                               core/modules/player, наружу они не отдаются
 ├── design/EDDAS/tests/         проверки фронтенда (Node); до шага 6 читают app.js и js/ из корня
@@ -349,6 +351,7 @@ mysql -u root AnimeSocial < core/migrations/2026-10-30_as_sessions.sql
 mysql -u root AnimeSocial < core/migrations/2026-10-30_presence.sql
 mysql -u root AnimeSocial < core/migrations/2026-10-31_task_runs.sql
 mysql -u root AnimeSocial < core/migrations/2026-11-02_as_events.sql
+mysql -u root AnimeSocial < core/migrations/2026-11-02_title_pages_server.sql
 ```
 
 Запустить приложение:
@@ -543,7 +546,6 @@ python -m core.api.tools.as_events_backfill --since 2026-10-30 --apply
 - `aviev_as_sessions` — AnimeSocial device sessions behind sign-in with AnimeSocial.
 - `aviev_activity` — contribution/activity graph events.
 - `aviev_title_pages` — canonical SEO title-page cache.
-- `aviev_title_refresh_queue` — title page refresh queue.
 - `aviev_import_marks` — one-time localStorage import markers.
 - `aviev_task_runs` — the last run of each background task (the 30-day rule).
 - `aviev_as_events` — watch events for AnimeSocial, kept until it confirms them.
@@ -797,9 +799,10 @@ Key capabilities:
 │   │   ├── auth.py             signature, replays, errors, response envelope, pages
 │   │   └── reports.py, audit.py, settings.py, titles.py, summary.py   panel sections
 │   ├── modules/
-│   │   ├── title_pages.py      /anime/{id}-{slug}/: the title page, the record from the frontend, the SPA shell routes
+│   │   ├── title_pages.py      /anime/{id}-{slug}/: the title page, the SPA shell routes
 │   │   ├── title_render.py     title page HTML: meta tags, Open Graph, JSON-LD; the generic shell and the 404 stub
-│   │   ├── title_cache.py      the title page cache (aviev_title_pages), the page address, backfill from the catalog
+│   │   ├── title_cache.py      the title page cache (aviev_title_pages): written only by the server from
+│   │   │                       the catalog, stale pages refreshed in the background; the page address
 │   │   ├── seo.py              /sitemap.xml and /robots.txt
 │   │   ├── profile_pages.py    /@handle: the profile page for crawlers and link previews (SSR)
 │   │   └── player/routes.py    same-origin player proxy, Shield, iframe bridge
@@ -871,7 +874,8 @@ Key capabilities:
 │       ├── 2026-10-30_as_sessions.sql            sign-in with AnimeSocial sessions
 │       ├── 2026-10-30_presence.sql               presence settings
 │       ├── 2026-10-31_task_runs.sql              background task marks (the 30-day rule)
-│       └── 2026-11-02_as_events.sql              the queue of watch events for AnimeSocial
+│       ├── 2026-11-02_as_events.sql              the queue of watch events for AnimeSocial
+│       └── 2026-11-02_title_pages_server.sql     the title page cache — from the server only
 ├── design/EDDAS/player/        player frame texts: the frame page, the bridge, the error page, the shield, the
 │                               Kodik skin; core/modules/player reads them, they are not served directly
 ├── design/EDDAS/tests/         frontend checks (Node); until step 6 they read app.js and js/ from the root
@@ -945,6 +949,7 @@ mysql -u root AnimeSocial < core/migrations/2026-10-30_as_sessions.sql
 mysql -u root AnimeSocial < core/migrations/2026-10-30_presence.sql
 mysql -u root AnimeSocial < core/migrations/2026-10-31_task_runs.sql
 mysql -u root AnimeSocial < core/migrations/2026-11-02_as_events.sql
+mysql -u root AnimeSocial < core/migrations/2026-11-02_title_pages_server.sql
 ```
 
 Start the application:
@@ -1143,7 +1148,6 @@ Core project tables:
 - `aviev_as_sessions` — AnimeSocial device sessions behind sign-in with AnimeSocial.
 - `aviev_activity` — contribution/activity graph events.
 - `aviev_title_pages` — canonical SEO title-page cache.
-- `aviev_title_refresh_queue` — title page refresh queue.
 - `aviev_import_marks` — one-time localStorage import markers.
 - `aviev_task_runs` — the last run of each background task (the 30-day rule).
 - `aviev_as_events` — watch events for AnimeSocial, kept until it confirms them.

@@ -802,6 +802,9 @@
  "QUERIES": [
   "= b21871374389"
  ],
+ "REFRESH_PER_MINUTE": [
+  "= 22d200f8670d"
+ ],
  "REPORT_EVERY": [
   "= e6c3dd630428"
  ],
@@ -819,51 +822,6 @@
  ],
  "RatingIn.score": [
   "conint(ge=1, le=10) = da39a3ee5e6b"
- ],
- "RecordIn": [
-  "class(BaseModel)"
- ],
- "RecordIn.airing_status": [
-  "str = 57779f18b122"
- ],
- "RecordIn.banner_url": [
-  "str = f8ee4cc99729"
- ],
- "RecordIn.episodes_total": [
-  "int | None = 6eef6648406c"
- ],
- "RecordIn.genres": [
-  "list[str] = e64e30f9ecdd"
- ],
- "RecordIn.kind": [
-  "str = 57779f18b122"
- ],
- "RecordIn.mal_id": [
-  "conint(ge=1, le=10000000) = da39a3ee5e6b"
- ],
- "RecordIn.poster_url": [
-  "str = f8ee4cc99729"
- ],
- "RecordIn.score": [
-  "float | None = 6eef6648406c"
- ],
- "RecordIn.studios": [
-  "str = f8ee4cc99729"
- ],
- "RecordIn.synopsis": [
-  "str = d6f671a68d27"
- ],
- "RecordIn.title_en": [
-  "str = f8ee4cc99729"
- ],
- "RecordIn.title_jp": [
-  "str = f8ee4cc99729"
- ],
- "RecordIn.title_ru": [
-  "str = f8ee4cc99729"
- ],
- "RecordIn.year": [
-  "int | None = 6eef6648406c"
  ],
  "Refused": [
   "= a51ad8f3824a",
@@ -2082,8 +2040,17 @@
  "_redact_url": [
   "def(url: str) -> str"
  ],
+ "_refresh": [
+  "async def(mal_id: int) -> None"
+ ],
  "_refresh_locks": [
   "= 01ddb94bf2fb"
+ ],
+ "_refreshed_at": [
+  "= 97d170e1550e"
+ ],
+ "_refreshing": [
+  "= 9aadf8ef192d"
  ],
  "_register": [
   "def(name: str, import_paths: list[str]) -> None"
@@ -2159,6 +2126,9 @@
  ],
  "_rules": [
   "@lru_cache(maxsize=1) def() -> tuple[frozenset[str], frozenset[str], frozenset[str]]"
+ ],
+ "_russian_title": [
+  "async def(mal_id: int) -> str"
  ],
  "_safe": [
   "def(item: dict) -> bool"
@@ -2253,6 +2223,9 @@
  "_task": [
   "= 6eef6648406c",
   "= 6eef6648406c"
+ ],
+ "_tasks": [
+  "= 9aadf8ef192d"
  ],
  "_template": [
   "def(name: str, slots: set[str], **parts: tuple[str, ...]) -> str"
@@ -2954,6 +2927,7 @@
   "= 09e04af44e51",
   "= 1775a40410d5",
   "= 32d06339fc74",
+  "= 331c30afefaa",
   "= 3acb6a6c60f8",
   "= 3acb6a6c60f8",
   "= 48bd8c61a38f",
@@ -3245,6 +3219,9 @@
  "refresh": [
   "def(refresh_token: str, user_ip: str='', user_agent: str='') -> dict[str, Any]"
  ],
+ "refresh_later": [
+  "def(mal_id: int) -> bool"
+ ],
  "register_shell_routes": [
   "def(app) -> None"
  ],
@@ -3475,6 +3452,9 @@
  "ss_port": [
   "def() -> str | None"
  ],
+ "stale": [
+  "def(info: dict[str, Any]) -> bool"
+ ],
  "start_watchdog": [
   "def() -> None"
  ],
@@ -3529,9 +3509,6 @@
  ],
  "title_name": [
   "def(cur: Any, mal_id: int) -> str"
- ],
- "title_record": [
-  "@router.post('/title-pages/record') def(payload: RecordIn) -> dict[str, Any]"
  ],
  "titles_list": [
   "@router.get('/titles') async def(q: str='', cursor: str='', _admin: int=Depends(admin_user)) -> dict[str, Any]"
