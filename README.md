@@ -180,6 +180,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   ├── __main__.py             запуск uvicorn (адрес и порт — AV_BIND_HOST, AV_BIND_PORT)
 │   ├── core.py                 сборка FastAPI: CORS, жизненный цикл, связи слоёв, роутеры, ошибки; статика до шага 6
 │   ├── requirements.txt        Python runtime dependencies
+│   ├── api/tools/              запускаются руками: as_events_backfill.py — досылка событий соцсети задним числом
 │   ├── api/sections/           разделы API сайта
 │   │   ├── account/            /account/…: вход __init__.py подключает части в порядке маршрутов —
 │   │   │                       favorites, history, progress, ratings, settings, import_storage
@@ -211,6 +212,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── social_login.py     вход через AnimeSocial: PKCE, сессия AsoPlay со связью с соцсетью, вход паролем
 │   │   ├── sessions.py         сессии AsoPlay: создать, проверить, закрыть; cookie и текущий пользователь
 │   │   ├── presence.py         присутствие на AsoPlay: вкладки и «смотрит»; presence_batch.py — пакет соцсети
+│   │   ├── as_events.py        очередь событий просмотра для соцсети: серия, досмотр, оценка; as_events_sender.py —
+│   │   │                       отправка кадром events по соединению сервер–сервер с подтверждением
 │   │   ├── friends.py          друзья из AnimeSocial: id с кешем, люди, статусы, вызовы соцсети от имени человека
 │   │   ├── realtime.py         хаб живых соединений: вкладки, кадры, фон; realtime_presence.py — присутствие
 │   │   │                       друзьям, realtime_social.py — события соцсети и состояние сервера
@@ -272,7 +275,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │       ├── 2026-10-30_admin_panel.sql            жалобы, пометки тайтлов, настройки сайта, журнал, время просмотра
 │       ├── 2026-10-30_as_sessions.sql            сессии входа через AnimeSocial
 │       ├── 2026-10-30_presence.sql               настройки присутствия на AsoPlay
-│       └── 2026-10-31_task_runs.sql              отметки фоновых задач (правило 30 дней)
+│       ├── 2026-10-31_task_runs.sql              отметки фоновых задач (правило 30 дней)
+│       └── 2026-11-02_as_events.sql              очередь событий просмотра для соцсети
 ├── design/EDDAS/player/        тексты кадров плеера: страница кадра, мост, ошибка, щит, скин Kodik; их читает
 │                               core/modules/player, наружу они не отдаются
 ├── design/EDDAS/tests/         проверки фронтенда (Node); до шага 6 читают app.js и js/ из корня
@@ -344,6 +348,7 @@ mysql -u root AnimeSocial < core/migrations/2026-10-30_admin_panel.sql
 mysql -u root AnimeSocial < core/migrations/2026-10-30_as_sessions.sql
 mysql -u root AnimeSocial < core/migrations/2026-10-30_presence.sql
 mysql -u root AnimeSocial < core/migrations/2026-10-31_task_runs.sql
+mysql -u root AnimeSocial < core/migrations/2026-11-02_as_events.sql
 ```
 
 Запустить приложение:
@@ -513,6 +518,18 @@ nginx перед AsoPlay; заголовкам прокси сервер вер�
 `show_watching` (по умолчанию выключено) показывает друзьям, что он смотрит; скрытые списки в блок не
 попадают.
 
+События просмотра (`core/functions/as_events.py`) засчитывают задания компендиума и достижения соцсети: серия,
+впервые досмотренная в плеере, досмотр тайтла по его последней серии и оценка. Ручное «Просмотрено» и импорт
+событий не дают. Событие пишется в `aviev_as_events` той же транзакцией, что и само действие, — только у тех, у
+кого есть живая сессия соцсети, — и уходит кадром `events` по тому же соединению сервер–сервер
+(`core/functions/as_events_sender.py`). Из очереди его удаляет только ответ `events_ok`; при сбое или обрыве оно
+уходит снова, а повтор соцсеть дважды не засчитывает. Старше 8 суток соцсеть событие не засчитает. Прошлые
+действия досылает команда (без `--apply` она только считает):
+
+```bash
+python -m core.api.tools.as_events_backfill --since 2026-10-30 --apply
+```
+
 Основные таблицы проекта:
 
 - `aviev_sessions` — HTTP-only login sessions.
@@ -529,6 +546,7 @@ nginx перед AsoPlay; заголовкам прокси сервер вер�
 - `aviev_title_refresh_queue` — title page refresh queue.
 - `aviev_import_marks` — one-time localStorage import markers.
 - `aviev_task_runs` — the last run of each background task (the 30-day rule).
+- `aviev_as_events` — watch events for AnimeSocial, kept until it confirms them.
 
 `aviev_activity` использует unique deduplication index:
 
@@ -757,6 +775,7 @@ Key capabilities:
 │   ├── __main__.py             uvicorn start (address and port: AV_BIND_HOST, AV_BIND_PORT)
 │   ├── core.py                 FastAPI wiring: CORS, lifecycle, layer links, routers, errors; static until step 6
 │   ├── requirements.txt        Python runtime dependencies
+│   ├── api/tools/              run by hand: as_events_backfill.py — sends past watch events to AnimeSocial
 │   ├── api/sections/           site API sections
 │   │   ├── account/            /account/…: the __init__.py entry includes the parts in route order —
 │   │   │                       favorites, history, progress, ratings, settings, import_storage
@@ -788,6 +807,8 @@ Key capabilities:
 │   │   ├── social_login.py     sign-in with AnimeSocial: PKCE, the AsoPlay session linked to it, password sign-in
 │   │   ├── sessions.py         AsoPlay sessions: create, check, revoke; the cookie and the current user
 │   │   ├── presence.py         presence on AsoPlay: tabs and «watching»; presence_batch.py — the batch for AS
+│   │   ├── as_events.py        the queue of watch events for AS: episode, completed, rating; as_events_sender.py —
+│   │   │                       sends them as an events frame over the server-to-server link, with confirmation
 │   │   ├── friends.py          friends from AnimeSocial: cached ids, people, statuses, calls on a person's behalf
 │   │   ├── realtime.py         the live connection hub: tabs, frames, background; realtime_presence.py —
 │   │   │                       presence to friends, realtime_social.py — social events and server status
@@ -849,7 +870,8 @@ Key capabilities:
 │       ├── 2026-10-30_admin_panel.sql            reports, title flags, site settings, audit log, watch time
 │       ├── 2026-10-30_as_sessions.sql            sign-in with AnimeSocial sessions
 │       ├── 2026-10-30_presence.sql               presence settings
-│       └── 2026-10-31_task_runs.sql              background task marks (the 30-day rule)
+│       ├── 2026-10-31_task_runs.sql              background task marks (the 30-day rule)
+│       └── 2026-11-02_as_events.sql              the queue of watch events for AnimeSocial
 ├── design/EDDAS/player/        player frame texts: the frame page, the bridge, the error page, the shield, the
 │                               Kodik skin; core/modules/player reads them, they are not served directly
 ├── design/EDDAS/tests/         frontend checks (Node); until step 6 they read app.js and js/ from the root
@@ -922,6 +944,7 @@ mysql -u root AnimeSocial < core/migrations/2026-10-30_admin_panel.sql
 mysql -u root AnimeSocial < core/migrations/2026-10-30_as_sessions.sql
 mysql -u root AnimeSocial < core/migrations/2026-10-30_presence.sql
 mysql -u root AnimeSocial < core/migrations/2026-10-31_task_runs.sql
+mysql -u root AnimeSocial < core/migrations/2026-11-02_as_events.sql
 ```
 
 Start the application:
@@ -1095,6 +1118,18 @@ server; the «Друзья» block on a title page adds whose lists have the tit
 settings: `hide_presence` shows nobody that the person is here, `show_watching` (off by default) shows
 friends what they watch; hidden lists stay out of the block.
 
+Watch events (`core/functions/as_events.py`) count toward AnimeSocial's compendium tasks and achievements: an
+episode the player finishes for the first time, a title finished by its last episode, and a rating. A manual
+«Просмотрено» and imports give no events. An event is written to `aviev_as_events` in the same transaction as the
+action itself, only for people with a live AnimeSocial session, and goes out as an `events` frame over the same
+server-to-server link (`core/functions/as_events_sender.py`). Only an `events_ok` answer removes it from the queue;
+after a failure or a break it goes again, and AnimeSocial never counts a repeat twice. It does not count events
+older than 8 days. A command sends past actions (without `--apply` it only counts):
+
+```bash
+python -m core.api.tools.as_events_backfill --since 2026-10-30 --apply
+```
+
 Core project tables:
 
 - `aviev_sessions` — HTTP-only login sessions.
@@ -1111,6 +1146,7 @@ Core project tables:
 - `aviev_title_refresh_queue` — title page refresh queue.
 - `aviev_import_marks` — one-time localStorage import markers.
 - `aviev_task_runs` — the last run of each background task (the 30-day rule).
+- `aviev_as_events` — watch events for AnimeSocial, kept until it confirms them.
 
 `aviev_activity` uses a unique deduplication index:
 

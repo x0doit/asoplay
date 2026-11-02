@@ -5,7 +5,9 @@
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
 Функции без маршрутов для разделов аккаунта (core/api/sections): соединение с базой приходит от раздела, коммит —
-тоже его. Здесь же метка времени записей аккаунта — UTC без пояса, как в таблицах.
+тоже его. Здесь же метка времени записей аккаунта — UTC без пояса, как в таблицах. Серия, впервые ставшая
+досмотренной, — событие для соцсети (core/functions/as_events.py) в той же транзакции; серии, которые отмечаются
+досмотренными сами, потому что досмотрена следующая, событий не дают.
 """
 from __future__ import annotations
 
@@ -13,6 +15,7 @@ from datetime import datetime
 from typing import Any
 
 from core.classes.clock import utc_now
+from core.functions import as_events
 
 
 def _mark_previous_episodes_done_if_needed(
@@ -61,10 +64,16 @@ def upsert_episode_progress(
     seconds: int,
     duration: int,
     updated_at: datetime | None = None,
-) -> None:
-    """Записать позицию в серии (только вперёд: берётся большее из старого и нового)."""
+) -> bool:
+    """Записать позицию в серии (только вперёд: берётся большее из старого и нового). True — серия только что
+    впервые стала досмотренной: тогда в очереди соцсети событие episode."""
     stamp = updated_at or utc_now()
     cur = conn.cursor()
+    cur.execute(
+        "SELECT seconds, duration FROM aviev_episode_progress WHERE user_id=%s AND mal_id=%s AND episode_num=%s",
+        (user_id, mal_id, episode_num),
+    )
+    before = cur.fetchone()
     cur.execute(
         """INSERT INTO aviev_episode_progress
             (user_id, mal_id, episode_num, seconds, duration, updated_at)
@@ -84,6 +93,13 @@ def upsert_episode_progress(
         duration,
         stamp,
     )
+    old_seconds, old_duration = (int(before[0]), int(before[1])) if before else (0, 0)
+    if before and progress_done(old_seconds, old_duration):
+        return False
+    if not progress_done(max(old_seconds, seconds), max(old_duration, duration)):
+        return False
+    as_events.record(conn, user_id, "episode", mal_id, episode=episode_num, at=stamp)
+    return True
 
 
 def progress_done(seconds: int, duration: int) -> bool:

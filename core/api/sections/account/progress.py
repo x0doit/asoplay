@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, conint
 
 from core.classes.clock import utc_now
 from core.classes.db import connect
+from core.functions import as_events
 from core.functions.progress import progress_rows_for_title, upsert_episode_progress
 from core.functions.sessions import current_user_required
 from core.functions.watch_history import (
@@ -92,6 +93,7 @@ def progress_upsert(
             updated_at=stamp,
         )
         conn.commit()
+    as_events.wake()  # впервые досмотренная серия — уже в очереди соцсети (upsert_episode_progress)
     return {"ok": True}
 
 

@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, conint
 
 from core.classes.clock import utc_now
 from core.classes.db import connect
+from core.functions import as_events
 from core.functions.activity import record_event
 from core.functions.sessions import current_user_required
 
@@ -46,19 +47,22 @@ def rating_set(
     payload: RatingIn,
     user: dict[str, Any] = Depends(current_user_required),
 ) -> dict[str, Any]:
-    """PUT /account/ratings/{mal_id} — поставить или изменить оценку."""
+    """PUT /account/ratings/{mal_id} — поставить или изменить оценку; оценка — ещё и событие для соцсети."""
+    stamp = utc_now()
     with connect() as conn:
         cur = conn.cursor()
         cur.execute(
             """INSERT INTO aviev_title_ratings (user_id, mal_id, score, set_at)
                 VALUES (%s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE score=VALUES(score), set_at=VALUES(set_at)""",
-            (user["id"], mal_id, payload.score, utc_now()),
+            (user["id"], mal_id, payload.score, stamp),
         )
         # activity: оценка/перестановка оценки — 1 событие в день на тайтл
         # (dedup в record_event по (user, day, kind, mal_id)).
         record_event(conn, user["id"], kind="rate", mal_id=mal_id)
+        as_events.record(conn, user["id"], "rating", mal_id, score=payload.score, at=stamp)
         conn.commit()
+    as_events.wake()
     return {"ok": True}
 
 

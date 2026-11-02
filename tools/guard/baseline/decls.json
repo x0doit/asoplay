@@ -14,6 +14,9 @@
  "ANIMESOCIAL_JSON": [
   "= 5dffa7ff4439"
  ],
+ "ANSWER_WAIT": [
+  "= 57eb3a49d9ad"
+ ],
  "ASApiError": [
   "class(Exception)"
  ],
@@ -104,6 +107,9 @@
  "BASE": [
   "= 2cbc373a1a5c",
   "= d5d5d1b100b9"
+ ],
+ "BATCH": [
+  "= f83a383c0fa8"
  ],
  "BREAK_AFTER": [
   "= 77de68daecd8"
@@ -466,6 +472,9 @@
  "HubSocial.status_changed_from_thread": [
   "def(self) -> None"
  ],
+ "IDLE": [
+  "= df1f005bd0e9"
+ ],
  "IMG_CACHE_DIR": [
   "= 17a77c6d2166"
  ],
@@ -628,6 +637,9 @@
  "OldYummy.videos": [
   "async def(self, anime_id: int | str) -> list[dict]"
  ],
+ "PACE": [
+  "= 1b390cd54a0c"
+ ],
  "PAGE": [
   "= e1822db470e6"
  ],
@@ -778,8 +790,14 @@
  "PublicOnlyBackend.sleep": [
   "async def(self, seconds: float) -> None"
  ],
+ "QUERIES": [
+  "= b21871374389"
+ ],
  "REPORT_EVERY": [
   "= e6c3dd630428"
+ ],
+ "RETRY": [
+  "= 66fdd0b61068"
  ],
  "RETRY_AFTER": [
   "= 15aa0c7e8fbd"
@@ -879,6 +897,30 @@
  "ReportPatch.status": [
   "str = da39a3ee5e6b"
  ],
+ "Row": [
+  "class(NamedTuple)"
+ ],
+ "Row.at": [
+  "datetime = da39a3ee5e6b"
+ ],
+ "Row.episode": [
+  "int = da39a3ee5e6b"
+ ],
+ "Row.id": [
+  "int = da39a3ee5e6b"
+ ],
+ "Row.mal_id": [
+  "int = da39a3ee5e6b"
+ ],
+ "Row.score": [
+  "int | None = da39a3ee5e6b"
+ ],
+ "Row.type": [
+  "str = da39a3ee5e6b"
+ ],
+ "Row.user_id": [
+  "int = da39a3ee5e6b"
+ ],
  "SEND_TIMEOUT": [
   "= ac3478d69a3c"
  ],
@@ -925,6 +967,51 @@
  ],
  "SWEEP_EVERY": [
   "= ac3478d69a3c"
+ ],
+ "Sender": [
+  "class()"
+ ],
+ "Sender.__init__": [
+  "def(self, link: Any, take: Callable[[], list[as_events.Row]]=as_events.take, drop: Callable[[list[as_events.Row]], int]=as_events.drop_sent)"
+ ],
+ "Sender._answer": [
+  "async def(self, batch: str, generation: int, wait: float) -> dict[str, Any] | None"
+ ],
+ "Sender._drain": [
+  "async def(self) -> None"
+ ],
+ "Sender._failed": [
+  "async def(self, batch: str, generation: int, answer: dict[str, Any]) -> None"
+ ],
+ "Sender._previous": [
+  "async def(self, generation: int, wait: float) -> None"
+ ],
+ "Sender._rest": [
+  "async def(self) -> None"
+ ],
+ "Sender._send": [
+  "async def(self, rows: list[as_events.Row]) -> None"
+ ],
+ "Sender._settle": [
+  "async def(self, frame: dict[str, Any]) -> None"
+ ],
+ "Sender._step": [
+  "async def(self) -> None"
+ ],
+ "Sender.on_answer": [
+  "def(self, frame: dict[str, Any]) -> None"
+ ],
+ "Sender.run": [
+  "async def(self) -> None"
+ ],
+ "Sender.start": [
+  "def(self) -> None"
+ ],
+ "Sender.stop": [
+  "async def(self) -> None"
+ ],
+ "Sender.wake_from_thread": [
+  "def(self) -> None"
  ],
  "Settings": [
   "class()"
@@ -1020,6 +1107,9 @@
  "SocialLink._loop": [
   "async def(self) -> None"
  ],
+ "SocialLink._notify": [
+  "def(self, frame: dict[str, Any]) -> None"
+ ],
  "SocialLink._realtime_url": [
   "async def(self) -> str"
  ],
@@ -1031,6 +1121,9 @@
  ],
  "SocialLink.run_once": [
   "async def(self) -> str"
+ ],
+ "SocialLink.send": [
+  "def(self, frame: dict[str, Any]) -> bool"
  ],
  "SocialLink.start": [
   "def(self) -> None"
@@ -1111,7 +1204,8 @@
   "= 22d200f8670d"
  ],
  "TYPES": [
-  "= 6020ec603c55"
+  "= 6020ec603c55",
+  "= 8907f5b8c8c0"
  ],
  "Tab": [
   "class()"
@@ -1181,6 +1275,9 @@
  "WILDCARD_DNS": [
   "= 9401503e431c"
  ],
+ "WINDOW": [
+  "= b463555d4f85"
+ ],
  "WINDOW_HOURS": [
   "= 4d134bc07221"
  ],
@@ -1192,6 +1289,9 @@
  ],
  "XRAY_TEMPLATE": [
   "= f2820481e428"
+ ],
+ "ZONE": [
+  "= b3494ffe81f1"
  ],
  "_AD_PAYLOAD_KEYS": [
   "= 901d8bed3903"
@@ -1366,6 +1466,9 @@
  "_NON_ALNUM": [
   "= a17d35a61d0c"
  ],
+ "_ONCE": [
+  "= 522214a1b4b6"
+ ],
  "_PAGE_TYPES": [
   "= 6a4991daca46"
  ],
@@ -1377,6 +1480,9 @@
  ],
  "_PROXY_VERSION": [
   "= 6d9afe2344ba"
+ ],
+ "_RATING": [
+  "= 1609fa950dae"
  ],
  "_RECORDS": [
   "= bb5e37def701"
@@ -1405,6 +1511,9 @@
  "_ROUTE_ERRORS": [
   "= 13d76b7969ec"
  ],
+ "_ROW": [
+  "= 0397cc31c220"
+ ],
  "_RateLimiter": [
   "class()"
  ],
@@ -1431,6 +1540,9 @@
  ],
  "_ResourceTagParser.handle_starttag": [
   "def(self, tag, attrs)"
+ ],
+ "_SESSION": [
+  "= ed8cf32f5b53"
  ],
  "_SHIELD_LOGGER_JS": [
   "= 67c01c2e4dcd"
@@ -2018,6 +2130,9 @@
  "_rewrite_resource_tag": [
   "def(tag: str, base: str) -> str"
  ],
+ "_row": [
+  "def(r: tuple) -> Row"
+ ],
  "_row_to_dict": [
   "def(row: tuple) -> dict[str, Any]"
  ],
@@ -2047,6 +2162,9 @@
  ],
  "_send": [
   "async def(method: str, url: str, *, stream: bool=False, **kwargs: Any) -> httpx.Response"
+ ],
+ "_sender": [
+  "= 6eef6648406c"
  ],
  "_server_error": [
   "@app.exception_handler(Exception) async def(request: Request, exc: Exception)"
@@ -2193,6 +2311,9 @@
  ],
  "_vpn_preferred_until": [
   "= bf21a9e8fbc5"
+ ],
+ "_wakers": [
+  "= 97d170e1550e"
  ],
  "_watchdog_stop": [
   "= 65ca2c3f8054"
@@ -2481,6 +2602,9 @@
  "destinations_pinned": [
   "def() -> bool"
  ],
+ "drop_sent": [
+  "def(rows: list[Row]) -> int"
+ ],
  "drop_session": [
   "def(session: str) -> None"
  ],
@@ -2585,8 +2709,12 @@
  "forget_title": [
   "def(mal_id: int) -> int"
  ],
+ "found": [
+  "def(cur, since: datetime, now: datetime, window: timedelta) -> dict[str, list[tuple]]"
+ ],
  "frame": [
-  "@router.get('/frame') async def(request: Request, url: str=Query(..., min_length=8))"
+  "@router.get('/frame') async def(request: Request, url: str=Query(..., min_length=8))",
+  "def(row: Row) -> dict[str, Any]"
  ],
  "friend_accept": [
   "@router.post('/friends/{peer_id}/accept') def(peer_id: int, request: Request, user: dict[str, Any]=Depends(current_user_required), session: str | None=Cookie(default=None, alias=sessions.COOKIE_NAME)) -> dict[str, Any]"
@@ -2761,6 +2889,9 @@
  "link": [
   "def(session: str, uid: int, tokens: dict[str, Any], user_ip: str='', user_agent: str='') -> None"
  ],
+ "linked": [
+  "def(cur: Any, user_id: int) -> bool"
+ ],
  "list_all": [
   "@router.get('') def(status: str | None=Query(default=None), user: dict[str, Any]=Depends(current_user_required)) -> list[dict[str, Any]]"
  ],
@@ -2806,6 +2937,8 @@
   "= 3acb6a6c60f8",
   "= 48bd8c61a38f",
   "= 48bd8c61a38f",
+  "= 6cddf65a201a",
+  "= 6cddf65a201a",
   "= 96797f0c7e5f",
   "= 9a6a5b08b0f5",
   "= 9a6a5b08b0f5",
@@ -2847,7 +2980,8 @@
   "def(identity: str) -> dict[str, Any] | None"
  ],
  "main": [
-  "def() -> None"
+  "def() -> None",
+  "def(argv: list[str] | None=None) -> int"
  ],
  "mal_id_exists": [
   "async def(mal_id: int) -> bool"
@@ -2888,8 +3022,17 @@
  "notice": [
   "def() -> dict[str, Any] | None"
  ],
+ "object_key": [
+  "def(mal_id: int) -> str"
+ ],
+ "off_new": [
+  "def(waker: Callable[[], None]) -> None"
+ ],
  "ok": [
   "def(data: Any) -> dict[str, Any]"
+ ],
+ "on_new": [
+  "def(waker: Callable[[], None]) -> None"
  ],
  "on_route": [
   "def(source: str, obj, route: str)"
@@ -3039,6 +3182,9 @@
  "put": [
   "def(obj: Any) -> str"
  ],
+ "queue": [
+  "def(cur, rows: dict[str, list[tuple]]) -> dict[str, int]"
+ ],
  "random_watchable": [
   "@router.get('/random/watchable') async def()"
  ],
@@ -3062,6 +3208,9 @@
  ],
  "realtime_ws.extra_origins": [
   "= 4641e5957bc3"
+ ],
+ "record": [
+  "def(conn: Any, user_id: int, kind: str, mal_id: int, *, episode: int=0, score: int | None=None, at: datetime | None=None) -> bool"
  ],
  "record_event": [
   "def(conn, user_id: int, *, kind: str, mal_id: int | None=None, meta: str | None=None) -> None"
@@ -3247,10 +3396,14 @@
   "async def() -> None",
   "async def() -> None",
   "async def() -> None",
+  "async def() -> None",
   "def() -> None"
  ],
  "sign": [
   "def(secret: bytes, ts: str, method: str, path_with_query: str, admin_user: str, body: bytes) -> str"
+ ],
+ "since_utc": [
+  "def(day: str) -> datetime"
  ],
  "site_url": [
   "def() -> str",
@@ -3310,7 +3463,8 @@
   "async def() -> None",
   "async def() -> None",
   "async def() -> None",
-  "async def() -> None"
+  "async def() -> None",
+  "async def(link: Any) -> None"
  ],
  "state": [
   "= 09c0d3d8663d"
@@ -3346,6 +3500,9 @@
  "sync_watch_history_from_progress": [
   "def(conn, user_id: int, mal_id: int, *, episode_num: int, title: str='', poster_url: str='', episodes_total: int=0, updated_at: datetime | None=None) -> None"
  ],
+ "take": [
+  "def(limit: int=BATCH) -> list[Row]"
+ ],
  "title_cards": [
   "def(mal_ids: Iterable[int]) -> dict[int, tuple[str, str]]"
  ],
@@ -3375,6 +3532,7 @@
   "def(**kwargs: typing.Any) -> httpx.AsyncHTTPTransport"
  ],
  "unix": [
+  "def(at: datetime) -> int",
   "def(value: datetime | None) -> int | None"
  ],
  "unplayable_player_url": [
@@ -3384,7 +3542,7 @@
   "def(blob: bytes, context: str) -> str | None"
  ],
  "upsert_episode_progress": [
-  "def(conn, user_id: int, mal_id: int, episode_num: int, seconds: int, duration: int, updated_at: datetime | None=None) -> None"
+  "def(conn, user_id: int, mal_id: int, episode_num: int, seconds: int, duration: int, updated_at: datetime | None=None) -> bool"
  ],
  "upsert_status": [
   "def(conn, user_id: int, mal_id: int, status: str | None, source: str, title: str='', poster_url: str='') -> None"
@@ -3436,6 +3594,9 @@
  ],
  "vpn_watchdog_interval": [
   "def() -> float"
+ ],
+ "wake": [
+  "def() -> None"
  ],
  "watched_seconds": [
   "def(user_id: int, mal_id: int, episode: int, position: int, clock: Any=time.monotonic) -> int"

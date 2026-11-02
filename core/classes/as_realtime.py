@@ -11,6 +11,9 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
 Пока соединения нет, соцсеть узнаёт о присутствии из запасного пакета POST /clients/presence раз в минуту
 (presence_batch.report_once); после переподключения снимок заменяет всё, что она знала.
+
+По этому же соединению идут события просмотра (раздел 14): кадры events шлёт core/functions/as_events_sender.py
+через send(), а ответы events_ok / events_error и смену соединения (ready, closed) получает его on_events.
 """
 from __future__ import annotations
 
@@ -61,6 +64,11 @@ class SocialLink:
         self._task: asyncio.Task | None = None
         self.connected = False
         self.url = ""
+        # Соцсеть приняла вход (ready) на соединении номер generation; on_events — кому отдавать ответы на кадры
+        # events и смену соединения
+        self.ready = False
+        self.generation = 0
+        self.on_events: Callable[[dict[str, Any]], None] | None = None
 
     # ----- что сообщать соцсети -----
     def presence(self, user_id: int, online: bool, watching: dict[str, str] | None) -> None:
@@ -75,6 +83,25 @@ class SocialLink:
             self._queue.put_nowait(frame)
         except asyncio.QueueFull:
             log.warning("Anime Social realtime queue is full; the next snapshot will catch up")
+
+    def send(self, frame: dict[str, Any]) -> bool:
+        """Кадр соцсети (события просмотра) по живому соединению. False — соединения нет или очередь полна: кадр не
+        ушёл, отправитель повторит после переподключения."""
+        if not self.ready:
+            return False
+        try:
+            self._queue.put_nowait(frame)
+        except asyncio.QueueFull:
+            return False
+        return True
+
+    def _notify(self, frame: dict[str, Any]) -> None:
+        """Ответ на кадр events или смена соединения — отправителю событий."""
+        if self.on_events is not None:
+            try:
+                self.on_events(frame)
+            except Exception:  # noqa: BLE001 — отправитель не должен рвать соединение
+                log.exception("Could not pass an Anime Social events answer")
 
     # ----- соединение -----
     async def _realtime_url(self) -> str:
@@ -106,6 +133,9 @@ class SocialLink:
             finally:
                 self.connected = False
                 sender.cancel()
+                if self.ready:
+                    self.ready = False
+                    self._notify({"type": "closed", "generation": self.generation})
         return "closed"
 
     async def _send_loop(self, ws) -> None:
@@ -129,6 +159,11 @@ class SocialLink:
             return "invalid_client" if frame.get("code") == "invalid_client" else "closed"
         if kind == "ready":
             log.info("Connected to Anime Social realtime at %s", self.url)
+            self.generation += 1
+            self.ready = True
+            self._notify({"type": "ready", "generation": self.generation})
+        elif kind in ("events_ok", "events_error"):
+            self._notify(frame)
         elif kind == "snapshot_ok":
             log.info("Anime Social realtime snapshot: %s accepted, %s ignored", frame.get("accepted"), frame.get("ignored"))
         elif kind == "warning":

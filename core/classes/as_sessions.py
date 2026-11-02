@@ -34,6 +34,14 @@ def enabled() -> bool:
     return flag and as_api.configured() and token_box.available()
 
 
+def linked(cur: Any, user_id: int) -> bool:
+    """Есть ли у человека живая сессия соцсети у AsoPlay (токен обновления не истёк). Курсор — вызывающего, чтобы
+    проверка шла в его транзакции: события просмотра соцсеть засчитывает только таким людям."""
+    cur.execute("SELECT 1 FROM `aviev_as_sessions` WHERE `user_id` = %s AND `refresh_expires_at` > %s LIMIT 1",
+                (user_id, int(time.time())))
+    return cur.fetchone() is not None
+
+
 # ---------- сессии устройства Anime Social ----------
 def _context(session: str, field: str) -> str:
     """Привязка шифротекста к строке и полю: сессия AsoPlay и access или refresh."""

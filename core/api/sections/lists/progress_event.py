@@ -18,10 +18,10 @@ from pydantic import BaseModel, Field, conint
 
 from core.classes.clock import utc_now
 from core.classes.db import connect
-from core.functions import lists_sweep
+from core.functions import as_events, lists_sweep
 from core.functions.activity import record_event
 from core.functions.lists import auto_add_enabled, fetch_entry, sweep_dropped_after_30_days, upsert_status
-from core.functions.progress import auto_watching_qualified, history_qualified
+from core.functions.progress import auto_watching_qualified, history_qualified, upsert_episode_progress
 from core.functions.sessions import current_user_required
 from core.functions.watch_time import watched_seconds
 
@@ -56,43 +56,12 @@ def progress_event(
     with connect() as conn:
         cur = conn.cursor()
 
-        # 1) Прогресс эпизода пишем всегда — нужен для «resume at position».
-        cur.execute(
-            """INSERT INTO aviev_episode_progress
-                (user_id, mal_id, episode_num, seconds, duration, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                    seconds=GREATEST(seconds, VALUES(seconds)),
-                    duration=GREATEST(duration, VALUES(duration)),
-                    updated_at=VALUES(updated_at)""",
-            (user["id"], event.mal_id, event.episode_num,
-             event.seconds, event.duration, now),
-        )
-
-        # Если серия фактически досмотрена (>=92% или до конца <90 сек), помечаем
-        # все предыдущие серии как «досмотрено» — чтобы в списке эпизодов они
-        # были подкрашены как пройденные. По ТЗ: если недосмотрел серию N, но
-        # завершил N+1 — N автоматически помечается как досмотренная.
-        episode_done = (
-            event.duration > 0
-            and (event.seconds >= event.duration * 0.92
-                 or event.seconds >= max(0, event.duration - 90))
-        )
-        if episode_done and event.episode_num > 1:
-            stamp_duration = max(event.duration, 1)
-            for ep in range(1, event.episode_num):
-                cur.execute(
-                    """INSERT INTO aviev_episode_progress
-                        (user_id, mal_id, episode_num, seconds, duration, updated_at)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                        ON DUPLICATE KEY UPDATE
-                            seconds=GREATEST(seconds, %s),
-                            duration=GREATEST(duration, %s),
-                            updated_at=VALUES(updated_at)""",
-                    (user["id"], event.mal_id, ep,
-                     stamp_duration, stamp_duration, now,
-                     stamp_duration, stamp_duration),
-                )
+        # 1) Прогресс эпизода пишем всегда — нужен для «resume at position». Если серия фактически досмотрена
+        #    (>=92% или до конца <90 сек), все предыдущие серии помечаются как «досмотрено» — чтобы в списке
+        #    эпизодов они были подкрашены как пройденные. По ТЗ: если недосмотрел серию N, но завершил N+1 —
+        #    N автоматически помечается как досмотренная. Впервые досмотренная серия — событие для соцсети.
+        upsert_episode_progress(conn, user["id"], event.mal_id, event.episode_num, event.seconds, event.duration,
+                                updated_at=now)
 
         # watch_history = фид «Продолжить просмотр». Туда попадает реальный
         # просмотр от 5 минут или честно завершённая короткая серия; «просто
@@ -179,6 +148,8 @@ def progress_event(
                     conn, user["id"], kind="complete",
                     mal_id=event.mal_id, meta="auto",
                 )
+                # Досмотр по последней серии — событие для соцсети; ручное «Просмотрено» его не даёт
+                as_events.record(conn, user["id"], "completed", event.mal_id, at=now)
 
         # 4) activity: базовое событие «продолжаю смотреть» c эпизодом в meta.
         record_event(
@@ -202,6 +173,7 @@ def progress_event(
 
         conn.commit()
         entry = fetch_entry(conn, user["id"], event.mal_id) or {}
+    as_events.wake()
     return {"applied": applied, "entry": entry}
 
 

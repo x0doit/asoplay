@@ -36,7 +36,7 @@ from core.classes.jikan import catalog as jikan_catalog
 from core.classes.vpn import bridge as vpn_bridge
 from core.config import config
 from core.functions import (
-    lists_sweep, presence_batch, realtime, realtime_social, site_settings, sources,
+    as_events_sender, lists_sweep, presence_batch, realtime, realtime_social, site_settings, sources,
 )
 from core.modules import profile_pages, seo, title_pages
 from core.modules.player import routes as player_proxy
@@ -96,7 +96,7 @@ async def _player_proxy_null_origin_cors(request: Request, call_next):
 @app.on_event("startup")
 async def _startup() -> None:
     """Запуск: мост VPN и его сторож, решения панели, каталог, реклама, плеер, пакет присутствия,
-    realtime, правило 30 дней."""
+    realtime и отправка событий просмотра по его связи с соцсетью, правило 30 дней."""
     # Start xray here, not at import time — tests and tooling can now import
     # the server module without spawning processes.
     if vpn_bridge.activate():
@@ -111,6 +111,7 @@ async def _startup() -> None:
     await player_proxy.startup()
     await presence_batch.startup()
     await realtime.startup()
+    await as_events_sender.startup(realtime.hub.social)
     await lists_sweep.startup()
 
 
@@ -118,6 +119,7 @@ async def _startup() -> None:
 async def _shutdown() -> None:
     """Остановка в обратном порядке; клиенты источников через мост VPN закрывает sources.shutdown()."""
     await lists_sweep.shutdown()
+    await as_events_sender.shutdown()
     await realtime.shutdown()
     await presence_batch.shutdown()
     await player_proxy.shutdown()
