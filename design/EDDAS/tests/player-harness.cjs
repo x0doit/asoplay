@@ -27,6 +27,8 @@ function harness(api = {}, globals = {}) {
     $$: () => [],
     // Чат серии (js/episode-chat.js) создаётся при показе серии — в песочнице он пустой
     EpisodeChat: class { setSeek() {} setEpisode() {} show() {} time() {} destroy() {} },
+    // Клавиши плеера (js/player-keys.js) слушают страницу — в песочнице слушать нечего
+    bindPlayerKeys: () => () => {},
     account: {}, realtime: {}, SheetDrag: {}, BACKEND: '',
     document: { addEventListener() {}, removeEventListener() {} },
     ...globals,

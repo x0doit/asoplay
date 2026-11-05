@@ -14,6 +14,7 @@ import { setupNavigation, setActiveSection, SheetDrag } from "./js/navigation.js
 import * as images from "./js/images.js?v=20261031-img1";
 import * as realtime from "./js/realtime.js?v=20261102-chat1";
 import { EpisodeChat } from "./js/episode-chat.js?v=20261103-totop2";
+import { bindPlayerKeys } from "./js/player-keys.js?v=20261105-keys1";
 import * as site from "./js/site.js?v=20261105-adult1";
 import { getTrailerId, bindTrailer } from "./js/trailer.js?v=20261029-eddas2";
 
@@ -2542,6 +2543,7 @@ class Player {
   // Перемотка: наш кадр — asoplay:seek, Kodik — его API; другие плееры не умеют, минуты в чате — простой текст
   _setSeek(kind) {
     this._seekKind = kind;
+    if (kind !== "frame") this._frameKeys = false;  // клавиши — только кадру, который сам сказал, что их принимает
     this._chat?.setSeek(!!kind);
   }
 
@@ -2553,9 +2555,14 @@ class Player {
     else target.postMessage({ key: "kodik_player_api", value: { method: "seek", seconds: time } }, "*");
   }
 
-  // Наш кадр сообщил, что умеет перематывать, или просит раскрыть на весь экран контейнер видео вместе с полосками
+  // Наш кадр сообщил, что умеет перематывать и принимает клавиши, или просит раскрыть на весь экран контейнер видео
+  // вместе с полосками
   _handleChatFrameMessage(data) {
-    if (data?.type === "asoplay:frame-ready") { this._setSeek(data.seek === true ? "frame" : null); return true; }
+    if (data?.type === "asoplay:frame-ready") {
+      this._setSeek(data.seek === true ? "frame" : null);
+      this._frameKeys = data.keys === true;
+      return true;
+    }
     if (data?.type !== "asoplay:fullscreen") return false;
     const box = $(".sp-video");
     // failed — страница не смогла (браузер не передал ей нажатие): кадр раскрывается сам, без полосок
@@ -2758,6 +2765,8 @@ class Player {
       }
     };
     window.addEventListener("message", this._onMessage);
+    // ← → и пробел с фокусом на странице — нашему кадру (js/player-keys.js); Kodik и другие плееры их не получают
+    this._unbindKeys = bindPlayerKeys(() => (this._frameKeys && this._seekKind === "frame" && this._iframeEl?.contentWindow) || null);
   }
   _maybeAutoNext(kind) {
     if (kind !== "ended") return;
@@ -3553,6 +3562,7 @@ class Player {
     if (this._shotNoticeTimer) clearTimeout(this._shotNoticeTimer);
     this._hidePlayerContextMenu();
     if (this._onMessage) window.removeEventListener("message", this._onMessage);
+    this._unbindKeys?.();
     if (this._onFullscreen) document.removeEventListener("fullscreenchange", this._onFullscreen);
     this._chat?.destroy();
     this._chat = null;

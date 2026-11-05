@@ -1,5 +1,5 @@
 /*
- * Кадр плеера, часть 2: время и прогресс, управление, громкость, качество, события.
+ * Кадр плеера, часть 2: время и прогресс, управление и клавиши, громкость, качество, события.
  *
  * Автор: Чепела Даниил Максимович.
  */
@@ -192,6 +192,26 @@
     event.preventDefault();
     try { parent.postMessage({ type: "asoplay:player-context-menu", x: event.clientX, y: event.clientY }, "*"); } catch (_) {}
   }, true);
+  // Клавиши, как в привычных плеерах: ← и → — на 5 с назад и вперёд (панель видна миг), пробел — пауза и пуск.
+  // Фокус в кадре — ловит он сам; фокус на странице — клавишу присылает она (asoplay:key, ниже)
+  const KEYS = { ArrowLeft: "ArrowLeft", ArrowRight: "ArrowRight", " ": "Space" };
+  const pressKey = (key) => {
+    if (key === "Space") { togglePlay(); return; }
+    const duration = Number.isFinite(video.duration) ? video.duration : 0;
+    const time = (Number.isFinite(video.currentTime) ? video.currentTime : 0) + (key === "ArrowRight" ? 5 : -5);
+    try { video.currentTime = Math.max(0, duration > 0 ? Math.min(time, duration - 1) : time); } catch (_) {}
+    syncProgress();
+    document.body.classList.remove("controls-hidden");
+    scheduleControlsHide(1500);
+  };
+  document.addEventListener("keydown", (event) => {
+    const key = KEYS[event.key];
+    if (!key || event.ctrlKey || event.metaKey || event.altKey || qualityWrap.classList.contains("open")) return;
+    // Ползунок громкости стрелками меняет громкость — его родное дело
+    if (key !== "Space" && event.target === volumeRange) return;
+    event.preventDefault();
+    pressKey(key);
+  });
   window.addEventListener("message", (event) => {
     const data = event && event.data;
     if (!data || typeof data !== "object") return;
@@ -206,6 +226,8 @@
       pageFullscreen = data.on === true;
       clearTimeout(askTimer);
       if (data.failed === true) ownFullscreen();
+    } else if (data.type === "asoplay:key" && Object.values(KEYS).includes(data.key)) {
+      pressKey(data.key);
     }
   });
   video.addEventListener("loadedmetadata", sendTime);
@@ -222,8 +244,8 @@
   video.addEventListener("ended", () => send("kodik_player_video_ended"));
   video.addEventListener("error", () => { showStart(); document.body.classList.remove("controls-hidden"); });
   setInterval(sendTime, 1000);
-  // Странице: этот плеер умеет перематывать — минуты в чате серии становятся кнопками
-  try { parent.postMessage({ type: "asoplay:frame-ready", seek: true }, "*"); } catch (_) {}
+  // Странице: этот плеер умеет перематывать — минуты в чате серии становятся кнопками — и принимает клавиши
+  try { parent.postMessage({ type: "asoplay:frame-ready", seek: true, keys: true }, "*"); } catch (_) {}
   try { video.load(); } catch (_) {}
   syncToggle();
   syncProgress();
