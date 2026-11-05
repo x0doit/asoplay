@@ -9,12 +9,12 @@
  * any attempt to do so surfaces a guest-gate.
  */
 
-import * as account from "./js/account.js?v=20261102-chat1";
+import * as account from "./js/account.js?v=20261105-adult1";
 import { setupNavigation, setActiveSection, SheetDrag } from "./js/navigation.js?v=20261030-live1";
 import * as images from "./js/images.js?v=20261031-img1";
 import * as realtime from "./js/realtime.js?v=20261102-chat1";
 import { EpisodeChat } from "./js/episode-chat.js?v=20261103-totop2";
-import * as site from "./js/site.js?v=20261030-admin1";
+import * as site from "./js/site.js?v=20261105-adult1";
 import { getTrailerId, bindTrailer } from "./js/trailer.js?v=20261029-eddas2";
 
 // Mark iframe embeds early enough for compact app-like layout rules.
@@ -1998,9 +1998,6 @@ class Player {
       this.renderComingSoon(releaseAt);
       return;
     }
-    // 18+ — видео ищем только после «Мне есть 18» (запоминается в этом браузере)
-    if (site.isAdult(this.malId) && !site.adultConfirmed() && !(await this._adultGate())) return;
-    if (this.destroyed) return;
     await this.discoverWithFallback();
     if (this.destroyed) return;
     if (this._adoptAnyReadySource() || this._renderFoundSource()) return;
@@ -2909,30 +2906,6 @@ class Player {
     ov.classList.remove("hide");
     const list = $("#avEpisodesList");
     if (list) list.innerHTML = errorPage({ title: "Серий нет", message: "Видео этого тайтла недоступно по требованию правообладателя.", icon: "fas fa-ban" });
-  }
-
-  _adultGate() {
-    const ov = $("#avPlayerOverlay");
-    if (!ov) return Promise.resolve(false);
-    ov.innerHTML = `
-      <div class="unavail adult-gate">
-        <div class="unavail-icon adult-gate__mark" aria-hidden="true">18+</div>
-        <div class="unavail-title">Только для взрослых</div>
-        <div class="unavail-sub">В этом тайтле есть сцены для зрителей старше 18 лет.</div>
-        <div class="unavail-links">
-          <button type="button" class="ed-btn ed-btn--primary" data-adult-yes>Мне есть 18</button>
-          <a class="ed-btn ed-btn--secondary" href="/">На главную</a>
-        </div>
-      </div>`;
-    ov.classList.remove("hide");
-    return new Promise(resolve => {
-      ov.querySelector("[data-adult-yes]").addEventListener("click", () => {
-        site.confirmAdult();
-        ov.innerHTML = `<span class="ed-spinner spinner" aria-hidden="true"></span><div id="avPlayerStatus"></div>`;
-        this.status("Ищем аниме…");
-        resolve(true);
-      }, { once: true });
-    });
   }
 
   // «Не работает» — с первой секунды: жалоба нужнее всего, когда видео так и не нашлось. У скрытого тайтла

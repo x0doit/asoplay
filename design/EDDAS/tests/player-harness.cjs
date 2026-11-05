@@ -17,7 +17,7 @@ function harness(api = {}, globals = {}) {
   const nodes = new Map();
   const context = vm.createContext({ api, console: { warn() {} }, Set, Map, esc: s => s,
     state: { backendSources: ['oldyummy', 'yummy_anime'] },
-    site: { isHidden: () => false, isAdult: () => false, adultConfirmed: () => true, confirmAdult() {}, sourceOrder: () => [] },
+    site: { isHidden: () => false, isAdult: () => false, sourceOrder: () => [] },
     ruEpisodeTitle: (name, num) => name || `Episode ${num}`,
     titleSimilarity: () => 1,
     $: selector => {

@@ -13,7 +13,7 @@
 import { calendarMonth, dayDate, groupActivity } from "./profile-activity.js?v=20261027-profile6";
 import { activeSection, applyTheme, getTheme, syncThemeLabels, themeLabel, SheetDrag } from "./navigation.js?v=20261030-live1";
 import * as realtime from "./realtime.js?v=20261030-live1";
-import * as siteState from "./site.js?v=20261030-admin1";
+import * as siteState from "./site.js?v=20261105-adult1";
 
 let ctx = null;
 let authConfig = {

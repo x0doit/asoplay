@@ -63,7 +63,7 @@ JavaScript, бэкенд работает на Python/FastAPI, а пользов
   Кнопка «Не работает» в плеере отправляет жалобу — как на сайте соцсети, вместе с серией, озвучкой
   и источником — в очередь модераторов. Тайтл можно скрыть по жалобе правообладателя (страница
   остаётся, видео нет, для поисковиков — 451), закрепить в карусели главной («Рекомендуем»),
-  пометить 18+ (метка и вопрос «Мне есть 18» перед видео), сбросить его кеш. Ещё — плашка-объявление
+  пометить 18+ (метка у тайтла, в карусели главной его нет), сбросить его кеш. Ещё — плашка-объявление
   на сайте, выключатели входа по почте и через AnimeSocial, включение и порядок источников видео,
   список хостов картинок, которые идут через прокси сайта (напрямую или через VPN-мост),
   «Обзор» (здоровье источников, люди, просмотры, топ недели, как идут картинки) и журнал действий.
@@ -662,7 +662,7 @@ JavaScript, the backend runs on Python/FastAPI, and user data is stored in MySQL
   `/cpanel`. The player's «Не работает» button files a report — like reports on the social network,
   with the episode, dub and source — into the moderators' queue. A title can be hidden after a
   copyright complaint (the page stays, the video goes, search engines get 451), pinned to the home
-  carousel («Рекомендуем»), marked 18+ (a label and a «Мне есть 18» question before the video), and
+  carousel («Рекомендуем»), marked 18+ (a label on the title, kept out of the home carousel), and
   have its cache reset. There is also a site notice, switches for mail sign-in and sign-in with
   AnimeSocial, enabling and ordering video sources, the list of image hosts that go through the site's
   proxy (directly or through the VPN bridge), an overview (source health, people, watching, the week's

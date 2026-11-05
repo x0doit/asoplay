@@ -1,6 +1,6 @@
 /*
- * Окна перед плеером в app.js: клипы, скрытые панелью тайтлы, 18+, найденный после «не найдено»
- * источник.
+ * Окна перед плеером в app.js: клипы, скрытые панелью тайтлы, найденный после «не найдено» источник.
+ * У тайтла 18+ окна нет: видео ищется сразу.
  *
  * Автор: Чепела Даниил Максимович.
  * AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
@@ -20,7 +20,7 @@ function harness(anime, nodes = {}, site = {}) {
   const context = vm.createContext({
     console: { warn() {} }, Set, Map, esc: s => s, uniq: list => [...new Set(list)],
     state: { backendAvailable: true, backendSources: ['oldyummy'] },
-    site: { isHidden: () => false, isAdult: () => false, adultConfirmed: () => true, confirmAdult() {}, sourceOrder: () => [], ...site },
+    site: { isHidden: () => false, isAdult: () => false, sourceOrder: () => [], ...site },
     NON_ANIME_TYPES: new Set(['Music', 'CM', 'PV']),
     ruEpisodeTitle: (name, num) => name || `Episode ${num}`,
     $: selector => nodes[selector] || null,
@@ -76,29 +76,11 @@ test('a title hidden from the AnimeSocial panel shows the takedown and never loo
   assert.equal(calls.discovered, 0);
 });
 
-test('an 18+ title looks for video only after «Мне есть 18»', async () => {
-  let answer;
-  const { p, calls } = harness({ ...finished, type: 'TV' }, {}, { isAdult: () => true, adultConfirmed: () => false });
+test('an 18+ title looks for video at once, with nothing asked before the player', async () => {
+  const { p, calls } = harness({ ...finished, type: 'TV' }, {}, { isAdult: () => true });
   p._adoptAnyReadySource = () => true;
-  p._adultGate = () => new Promise(resolve => { answer = resolve; });
-  const started = p.init();
-  await new Promise(resolve => setTimeout(resolve, 0));
-  assert.equal(calls.discovered, 0);
-  answer(true);
-  await started;
+  await p.init();
   assert.equal(calls.discovered, 1);
-});
-
-test('an 18+ title asks once per browser and never without an answer', async () => {
-  const asked = harness({ ...finished, type: 'TV' }, {}, { isAdult: () => true, adultConfirmed: () => false });
-  asked.p._adultGate = async () => false;
-  await asked.p.init();
-  assert.equal(asked.calls.discovered, 0);
-  const confirmed = harness({ ...finished, type: 'TV' }, {}, { isAdult: () => true, adultConfirmed: () => true });
-  confirmed.p._adoptAnyReadySource = () => true;
-  confirmed.p._adultGate = () => { throw new Error('asked again'); };
-  await confirmed.p.init();
-  assert.equal(confirmed.calls.discovered, 1);
 });
 
 function overlay(html) {

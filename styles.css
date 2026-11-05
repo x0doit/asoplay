@@ -3440,7 +3440,7 @@ html.is-compact-frame .hero-bg {
   .char-img:not(:disabled):hover img { opacity: .92; }
 }
 
-/* ── Раздел «AsoPlay» панели Anime Social: плашка, «Не работает», 18+ ───── */
+/* ── Раздел «AsoPlay» панели Anime Social: плашка, «Не работает» ──────── */
 
 /* Плашка-объявление над страницей: текст из панели, крестик прячет именно это объявление */
 .site-notice {
@@ -3515,19 +3515,6 @@ html.is-compact-frame .hero-bg {
 
 .report-box #avReportNote:empty {
   display: none;
-}
-
-/* 18+: в шапке тайтла — метка, перед плеером — вопрос */
-.adult-gate__mark {
-  font: 700 26px/1 var(--font-sans);
-  color: var(--slate-50);
-}
-
-.adult-gate .unavail-links {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-2);
 }
 
 @media (max-width: 767px) {
