@@ -1,7 +1,8 @@
 /*
  * Сценарий QA «chat-more» — чат серии вне компьютера 1600 px: гость, лист на телефоне в двух темах, 1280 px (колонка
  * чата встаёт справа от плеера), пусто и «комментарии недоступны», плеер Kodik («Тетрадь смерти»): полоски, перемотка
- * по минуте через его API и его собственный «во весь экран».
+ * по минуте через его API и его собственный «во весь экран». Кнопка «Наверх» не ложится на чат: 1100, 1280, 1440 px
+ * и лист на телефоне.
  *
  * Автор: Чепела Даниил Максимович.
  */
@@ -17,6 +18,24 @@ function kodikDb() {
     text: `Комментарий на ${m} секунде`, date: Math.floor(Date.now() / 1000) - 600 + i, thread: null, moment: m,
     reply_to: null, replies_count: 0, likes_count: i, liked: false }));
   return db;
+}
+
+// Низ открытого чата у нижнего края окна: видна ли «Наверх» и доступна ли отправка (точка у правого края кнопки
+// «Отправить» попадает в поле чата, а не в «Наверх»)
+async function toTopAtChatBottom(page) {
+  await page.evaluate(() => window.scrollBy(0, document.querySelector(".chat-panel").getBoundingClientRect().bottom - innerHeight));
+  await page.waitForTimeout(500);
+  return page.evaluate(() => {
+    const send = document.querySelector('.chat-compose button[aria-label="Отправить"]').getBoundingClientRect();
+    const hit = document.elementFromPoint(send.right - 4, send.top + send.height / 2);
+    return { scrollY: Math.round(scrollY), shown: document.querySelector("#toTop").classList.contains("show"), send: !!hit?.closest(".chat-compose") };
+  });
+}
+
+// Чат закрыт — «Наверх» как раньше: видна, если страница прокручена ниже 400 px
+async function toTopAfterClose(page, close) {
+  await page.click(close);
+  return until(page, () => document.querySelector("#toTop").classList.contains("show") === scrollY > 400, null, 3000);
 }
 
 module.exports = {
@@ -84,18 +103,54 @@ module.exports = {
     await page.waitForTimeout(600);
     await shot(page, "chat-1280");
     // «Наверх» не ложится на отправку: низ чата у нижнего края окна — кнопки не видно; чат закрыт — она вернулась
-    await page.evaluate(() => window.scrollBy(0, document.querySelector(".chat-panel").getBoundingClientRect().bottom - innerHeight));
-    await page.waitForTimeout(500);
-    const totop = await page.evaluate(() => {
-      const send = document.querySelector('.chat-compose button[aria-label="Отправить"]').getBoundingClientRect();
-      const hit = document.elementFromPoint(send.right - 4, send.top + send.height / 2);
-      return { scrollY: Math.round(scrollY), shown: document.querySelector("#toTop").classList.contains("show"), send: !!hit?.closest(".chat-compose") };
-    });
+    const totop = await toTopAtChatBottom(page);
     await shot(page, "chat-1280-bottom");
-    await page.click(".sp-chat__btn");
-    const back = await until(page, () => document.querySelector("#toTop").classList.contains("show"), null, 3000);
+    const back = await toTopAfterClose(page, ".sp-chat__btn");
     await check(page, "chat 1280: «Наверх» hides while it would cover the chat (the send button stays reachable) and comes back when the chat closes",
       totop.scrollY > 400 && !totop.shown && totop.send && back, JSON.stringify({ ...totop, back }));
+    await ctx.close();
+  },
+
+  // «Наверх» и чат на 1100 (колонка встаёт только с чатом) и 1440 px (колонка справа), как на 1280 в chatWide; на
+  // телефоне — пока открыт лист, кнопка спрятана и не ложится на поле, × — как раньше
+  async chatToTop(browser) {
+    // Окна — как у замера на проде, где нашёлся баг: страница прокручивается ниже 400 px, и «Наверх» уже видна
+    for (const [width, height] of [[1100, 800], [1440, 900]]) {
+      const { ctx, page } = await openTitle(browser, { width, height, db: chatDb({ me: USER }) });
+      await page.click(".sp-chat__btn");
+      await until(page, () => document.querySelectorAll(".chat-list .comments__item").length > 0);
+      const totop = await toTopAtChatBottom(page);
+      const back = await toTopAfterClose(page, ".sp-chat__btn");
+      await check(page, `chat ${width}: «Наверх» hides while it would cover the chat (the send button stays reachable) and comes back when the chat closes`,
+        totop.scrollY > 400 && !totop.shown && totop.send && back, JSON.stringify({ ...totop, back }));
+      await ctx.close();
+    }
+    // Колонка чата выросла без прокрутки (карточка плеера стала выше — _fitHeight по ResizeObserver): кнопка,
+    // стоявшая ниже чата, прячется и так
+    const grow = await openTitle(browser, { width: 1280, height: 860, db: chatDb({ me: USER }) });
+    await grow.page.click(".sp-chat__btn");
+    await until(grow.page, () => document.querySelectorAll(".chat-list .comments__item").length > 0);
+    await grow.page.evaluate(() => window.scrollBy(0, document.querySelector(".chat-panel").getBoundingClientRect().bottom - innerHeight + 250));
+    await grow.page.waitForTimeout(500);
+    const before = await grow.page.evaluate(() => document.querySelector("#toTop").classList.contains("show"));
+    await grow.page.evaluate(() => { document.querySelector("#avPlayerCard").style.paddingBottom = "300px"; });
+    const hidden = await until(grow.page, () => !document.querySelector("#toTop").classList.contains("show"), null, 3000);
+    await check(grow.page, "chat 1280: the chat column grows without a scroll — «Наверх» hides as soon as it would cover the chat",
+      before && hidden, JSON.stringify({ before, hidden }));
+    await grow.ctx.close();
+    const { ctx, page } = await openTitle(browser, { width: 375, height: 812, phone: true, db: chatDb({ me: USER }) });
+    await page.click(".sp-chat__btn");
+    await until(page, () => document.querySelectorAll(".chat-list .comments__item").length > 0);
+    await page.waitForTimeout(500);
+    const sheet = await page.evaluate(() => {
+      const send = document.querySelector('.chat-compose button[aria-label="Отправить"]').getBoundingClientRect();
+      const hit = document.elementFromPoint(send.right - 4, send.top + send.height / 2);
+      return { sheet: document.querySelector(".chat-panel").classList.contains("is-sheet"), scrollY: Math.round(scrollY),
+        shown: document.querySelector("#toTop").classList.contains("show"), send: !!hit?.closest(".chat-compose") };
+    });
+    const back = await toTopAfterClose(page, ".chat-close");
+    await check(page, "chat phone: while the sheet is open «Наверх» is hidden and the field is reachable; after × the button is as before",
+      sheet.sheet && !sheet.shown && sheet.send && back, JSON.stringify({ ...sheet, back }));
     await ctx.close();
   },
 

@@ -13,7 +13,7 @@ import * as account from "./js/account.js?v=20261102-chat1";
 import { setupNavigation, setActiveSection, SheetDrag } from "./js/navigation.js?v=20261030-live1";
 import * as images from "./js/images.js?v=20261031-img1";
 import * as realtime from "./js/realtime.js?v=20261102-chat1";
-import { EpisodeChat } from "./js/episode-chat.js?v=20261103-totop1";
+import { EpisodeChat } from "./js/episode-chat.js?v=20261103-totop2";
 import * as site from "./js/site.js?v=20261030-admin1";
 import { getTrailerId, bindTrailer } from "./js/trailer.js?v=20261029-eddas2";
 
