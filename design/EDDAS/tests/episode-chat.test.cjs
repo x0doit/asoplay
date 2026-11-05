@@ -165,9 +165,30 @@ test('after a seek strips start from the new place, the skipped part does not bu
   const s = new StripScheduler();
   s.setRoots([root(1, 50), root(2, 100), root(3, 101)]);
   s.tick(10);
-  assert.deepEqual(s.tick(100.4).map(x => x.id), [], 'the jump itself shows nothing');
-  assert.deepEqual(s.tick(101.2).map(x => x.id), [3]);
+  assert.deepEqual(s.tick(100.4).map(x => x.id), [2], 'the comment at the landing point is already the new place');
+  assert.deepEqual(s.tick(101.2).map(x => x.id), [2, 3]);
   assert.equal(run(s, 101.2, 110).has(1), false);
+});
+
+test('after a seek back whatever lies ahead of the new place waits for its minute again, as in chat replays', async () => {
+  const { StripScheduler } = await logic;
+  const s = new StripScheduler();
+  s.setRoots([root(1, 20), root(2, 30)]);
+  assert.deepEqual([...run(s, 15, 36)].sort(), [1, 2]);
+  assert.deepEqual(s.tick(18).map(x => x.id), [], 'back to 0:18 — nothing yet');
+  assert.deepEqual([...run(s, 18, 36)].sort(), [1, 2], 'both again at their minutes');
+});
+
+test('a seek right onto a comment — its ▶ button or Kodik\'s whole seconds — shows that comment', async () => {
+  const { StripScheduler } = await logic;
+  const button = new StripScheduler();
+  button.setRoots([root(1, 275)]);
+  run(button, 270, 300);
+  assert.deepEqual(button.tick(275).map(x => x.id), [1], 'its ▶ 4:35 lands exactly on it');
+  const kodik = new StripScheduler();
+  kodik.setRoots([root(1, 21)]);
+  run(kodik, 15, 30);
+  assert.deepEqual(kodik.tick(22).map(x => x.id), [1], 'Kodik reports the next whole second after the seek');
 });
 
 test('a live comment at the current minute is queued at once, even if its minute has just passed', async () => {

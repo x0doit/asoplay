@@ -11,8 +11,8 @@
  * Спойлер — комментарий ниже «Сейчас» (у ответа — по минуте корневого): текст размыт, для экранных чтецов вместо
  * него «Спойлер, нажмите, чтобы показать»; нажатие открывает его одного, серия дошла до минуты — размытие снимается.
  */
-import { actButton, avatar, h, icon, profileUrl, richText, stateBox } from "./chat-dom.js?v=20261102-chat1";
-import { authorName, firstAfter, fmtMoment, fullDate, isSpoiler, plural } from "./chat-logic.js?v=20261102-chat1";
+import { actButton, avatar, h, icon, profileUrl, richText, stateBox } from "./chat-dom.js?v=20261105-replay1";
+import { authorName, firstAfter, fmtMoment, fullDate, isSpoiler, plural } from "./chat-logic.js?v=20261105-replay1";
 
 const REPLIES = ["ответ", "ответа", "ответов"];
 const NEAR_EDGE = 160;

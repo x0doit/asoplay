@@ -10,8 +10,10 @@
  * Дорожек до 4 на компьютере и 2 на телефоне; полоска живёт 6 с времени видео (на паузе замирает). На минуту
  * серии — до 12 полосок (телефон — 6), и из комментариев ближе 10 с друг к другу — не больше 4 (телефон — 2): в обоих
  * случаях идут самые отмеченные «Нравится», при равных — написанный раньше. Свободной дорожки полоска ждёт до 3 с,
- * потом остаётся только в списке. После перемотки — с нового места, без залпа пропущенного. Текст — до 80 знаков
- * (телефон — 40) по границе слова, обрезанный кончается жирным «…».
+ * потом остаётся только в списке. После перемотки — с нового места, без залпа пропущенного, как в повторах чата
+ * Twitch и YouTube: назад — всё дальше новой позиции снова ждёт своей минуты. Комментарий в самой точке
+ * приземления — уже с нового места (landing): кнопка минуты ведёт ровно на него, Kodik шлёт время целыми секундами.
+ * Текст — до 80 знаков (телефон — 40) по границе слова, обрезанный кончается жирным «…».
  */
 
 export const STRIP = {
@@ -19,6 +21,7 @@ export const STRIP = {
   wait: 3,
   rateWindow: 10,
   seekJump: 2.5,
+  landing: 2,
   desktop: { lanes: 4, perMinute: 12, perWindow: 4, chars: 80 },
   phone: { lanes: 2, perMinute: 6, perWindow: 2, chars: 40 },
 };
@@ -178,13 +181,15 @@ export class StripScheduler {
     this._picked.clear();
   }
 
-  /** С нового места: видимых и ждущих нет, пропущенное не догоняется. */
+  /** С нового места: видимых и ждущих нет, пропущенное не догоняется. last — где видео (по нему видны прыжки),
+   * passed — докуда комментарии пройдены: точка приземления и STRIP.landing секунд до неё — ещё впереди. */
   reset(t) {
     this.active = [];
     this.queue = [];
     this.started = [];
     this.shown = new Set();
     this.last = t;
+    this.passed = t === null ? null : t - STRIP.landing;
   }
 
   /** Живой комментарий у текущей минуты (свой или только что пришедший) — в очередь сразу. */
@@ -214,18 +219,16 @@ export class StripScheduler {
 
   /** Время видео t: снять отжившие, поставить в очередь пройденные, раздать свободные дорожки. */
   tick(t) {
-    if (this.last === null || t < this.last - 0.5 || t - this.last > STRIP.seekJump) {
-      this.reset(t);
-      return this.active;
-    }
-    if (t > this.last) {
-      for (let i = firstAfter(this.roots, Math.floor(this.last)); i < this.roots.length; i += 1) {
+    if (this.last === null || t < this.last - 0.5 || t - this.last > STRIP.seekJump) this.reset(t);
+    if (t > this.passed) {
+      for (let i = firstAfter(this.roots, Math.floor(this.passed)); i < this.roots.length; i += 1) {
         const c = this.roots[i];
         if (c.moment > t) break;
-        if (c.moment <= this.last || this.shown.has(c.id) || !this._pick(Math.floor(c.moment / 60)).has(c.id)) continue;
+        if (c.moment <= this.passed || this.shown.has(c.id) || !this._pick(Math.floor(c.moment / 60)).has(c.id)) continue;
         this.shown.add(c.id);
         this.queue.push({ c, deadline: c.moment + STRIP.wait });
       }
+      this.passed = t;
     }
     this.last = Math.max(this.last, t);
     this.active = this.active.filter(s => t - s.start < STRIP.life && t >= s.start - 0.5);

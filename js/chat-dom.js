@@ -5,7 +5,7 @@
  * Автор: Чепела Даниил Максимович.
  * AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
  */
-import { authorName } from "./chat-logic.js?v=20261102-chat1";
+import { authorName } from "./chat-logic.js?v=20261105-replay1";
 
 const MENTION = /(^|[\s(>])@([A-Za-z0-9_]{3,20})\b/g;
 const STATES = {

@@ -10,9 +10,9 @@
  * комментарий публикуется корневым и так остаётся в чате на той же минуте. Гостю: «Ответить» нет, вместо поля —
  * «Войдите, чтобы написать», у сердца — «Войдите, чтобы отметить».
  */
-import { request } from "./chat-data.js?v=20261102-chat1";
-import { actButton, h, icon } from "./chat-dom.js?v=20261102-chat1";
-import { authorName, fmtMoment, isRoot } from "./chat-logic.js?v=20261102-chat1";
+import { request } from "./chat-data.js?v=20261105-replay1";
+import { actButton, h, icon } from "./chat-dom.js?v=20261105-replay1";
+import { authorName, fmtMoment, isRoot } from "./chat-logic.js?v=20261105-replay1";
 
 const REFUSALS = {
   as_link_required: "Войдите заново через соцсеть, чтобы писать в чат.",

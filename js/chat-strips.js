@@ -9,8 +9,8 @@
  * показывает, наш кадр раскрывает на весь экран контейнер .sp-video вместе с ними. Для чтения с экрана полоски
  * скрыты — те же комментарии есть в списке.
  */
-import { h } from "./chat-dom.js?v=20261102-chat1";
-import { STRIP, StripScheduler, cutStrip, lanesFor } from "./chat-logic.js?v=20261102-chat1";
+import { h } from "./chat-dom.js?v=20261105-replay1";
+import { STRIP, StripScheduler, cutStrip, lanesFor } from "./chat-logic.js?v=20261105-replay1";
 
 const PHONE = "(max-width: 767px)";
 const TOP = 64;

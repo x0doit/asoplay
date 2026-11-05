@@ -14,11 +14,11 @@
  * Число у значка живёт по живому соединению; после обрыва связи открытое окно перечитывается. Переключатель
  * «Спойлеры» в голове панели (выключен — ещё не просмотренное размыто) запоминается в браузере зрителя.
  */
-import { ChatActions } from "./chat-actions.js?v=20261102-chat1";
-import { ChatStore } from "./chat-data.js?v=20261102-chat1";
-import { buildChat, spoilersShown } from "./chat-panel.js?v=20261102-chat1";
-import { ChatStrips } from "./chat-strips.js?v=20261102-chat1";
-import { ChatView } from "./chat-view.js?v=20261102-chat1";
+import { ChatActions } from "./chat-actions.js?v=20261105-replay1";
+import { ChatStore } from "./chat-data.js?v=20261105-replay1";
+import { buildChat, spoilersShown } from "./chat-panel.js?v=20261105-replay1";
+import { ChatStrips } from "./chat-strips.js?v=20261105-replay1";
+import { ChatView } from "./chat-view.js?v=20261105-replay1";
 
 const SHEET = "(max-width: 1023.98px)";
 const LOOKAHEAD = 120;

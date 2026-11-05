@@ -9,7 +9,7 @@
  * Переключатель «Спойлеры» включён — комментарии к ещё не просмотренной части серии видны без размытия; выбор
  * запоминается в этом браузере (localStorage, удобство зрителя), без него — размыты.
  */
-import { actButton, h, icon } from "./chat-dom.js?v=20261102-chat1";
+import { actButton, h, icon } from "./chat-dom.js?v=20261105-replay1";
 
 const SPOILERS_KEY = "av_chat_spoilers";
 

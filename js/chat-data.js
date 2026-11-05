@@ -11,7 +11,7 @@
  * После отказа окна не просятся до конца паузы (Backoff: 5 с, вдвое до 60 с, Retry-After важнее): соцсеть легла —
  * сотни открытых чатов не долбят сервер на каждом такте видео.
  */
-import { Backoff, WINDOW, insertSorted, isRoot, windowAfter, windowAround, windowBefore } from "./chat-logic.js?v=20261102-chat1";
+import { Backoff, WINDOW, insertSorted, isRoot, windowAfter, windowAround, windowBefore } from "./chat-logic.js?v=20261105-replay1";
 
 /** Отказ сервера: status, код из detail (as_link_required, rate_limited, own_content…), Retry-After. */
 export class ChatApiError extends Error {
