@@ -42,26 +42,10 @@ def progress_for_title(
     mal_id: int,
     user: dict[str, Any] = Depends(current_user_required),
 ) -> list[dict[str, Any]]:
-    """GET /account/progress/{mal_id} — позиции во всех сериях тайтла."""
+    """GET /account/progress/{mal_id} — позиции во всех сериях тайтла: seconds — дальняя точка, last_seconds — где
+    остановился."""
     with connect() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            """SELECT episode_num, seconds, duration, updated_at
-                FROM aviev_episode_progress
-                WHERE user_id=%s AND mal_id=%s
-                ORDER BY episode_num""",
-            (user["id"], mal_id),
-        )
-        rows = cur.fetchall()
-    return [
-        {
-            "episode_num": int(r[0]),
-            "seconds": int(r[1] or 0),
-            "duration": int(r[2] or 0),
-            "updated_at": r[3].isoformat() if r[3] else None,
-        }
-        for r in rows
-    ]
+        return progress_rows_for_title(conn, user["id"], mal_id)
 
 
 @router.put("/progress/{mal_id}")

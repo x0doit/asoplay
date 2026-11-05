@@ -65,7 +65,8 @@ def upsert_episode_progress(
     duration: int,
     updated_at: datetime | None = None,
 ) -> bool:
-    """Записать позицию в серии (только вперёд: берётся большее из старого и нового). True — серия только что
+    """Записать позицию в серии: seconds — дальняя точка (берётся большее из старого и нового, по ней «досмотрено»),
+    last_seconds — где остановился (последняя присланная позиция, для «Продолжить с»). True — серия только что
     впервые стала досмотренной: тогда в очереди соцсети событие episode, а у последней серии по каталогу — и
     completed (core/functions/title_completion.py)."""
     stamp = updated_at or utc_now()
@@ -77,13 +78,14 @@ def upsert_episode_progress(
     before = cur.fetchone()
     cur.execute(
         """INSERT INTO aviev_episode_progress
-            (user_id, mal_id, episode_num, seconds, duration, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            (user_id, mal_id, episode_num, seconds, duration, updated_at, last_seconds)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
                 seconds=GREATEST(seconds, VALUES(seconds)),
                 duration=GREATEST(duration, VALUES(duration)),
-                updated_at=VALUES(updated_at)""",
-        (user_id, mal_id, episode_num, seconds, duration, stamp),
+                updated_at=VALUES(updated_at),
+                last_seconds=VALUES(last_seconds)""",
+        (user_id, mal_id, episode_num, seconds, duration, stamp, seconds),
     )
     _mark_previous_episodes_done_if_needed(
         conn,
@@ -121,10 +123,10 @@ def auto_watching_qualified(seconds: int, duration: int) -> bool:
 
 
 def progress_rows_for_title(conn, user_id: int, mal_id: int) -> list[dict[str, Any]]:
-    """Позиции во всех сериях тайтла по порядку серий."""
+    """Позиции во всех сериях тайтла по порядку серий; last_seconds у строк до миграции 2026-11-05 — дальняя точка."""
     cur = conn.cursor()
     cur.execute(
-        """SELECT episode_num, seconds, duration, updated_at
+        """SELECT episode_num, seconds, duration, updated_at, last_seconds
             FROM aviev_episode_progress
             WHERE user_id=%s AND mal_id=%s
             ORDER BY episode_num""",
@@ -136,6 +138,7 @@ def progress_rows_for_title(conn, user_id: int, mal_id: int) -> list[dict[str, A
             "seconds": int(r[1] or 0),
             "duration": int(r[2] or 0),
             "updated_at": r[3].isoformat() if r[3] else None,
+            "last_seconds": int(r[1] or 0) if r[4] is None else int(r[4]),
         }
         for r in cur.fetchall()
     ]

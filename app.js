@@ -15,6 +15,7 @@ import * as images from "./js/images.js?v=20261031-img1";
 import * as realtime from "./js/realtime.js?v=20261102-chat1";
 import { EpisodeChat } from "./js/episode-chat.js?v=20261103-totop2";
 import { bindPlayerKeys } from "./js/player-keys.js?v=20261105-keys1";
+import { ResumeButton, resumePoint } from "./js/resume.js?v=20261105-resume1";
 import * as site from "./js/site.js?v=20261105-adult1";
 import { getTrailerId, bindTrailer } from "./js/trailer.js?v=20261029-eddas2";
 
@@ -2039,7 +2040,9 @@ class Player {
     this._fetchEpisodeProgress().then(() => {
       if (this.destroyed) return;
       this.renderEpisodes();
-      this.playEpisode(this._resumeIndex());
+      const idx = this._resumeIndex();
+      this._offerResume(idx);
+      this.playEpisode(idx);
     });
     return true;
   }
@@ -2142,6 +2145,7 @@ class Player {
     $$("#avEpisodesList .ep-row").forEach((b, idx) => b.classList.toggle("active", idx === this.currentEp));
     const ep = this.episodes[this.currentEp];
     $("#avEpInfo").innerHTML = `<span class="sp-ep-num">${ep.num}</span><span class="sp-ep-title">${esc(ep.name)}</span>`;
+    this._resume?.episode(Number(ep.num));
     this._chatEpisode(ep.num);
     const p = $("#avPrevEp"), n = $("#avNextEp");
     if (p) p.disabled = this.currentEp === 0;
@@ -2196,7 +2200,7 @@ class Player {
   }
 
   async _fetchEpisodeProgress() {
-    this._epProgress = new Map();  // num → { seconds, duration }
+    this._epProgress = new Map();  // num → { seconds (дальняя точка), duration, last (где остановился) }
     if (!state.user) return;
     try {
       const list = await fetchJson(`${BACKEND}/account/progress/${this.malId}`,
@@ -2205,6 +2209,7 @@ class Player {
         this._epProgress.set(Number(row.episode_num), {
           seconds: Number(row.seconds || 0),
           duration: Number(row.duration || 0),
+          last: Number(row.last_seconds ?? row.seconds ?? 0),
         });
       }
     } catch (_) { /* не критично — покраска просто не применится */ }
@@ -2545,6 +2550,44 @@ class Player {
     this._seekKind = kind;
     if (kind !== "frame") this._frameKeys = false;  // клавиши — только кадру, который сам сказал, что их принимает
     this._chat?.setSeek(!!kind);
+    this._resume?.setCan(kind === "frame" || kind === "kodik");
+  }
+
+  // «Продолжить с m:ss» (js/resume.js) — у вошедшего, в серии, которую открыли как «где остановился»
+  _offerResume(idx) {
+    const num = Number(this.episodes[idx]?.num);
+    this._resume ??= new ResumeButton(at => this._resumePlay(at));
+    this._resume.set(num, state.user ? resumePoint(this._epProgress?.get(num)) : null);
+  }
+
+  // Нажали «Продолжить»: перемотка и пуск. Kodik до своего старта перемотку теряет — она ждёт его пуска: нашего
+  // {method:"play"} или ▶ зрителя, если браузер не дал запустить видео без нажатия
+  _resumePlay(at) {
+    const target = this._iframeEl?.contentWindow;
+    if (!target) return;
+    if (this._seekKind === "frame") {
+      target.postMessage({ type: "asoplay:seek", time: at }, "*");
+      target.postMessage({ type: "asoplay:play" }, "*");
+    } else if (this._seekKind === "kodik" && this._kodikStarted) {
+      this._seekPlayer(at);
+    } else if (this._seekKind === "kodik") {
+      this._kodikPendingSeek = at;
+      target.postMessage({ key: "kodik_player_api", value: { method: "play" } }, "*");
+    }
+  }
+
+  // Сигналы плеера для «Продолжить» — до отсечки первых секунд: старт Kodik (отложенная перемотка) и время плеера
+  _resumeSignal(d) {
+    const key = String(d.key || "");
+    if (this._frameIsKodik && /^kodik_player_(play|duration_update|time_update)$/.test(key)) {
+      this._kodikStarted = true;
+      if (this._kodikPendingSeek != null) {
+        const at = this._kodikPendingSeek;
+        this._kodikPendingSeek = null;
+        this._seekPlayer(at);
+      }
+    }
+    if (key === "kodik_player_time_update" && typeof d.value === "number") this._resume?.time(d.value);
   }
 
   _seekPlayer(t) {
@@ -2718,6 +2761,7 @@ class Player {
       if (d && typeof d === "object" && this._handlePlayerScreenshotMessage(d)) return;
       if (d && typeof d === "object" && this._handlePlayerVolumeMessage(d)) return;
       if (d && typeof d === "object" && this._handleChatFrameMessage(d)) return;
+      if (d && typeof d === "object") this._resumeSignal(d);
       this._dubSawEvent = true;
       const since = Date.now() - (this._playStartedAt || 0);
       if (since < 5000) return;
@@ -3251,6 +3295,7 @@ class Player {
     if (!ep) return;
     this._rememberTabEpisode(ep.num);
     $("#avEpInfo").innerHTML = `<span class="sp-ep-num">${ep.num}</span><span class="sp-ep-title">${esc(ep.name)}</span>`;
+    this._resume?.episode(Number(ep.num));
     this._chatEpisode(ep.num);
     const p = $("#avPrevEp"), n = $("#avNextEp");
     if (p) p.disabled = i === 0;
@@ -3513,12 +3558,16 @@ class Player {
       if (iframe.src.split("#")[0] !== playerUrl.split("#")[0]) {
         iframe.src = playerUrl;
         this._kodikVolumeSent = false;
+        this._kodikStarted = false;
+        this._kodikPendingSeek = null;
         this._setSeek(this._frameIsKodik ? "kodik" : null);
       }
       this._iframeEl = iframe;
       return;
     }
     this._kodikVolumeSent = false;
+    this._kodikStarted = false;
+    this._kodikPendingSeek = null;
     this._setSeek(this._frameIsKodik ? "kodik" : null);
     iframe = document.createElement("iframe");
     // Harden third-party players: keep playback features, block popups and
@@ -3563,6 +3612,7 @@ class Player {
     this._hidePlayerContextMenu();
     if (this._onMessage) window.removeEventListener("message", this._onMessage);
     this._unbindKeys?.();
+    this._resume?.destroy();
     if (this._onFullscreen) document.removeEventListener("fullscreenchange", this._onFullscreen);
     this._chat?.destroy();
     this._chat = null;

@@ -27,14 +27,15 @@ const pause = frame => frame?.evaluate(() => document.querySelector("video").pau
 const videoTime = async frame => (frame ? frame.evaluate(() => document.querySelector("video").currentTime) : -1);
 const until = (page, fn, arg, timeout = 15000) => page.waitForFunction(fn, arg, { timeout }).then(() => true, () => false);
 
-// Страница тайтла с подменами; signed — вошедший зритель qa-viewer; path — тайтл (по умолчанию «Фрирен»)
-async function openTitle(browser, { width = 1600, height = 900, phone = false, signed = true, db, path = "/anime/52991", scheme = "light" }) {
+// Страница тайтла с подменами; signed — вошедший зритель qa-viewer; path — тайтл (по умолчанию «Фрирен»); account —
+// своё состояние подмен аккаунта (история, позиции в сериях)
+async function openTitle(browser, { width = 1600, height = 900, phone = false, signed = true, db, path = "/anime/52991", scheme = "light", account }) {
   const ctx = await browser.newContext({ viewport: { width, height }, locale: "ru-RU", colorScheme: scheme,
     isMobile: phone, hasTouch: phone, deviceScaleFactor: phone ? 2 : 1 });
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push(String(e.message).slice(0, 160)));
-  if (signed) await accountMocks({ calls: [] })(page);
+  if (signed) await accountMocks(account || { calls: [] })(page);
   const live = await liveSocket(page, signed ? USER.id : null);
   await page.route(CHAT_ROUTE, chatRoute(db));
   await page.goto(SITE + path, { waitUntil: "domcontentloaded" });

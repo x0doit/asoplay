@@ -942,6 +942,16 @@ a.ed-tabs__item {
   text-overflow: ellipsis;
 }
 
+/* «Продолжить с m:ss» у «Эпизод N» (js/resume.js); на телефоне и сбоку — только время */
+.sp-resume {
+  flex: 0 0 auto;
+  margin-left: var(--space-2);
+}
+
+.sp-resume__short {
+  display: none;
+}
+
 .sp-dub-trigger {
   flex-shrink: 0;
   max-width: 50%;
@@ -3137,6 +3147,14 @@ html.is-compact-frame .hero-bg {
     font-size: 15px;
   }
 
+  .sp-resume__full {
+    display: none;
+  }
+
+  .sp-resume__short {
+    display: inline;
+  }
+
   .sp-dub-trigger {
     flex: 1 1 100%;
     max-width: none;
@@ -3364,6 +3382,14 @@ html.is-compact-frame .hero-bg {
 
   .sp-ep {
     flex-basis: auto;
+  }
+
+  .sp-resume__full {
+    display: none;
+  }
+
+  .sp-resume__short {
+    display: inline;
   }
 
   .sp-dub-trigger {

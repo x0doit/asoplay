@@ -38,31 +38,31 @@
   "sha256": "c3858d66244abdfff97e0e3f584359a3fd915420a9b5bc53705365c01b7224db"
  },
  "clean_video_frame/cvh": {
-  "bytes": 26492,
+  "bytes": 26663,
   "headers": {
    "cache-control": "no-store",
    "content-security-policy": "default-src 'self' data: blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts allow-presentation",
    "content-type": "text/html; charset=utf-8"
   },
-  "sha256": "df38693c45f736322e88f10308de0feaa6530b859ad260b7201ddce247312f8b"
+  "sha256": "f31f33b257bae6181f2a88eed4d3380ceb27cc67d65ab89ed482341a628ca96f"
  },
  "clean_video_frame/sibnet": {
-  "bytes": 26417,
+  "bytes": 26588,
   "headers": {
    "cache-control": "no-store",
    "content-security-policy": "default-src 'self' data: blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts allow-presentation",
    "content-type": "text/html; charset=utf-8"
   },
-  "sha256": "09626fd83fca22382241c66a2ba644669a29deaa8728ee844a60785b9d3efb74"
+  "sha256": "3445bfa4f1344531f6e41999beb273c1a2636ab6298aa1e734569bfe5a34102d"
  },
  "clean_video_frame/vk": {
-  "bytes": 26344,
+  "bytes": 26515,
   "headers": {
    "cache-control": "no-store",
    "content-security-policy": "default-src 'self' data: blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; sandbox allow-scripts allow-presentation",
    "content-type": "text/html; charset=utf-8"
   },
-  "sha256": "3521d1977fa4d2f5ac0b279845f6996399115bda608b10670293cac1f14aa0e5"
+  "sha256": "5ee9a1c0baa835627ddbe44dbcd5b9aaa1a7da46c3339c588c976762a7d6f5cd"
  },
  "cvh_error_frame/message": {
   "bytes": 427,

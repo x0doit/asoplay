@@ -228,6 +228,9 @@
       if (data.failed === true) ownFullscreen();
     } else if (data.type === "asoplay:key" && Object.values(KEYS).includes(data.key)) {
       pressKey(data.key);
+    } else if (data.type === "asoplay:play") {
+      // «Продолжить с»: страница перемотала и просит пустить
+      tryPlay();
     }
   });
   video.addEventListener("loadedmetadata", sendTime);

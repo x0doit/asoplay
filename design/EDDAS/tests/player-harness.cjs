@@ -29,6 +29,9 @@ function harness(api = {}, globals = {}) {
     EpisodeChat: class { setSeek() {} setEpisode() {} show() {} time() {} destroy() {} },
     // Клавиши плеера (js/player-keys.js) слушают страницу — в песочнице слушать нечего
     bindPlayerKeys: () => () => {},
+    // «Продолжить с» (js/resume.js) рисует кнопку в шапке — в песочнице её нет
+    ResumeButton: class { set() {} setCan() {} episode() {} time() {} destroy() {} },
+    resumePoint: () => null,
     account: {}, realtime: {}, SheetDrag: {}, BACKEND: '',
     document: { addEventListener() {}, removeEventListener() {} },
     ...globals,
