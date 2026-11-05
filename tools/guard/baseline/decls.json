@@ -2425,6 +2425,9 @@
  "_wakers": [
   "= 97d170e1550e"
  ],
+ "_warned": [
+  "= 9aadf8ef192d"
+ ],
  "_watchdog_stop": [
   "= 65ca2c3f8054"
  ],
@@ -2780,6 +2783,9 @@
  "episode_done": [
   "def(conn: Any, user_id: int, mal_id: int, episode: int, at: datetime) -> bool"
  ],
+ "episode_number": [
+  "def(raw: Any) -> int | None"
+ ],
  "episodes": [
   "@router.get('/src/episodes') async def(key: str, source: str='anilibria')"
  ],
@@ -3089,6 +3095,7 @@
   "= 32d06339fc74",
   "= 331c30afefaa",
   "= 3acb6a6c60f8",
+  "= 3b50242b957a",
   "= 48bd8c61a38f",
   "= 48bd8c61a38f",
   "= 6cddf65a201a",
@@ -3797,5 +3804,8 @@
  ],
  "ws_endpoint": [
   "@router.websocket('/ws') async def(ws: WebSocket) -> None"
+ ],
+ "yummy_anime": [
+  "async def(anime: Any) -> list[Episode]"
  ]
 }

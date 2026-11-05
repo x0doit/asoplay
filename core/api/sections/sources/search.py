@@ -13,7 +13,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Query
 
-from core.functions import native_sources, site_settings, source_filters, sources
+from core.functions import native_sources, site_settings, source_episodes, source_filters, sources
 
 log = logging.getLogger("asoplay")  # тот же журнал, что у core.py до деления
 
@@ -133,6 +133,8 @@ async def episodes(key: str, source: str = "anilibria"):
         found = sources.on_route(source, search_result, route)
         get_anime = getattr(found, "a_get_anime", None) or found.get_anime
         anime = await sources.call(get_anime)
+        if source == "yummy_anime":  # библиотека роняет весь список на одной дробной серии
+            return await source_episodes.yummy_anime(anime)
         get_eps = getattr(anime, "a_get_episodes", None) or anime.get_episodes
         return await sources.call(get_eps)
 
