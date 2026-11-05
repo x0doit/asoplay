@@ -6,13 +6,17 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
 Образец — по ответу api.yani.tv /anime/1512/videos («Ван-Пис») от 2 ноября 2026: серии 1167–1169 и между ними одна
 запись "1168.5" (AniStar, длительность 0), которую anicli-api 0.8.6 не может превратить в int — и терял весь список.
-Плюс видео плеера alloha: его библиотека пропускает, адаптер тоже.
+Плюс видео плеера alloha: его библиотека пропускает, адаптер тоже. Сбой, который клиент библиотеки прячет в ответ
+(код 0, 5xx, 429), — сбой источника, другой код — быстрый отказ. Через раздел /src/episodes: «Ван-Пис» с кривым
+ответом источник не остужает, сломанный разбор у разных тайтлов — остужает.
 """
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+from anicli_api.source.apis.yummy_anime import ApiError
 from anicli_api.source.yummy_anime import Anime, Episode
+from fastapi import HTTPException
 
 from core.api.sections.sources import search
 from core.functions import source_episodes, source_health
@@ -37,10 +41,13 @@ SAMPLE = [
 ]
 
 
-def anime(videos, anime_id=1512, ok=True):
-    """Тайтл классом библиотеки, как его отдаёт a_get_anime, с API-клиентом, который отвечает списком видео."""
-    answer = SimpleNamespace(success=ok, data={"response": videos} if ok else {}, status_code=200 if ok else 0,
-                             error=None if ok else RuntimeError("Request Error: connection reset"))
+def anime(videos, anime_id=1512, status=200, data=None):
+    """Тайтл классом библиотеки, как его отдаёт a_get_anime, с API-клиентом, который отвечает списком видео. status —
+    код, как его кладёт в ответ клиент библиотеки: 0 — запрос не прошёл; data — ответ целиком вместо списка."""
+    ok = status == 200
+    text = "Request Error: connection reset" if status == 0 else f"API Error: {{'code': {status}}}"
+    body = data if data is not None else {"response": videos} if ok else {}
+    answer = SimpleNamespace(success=ok, data=body, status_code=status, error=None if ok else ApiError(text))
     api = SimpleNamespace(get_anime_videos=AsyncMock(return_value=answer))
     return Anime(title="Ван-Пис", thumbnail="", description="", data={"anime_id": anime_id},
                  sync_api=api, async_api=api, http=object(), http_async=object())
@@ -49,6 +56,8 @@ def anime(videos, anime_id=1512, ok=True):
 class YummyEpisodes(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         source_episodes._warned.clear()
+        source_health._STATES.pop("yummy_anime", None)
+        self.addCleanup(source_health._STATES.pop, "yummy_anime", None)
 
     async def test_the_library_itself_still_loses_the_whole_list(self):
         # Канарейка: anicli-api 0.8.6 на этом образце падает целиком — ради этого и есть адаптер. Упала проверка
@@ -88,9 +97,41 @@ class YummyEpisodes(unittest.IsolatedAsyncioTestCase):
                          ("1168.5", None), (1168.5, None), (None, None), ("", None), ("ova", None)):
             self.assertEqual(source_episodes.episode_number(raw), num, raw)
 
-    async def test_a_failed_request_raises_the_client_error_as_before(self):
-        with self.assertRaisesRegex(RuntimeError, "Request Error"):
-            await source_episodes.yummy_anime(anime([], ok=False))
+    async def test_an_outage_hidden_in_the_answer_is_a_source_failure(self):
+        for status in (0, 500, 503, 429):
+            with self.subTest(status=status), self.assertRaisesRegex(source_health.SourceDown, f"status {status}"):
+                await source_episodes.yummy_anime(anime([], status=status))
+
+    async def test_another_error_answer_is_a_quick_refusal(self):
+        with self.assertRaisesRegex(source_health.SourceRefused, "status 404: API Error"):
+            await source_episodes.yummy_anime(anime([], status=404))
+
+    async def open_episodes(self, title, answer):
+        """/src/episodes по ключу, который поиск нашёл для тайтла title; answer — тайтл библиотеки. Ждём 502."""
+        token = source_registry.request_title.set(title)
+        try:
+            key = source_registry.put(SimpleNamespace(a_get_anime=AsyncMock(return_value=answer)))
+        finally:
+            source_registry.request_title.reset(token)
+        with self.assertRaises(HTTPException) as error, self.assertLogs("asoplay", "ERROR"):
+            await search.episodes(key=key, source="yummy_anime")
+        self.assertEqual(error.exception.status_code, 502)
+
+    async def test_a_broken_answer_cools_yummy_only_across_titles(self):
+        for _ in range(3):  # «Ван-Пис» трижды — источник работает дальше
+            await self.open_episodes("mal:21", anime([], data=[]))  # ответ не той формы: адаптер падает на разборе
+        self.assertTrue(source_health.is_available("yummy_anime"))
+        for title in ("mal:1", "mal:2"):  # ещё два разных тайтла без успеха между ними — разбор сломан у всех
+            await self.open_episodes(title, anime([], data=[]))
+        self.assertFalse(source_health.is_available("yummy_anime"))
+
+    async def test_refusals_never_cool_yummy_and_outages_cool_it(self):
+        for title in ("mal:1", "mal:2", "mal:3"):
+            await self.open_episodes(title, anime([], status=404))
+        self.assertTrue(source_health.is_available("yummy_anime"))
+        for _ in range(3):
+            await self.open_episodes("mal:21", anime([], status=0))
+        self.assertFalse(source_health.is_available("yummy_anime"))
 
     async def test_the_episodes_section_answers_the_list_instead_of_502(self):
         found = SimpleNamespace(a_get_anime=AsyncMock(return_value=anime(SAMPLE)))

@@ -1,6 +1,6 @@
 """
-Устойчивость прокси: VPN-мост и выбор маршрута, кеш и общий запрос, сроки и восстановление,
-каталог и русский поиск. Живую базу, VPN и HTTP-кеш не трогают.
+Устойчивость прокси: VPN-мост и выбор маршрута, счётчик сбоев источника, кеш и общий запрос, сроки и
+восстановление, каталог и русский поиск. Живую базу, VPN и HTTP-кеш не трогают.
 
 Автор: Чепела Даниил Максимович.
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
@@ -9,9 +9,9 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 """
 import unittest
 
-from core.tests.proxy_resilience import catalog, resilience, routes
+from core.tests.proxy_resilience import catalog, faults, resilience, routes
 
-PARTS = (routes, resilience, catalog)
+PARTS = (routes, faults, resilience, catalog)
 
 
 def load_tests(loader, tests, pattern):

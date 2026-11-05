@@ -34,6 +34,8 @@ async def search(
         raise HTTPException(451, "unavailable")
     if not site_settings.source_enabled(source):
         return []
+    # Тайтл запроса: найденное запомнит его, и ошибки разбора источнику засчитаются по тайтлу
+    sources.request_title.set(f"mal:{mal_id}" if mal_id else f"q:{q.strip().casefold()}")
     if source in sources.NATIVE_SOURCES:
         try:
             results = await sources.source_call(
@@ -118,6 +120,7 @@ async def search(
 @router.get("/src/episodes")
 async def episodes(key: str, source: str = "anilibria"):
     """Серии тайтла по ключу результата поиска: номер, название и ключ серии."""
+    sources.request_title.set(sources.title_of(key))
     if source in sources.NATIVE_SOURCES:
         return await sources.source_call(
             source,

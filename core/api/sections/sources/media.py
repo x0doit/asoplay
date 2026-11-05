@@ -26,6 +26,7 @@ router = APIRouter()
 @router.get("/src/dubs")
 async def dubs_for_episode(key: str, source: str = "anilibria"):
     """Озвучки серии по её ключу: одна на имя и вид, с лучшим плеером, VK — последними."""
+    sources.request_title.set(sources.title_of(key))  # тайтл ключа — для счёта ошибок разбора
     if source in sources.NATIVE_SOURCES:
         return await sources.guard_source(
             source,
@@ -73,6 +74,7 @@ async def dubs_for_episode(key: str, source: str = "anilibria"):
 async def videos(key: str, source: str = "anilibria"):
     """Видео по ключу озвучки или серии: фрейм плеера, файлы и потоки — сначала m3u8 и лучшее качество; всё —
     через фильтр неиграбельных плееров и рекламы."""
+    sources.request_title.set(sources.title_of(key))
     if source in sources.NATIVE_SOURCES:
         vids = await sources.guard_source(
             source,

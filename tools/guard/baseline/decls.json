@@ -1174,6 +1174,9 @@
  "SocialLink.stop": [
   "async def(self) -> None"
  ],
+ "SourceDown": [
+  "class(Exception)"
+ ],
  "SourceIn": [
   "class(BaseModel)"
  ],
@@ -1185,6 +1188,9 @@
  ],
  "SourceIn.order": [
   "int = 1e9114810c20"
+ ],
+ "SourceRefused": [
+  "class(Exception)"
  ],
  "SourceState": [
   "class()"
@@ -1218,6 +1224,9 @@
  ],
  "SourceState.name": [
   "str = da39a3ee5e6b"
+ ],
+ "SourceState.parse_titles": [
+  "set[object] = 798a99d7c583"
  ],
  "SourceState.successes": [
   "int = b6589fc6ab0d"
@@ -1663,6 +1672,9 @@
  ],
  "_TIMEOUT": [
   "= a32a7973b5c7"
+ ],
+ "_TITLES": [
+  "= bf21a9e8fbc5"
  ],
  "_TITLE_FRIENDS_MAX": [
   "= 22d200f8670d"
@@ -3003,6 +3015,9 @@
  "jikan_php": [
   "def() -> str"
  ],
+ "kind": [
+  "def(error: object) -> str"
+ ],
  "kodik_cdn_check": [
   "@router.get('/cdn-check') async def(request: Request, url: str=Query(...), base: str=Query(...))"
  ],
@@ -3150,7 +3165,7 @@
   "@router.post('/sweep') def(user: dict[str, Any]=Depends(current_user_required)) -> dict[str, Any]"
  ],
  "mark_failure": [
-  "def(source: str, error: object) -> None"
+  "def(source: str, error: object, title: str | None=None) -> None"
  ],
  "mark_success": [
   "def(source: str, latency_ms: int | None=None) -> None"
@@ -3447,6 +3462,9 @@
  "request": [
   "async def(method: str, url: str, **kwargs) -> httpx.Response"
  ],
+ "request_title": [
+  "= cd3fb9862232"
+ ],
  "resolve": [
   "async def(name: str) -> list[str]"
  ],
@@ -3700,6 +3718,9 @@
  ],
  "title_name": [
   "def(cur: Any, mal_id: int) -> str"
+ ],
+ "title_of": [
+  "def(key: str) -> str | None"
  ],
  "titles_list": [
   "@router.get('/titles') async def(q: str='', cursor: str='', _admin: int=Depends(admin_user)) -> dict[str, Any]"

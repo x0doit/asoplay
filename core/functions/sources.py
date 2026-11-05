@@ -6,10 +6,11 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
 Реестр — скрейперы anicli-api (SOURCES) и свои клиенты (NATIVE_SOURCES, core/classes/sources); они грузятся при
 импорте этого модуля. Найденное — тайтл, серия, озвучка — хранится в памяти под ключом: раздел /src/…
-(core/api/sections/sources) отдаёт ключ фронтенду и по нему берёт объект на следующем шаге. source_call зовёт
-источник сначала напрямую, а если он так недоступен — тем же шагом через мост VPN; сбой засчитывается источнику
-(core/functions/source_health.py), только если не помог ни один маршрут. Плееры остаются прямыми: их ссылки на поток
-привязаны к IP, который их открыл.
+(core/api/sections/sources) отдаёт ключ фронтенду и по нему берёт объект на следующем шаге. Ключ помнит тайтл, для
+которого найден (request_title): по нему source_health считает ошибки разбора — один кривой тайтл источник не
+остужает. source_call зовёт источник сначала напрямую, а если он так недоступен — тем же шагом через мост VPN; сбой
+засчитывается источнику (core/functions/source_health.py), только если не помог ни один маршрут. Плееры остаются
+прямыми: их ссылки на поток привязаны к IP, который их открыл.
 """
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ import asyncio
 import logging
 import time
 import uuid
+from contextvars import ContextVar
 from typing import Any
 
 import httpx
@@ -80,16 +82,28 @@ if not SOURCES:
 
 # ---------- in-memory key cache for source objects ----------
 _CACHE: dict[str, Any] = {}
+# Тайтл текущего запроса /src/…: поиск ставит mal_id (или сам запрос), шаги по ключу — тайтл ключа
+request_title: ContextVar[str | None] = ContextVar("request_title", default=None)
+_TITLES: dict[str, str] = {}
 
 
 def put(obj: Any) -> str:
-    """Запомнить найденное под новым ключом; больше 4000 — старейшая тысяча забывается."""
+    """Запомнить найденное под новым ключом вместе с тайтлом запроса; больше 4000 — старейшая тысяча забывается."""
     k = uuid.uuid4().hex
     _CACHE[k] = obj
+    title = request_title.get()
+    if title is not None:
+        _TITLES[k] = title
     if len(_CACHE) > 4000:
         for old in list(_CACHE.keys())[:1000]:
             _CACHE.pop(old, None)
+            _TITLES.pop(old, None)
     return k
+
+
+def title_of(key: str) -> str | None:
+    """Тайтл, для которого найдено то, что лежит под ключом; не знаем — None."""
+    return _TITLES.get(key)
 
 
 def get(key: str) -> Any:
@@ -148,7 +162,7 @@ async def guard_source(source: str, op: str, awaitable, timeout: float):
         source_health.mark_failure(source, f"{op} timeout after {timeout}s")
         raise HTTPException(504, f"{op} timeout") from exc
     except Exception as exc:
-        source_health.mark_failure(source, exc)
+        source_health.mark_failure(source, exc, request_title.get())
         raise
     else:
         elapsed = int((time.perf_counter() - started) * 1000)
@@ -221,7 +235,8 @@ def native(source: str, route: str):
 async def source_call(source: str, op: str, run, timeout: float):
     """Await run(route) directly and, when the source is unreachable that way,
     through the VPN bridge. A failure counts against the source only when every
-    route failed, so a direct outage that the bridge covers never cools it down."""
+    route failed, so a direct outage that the bridge covers never cools it down.
+    Parse errors count per title (request_title), so one broken title never cools it."""
     if not source_health.is_available(source):
         raise _source_unavailable(source)
     route_key = f"source:{source}"
@@ -244,7 +259,7 @@ async def source_call(source: str, op: str, run, timeout: float):
             log.info("%s %s failed via %s: %s", source, op, route, str(exc) or type(exc).__name__)
             continue
         except Exception as exc:
-            source_health.mark_failure(source, exc)
+            source_health.mark_failure(source, exc, request_title.get())
             raise
         http.remember_route(route_key, route)
         source_health.mark_success(source, int((time.perf_counter() - started) * 1000))
