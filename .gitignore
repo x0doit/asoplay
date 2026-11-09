@@ -31,7 +31,18 @@ assets/eddas/css/chat/01-comments.css
 claude-playbook-*/
 .playwright-mcp/
 CODEX.md
-docs/
+# docs/: в git — только документация к коду; заметки о ходе работ, планы, внутренние идеи и снимки остаются здесь
+docs/*
+!docs/info/
+docs/info/*
+!docs/info/cvh-clean-player.html
+!docs/info/cvh-clean-player.css
+!docs/info/cvh-clean-player.js
+!docs/info/player-incident-report.md
+!docs/internal/
+docs/internal/*
+!docs/internal/asoplay-admin-api-contract.md
+!docs/internal/asoplay-client-icon.png
 tmp-frame.html
 .run.log
 .run.out.log
