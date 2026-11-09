@@ -2565,7 +2565,7 @@ function _profileStats(counts) {
   return [`${inLists} в списках`, `${counts.completed || 0} просмотрено`, `${counts.favorite || 0} в избранном`].join(", ");
 }
 
-export async function viewProfile(handle) {
+export async function viewProfile(handle, { lists = false } = {}) {
   ctx.setActive(null);
   let data;
   try {
@@ -2807,6 +2807,15 @@ export async function viewProfile(handle) {
       };
       renderActivityGraph(box, activity, fetchFn);
     }
+  }
+
+  // /@handle/lists — сразу к спискам: «Аниме» в профиле соцсети ведёт сюда «во все списки»
+  const library = lists && profile.querySelector(".profile-library");
+  if (library) {
+    const header = document.querySelector(".app-header");
+    requestAnimationFrame(() => window.scrollTo({
+      top: library.getBoundingClientRect().top + window.scrollY - (header?.offsetHeight || 0) - 12,
+    }));
   }
 }
 

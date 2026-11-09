@@ -100,6 +100,8 @@
   "GET /profile/{handle}/activity",
   "GET /profile/{handle}/activity/recent",
   "GET /profile/{handle}/lists",
+  "GET /@{handle}/lists/",
+  "GET /@{handle}/lists",
   "GET /@{handle}/",
   "GET /@{handle}",
   "GET /player/frame",
@@ -130,6 +132,7 @@
   "PUT /api/admin/titles/{mal_id}",
   "POST /api/admin/titles/{mal_id}/purge",
   "GET /api/admin/summary",
+  "GET /api/social/lists/{user_id}",
   "GET /manifest.webmanifest",
   "GET /",
   "GET /top",
@@ -182,6 +185,78 @@
    }
   },
   "/@{handle}/": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "handle",
+      "required": true,
+      "schema": {
+       "title": "Handle",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "text/html": {
+        "schema": {
+         "type": "string"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Profile Page"
+   }
+  },
+  "/@{handle}/lists": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "handle",
+      "required": true,
+      "schema": {
+       "title": "Handle",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "text/html": {
+        "schema": {
+         "type": "string"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Profile Page"
+   }
+  },
+  "/@{handle}/lists/": {
    "get": {
     "parameters": [
      {
@@ -2901,6 +2976,46 @@
      }
     },
     "summary": "Titles Purge"
+   }
+  },
+  "/api/social/lists/{user_id}": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "exclusiveMaximum": 4294967296,
+       "minimum": 1,
+       "title": "User Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Lists Block Api Social Lists  User Id  Get",
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Lists Block"
    }
   },
   "/auth/as/callback": {

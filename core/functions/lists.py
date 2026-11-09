@@ -24,6 +24,9 @@ completed / dropped / postponed), и отдельный флаг is_favorite. К
 
 Публичный профиль (раздел /profile/… и страница /@handle) берёт отсюда счётчики и записи человека — counts_for
 и items_for; соединение с базой они открывают сами.
+
+Любое изменение статусов — здесь (upsert_status, remove_entry, правило 30 дней) — и «Скрыть мои списки» зовут одну
+точку changed(): блок «Аниме» в профиле соцсети узнаёт, что пора перечитать списки (core/functions/lists_signal.py).
 """
 from __future__ import annotations
 
@@ -33,6 +36,7 @@ from typing import Any, Callable
 from core.classes.clock import utc_now
 from core.classes.db import connect
 from core.classes.jikan import catalog as jikan_catalog
+from core.functions import lists_signal
 from core.functions.activity import record_event
 
 STATUSES = ("watching", "planned", "completed", "dropped", "postponed")
@@ -117,6 +121,19 @@ def upsert_status(conn, user_id: int, mal_id: int, status: str | None,
                 updated_at=VALUES(updated_at)""",
         (user_id, mal_id, status, source, title, poster_url, now, now),
     )
+    changed(user_id)
+
+
+def remove_entry(conn, user_id: int, mal_id: int) -> None:
+    """Убрать тайтл из списков человека совсем — и статус, и избранное."""
+    conn.cursor().execute("DELETE FROM aviev_user_lists WHERE user_id=%s AND mal_id=%s", (user_id, mal_id))
+    changed(user_id)
+
+
+def changed(user_id: int) -> None:
+    """Списки человека или «Скрыть мои списки» изменились: сигнал соцсети. Сигнал идёт с задержкой и после commit
+    вызывающего; лишний (откат) безвреден — соцсеть просто перечитает тот же ответ."""
+    lists_signal.changed(user_id)
 
 
 def auto_complete(conn, user_id: int, mal_id: int, *, at: datetime | None = None, title: str = "",
@@ -192,6 +209,8 @@ def sweep_dropped_after_30_days(conn, now: datetime, *, user_id: int | None = No
                     (uid, mal_id, "dropped", "auto", is_fav, title, poster, added_at, now))))
         conn.commit()
         moved += len(entries)
+        for uid in {uid for uid, _ in entries}:
+            changed(uid)
         if entries and on_batch:
             on_batch(entries)
         if len(rows) < batch:

@@ -27,7 +27,7 @@ env.load()  # до остальных импортов: настройки в co
 # VPN must not start during import — that was the old bug. We arm it from the
 # FastAPI startup event below. Importing the module is cheap and side-effect
 # free.
-from core.admin import auth as admin_auth, router as admin_router, summary as admin_summary
+from core.admin import auth as admin_auth, router as admin_router, social as admin_social, summary as admin_summary
 from core.api.sections import account, activity, auth, catalog, friends, health, lists, messages, profile, social_login
 from core.api.sections import comments, random as random_api, realtime as realtime_ws, reports, sources as source_api
 from core.classes import http, http_cache, image_proxy
@@ -178,14 +178,16 @@ app.include_router(title_pages.router)
 app.include_router(seo.router)
 app.include_router(reports.router)
 app.include_router(admin_router.router)
+app.include_router(admin_social.router)  # блок «Аниме» в профиле соцсети: её сервер спрашивает списки человека
 app.add_exception_handler(admin_auth.AdminError, admin_auth.error_response)
 
 
-# Панели Anime Social ошибки — в обёртке API v2 и по-русски, остальным — как обычно у FastAPI
+# Панели и серверу Anime Social ошибки — в обёртке API v2 и по-русски, остальным — как обычно у FastAPI
 @app.exception_handler(RequestValidationError)
 async def _validation_error(request: Request, exc: RequestValidationError):
-    """Ошибка тела или параметров: админ-API — в обёртке API v2 и по-русски, остальным — как у FastAPI."""
-    if request.url.path.startswith("/api/admin/"):
+    """Ошибка тела или параметров: админ-API и запросы соцсети — в обёртке API v2 и по-русски, остальным — как у
+    FastAPI."""
+    if request.url.path.startswith(("/api/admin/", "/api/social/")):
         field = ".".join(str(part) for part in (exc.errors() or [{}])[0].get("loc", ()) if part != "body")
         message = f"Неверное поле: {field}" if field else "Неверное тело запроса"
         return admin_auth.error_response(request, admin_auth.AdminError(422, "validation_failed", message))

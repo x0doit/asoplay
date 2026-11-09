@@ -9,7 +9,7 @@
  * any attempt to do so surfaces a guest-gate.
  */
 
-import * as account from "./js/account.js?v=20261105-adult1";
+import * as account from "./js/account.js?v=20261110-lists1";
 import { setupNavigation, setActiveSection, SheetDrag } from "./js/navigation.js?v=20261030-live1";
 import * as images from "./js/images.js?v=20261031-img1";
 import * as realtime from "./js/realtime.js?v=20261102-chat1";
@@ -3626,9 +3626,9 @@ async function router() {
   if (path === "/my/settings/privacy")  return account.viewMySettings("privacy");
   if (path === "/my/friends")           return account.viewMyFriends();
 
-  // Публичный профиль: /@handle (alias или profile{id})
-  m = path.match(/^\/@([a-zA-Z0-9_.-]+)\/?$/);
-  if (m) return account.viewProfile(m[1]);
+  // Публичный профиль: /@handle (alias или profile{id}); /@handle/lists — он же, сразу у списков
+  m = path.match(/^\/@([a-zA-Z0-9_.-]+)(\/lists)?\/?$/);
+  if (m) return account.viewProfile(m[1], { lists: !!m[2] });
 
   m = path.match(/^\/anime\/(\d+)(?:-[a-z0-9-]+)?\/?$/);
   if (m) return viewAnime(Number(m[1]));

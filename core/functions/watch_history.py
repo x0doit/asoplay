@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Any
 
 from core.classes.clock import utc_now
+from core.functions import lists
 from core.functions.progress import auto_watching_qualified, history_qualified, progress_done
 
 
@@ -270,4 +271,5 @@ def adjust_auto_list_status_after_unwatch(
                   AND kind='list_add' AND meta='watching:auto'""",
             (user_id, mal_id),
         )
+    lists.changed(user_id)
     return _list_entry_for_title(conn, user_id, mal_id)

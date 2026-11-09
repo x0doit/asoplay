@@ -48,9 +48,12 @@ def _render_shell(head_extra: str, noscript: str, *,
 
 @router.get("/@{handle}", response_class=HTMLResponse)
 @router.get("/@{handle}/", response_class=HTMLResponse)
+@router.get("/@{handle}/lists", response_class=HTMLResponse)
+@router.get("/@{handle}/lists/", response_class=HTMLResponse)
 def profile_page(handle: str):
     """Страница профиля: canonical, Open Graph, JSON-LD ProfilePage и noscript со счётчиками списков, если они
-    открыты. Неизвестный handle или страница в соцсети заблокирована или удалена — оболочка SPA с 404."""
+    открыты. Неизвестный handle или страница в соцсети заблокирована или удалена — оболочка SPA с 404. /lists — та же
+    страница (canonical — /@handle): фронтенд прокручивает её к спискам."""
     target = resolve_handle(handle)
     if not target or social_pages.closed(target["id"]):
         # Неизвестный handle: оболочка SPA с кодом 404, а «Профиль не найден» рисует сам фронтенд.

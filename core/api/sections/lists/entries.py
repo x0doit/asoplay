@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, constr
 from core.classes.clock import utc_now
 from core.classes.db import connect
 from core.functions.activity import record_event
-from core.functions.lists import STATUSES, fetch_entry, mal_id_exists, row_to_public, upsert_status
+from core.functions.lists import STATUSES, fetch_entry, mal_id_exists, remove_entry, row_to_public, upsert_status
 from core.functions.sessions import current_user_required
 
 router = APIRouter()
@@ -201,11 +201,7 @@ def list_remove(
 ) -> dict[str, Any]:
     """DELETE /account/lists/{mal_id} — убрать тайтл из списков совсем (и статус, и избранное)."""
     with connect() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "DELETE FROM aviev_user_lists WHERE user_id=%s AND mal_id=%s",
-            (user["id"], mal_id),
-        )
+        remove_entry(conn, user["id"], mal_id)
         conn.commit()
         record_event(conn, user["id"], kind="list_remove", mal_id=mal_id)
         conn.commit()

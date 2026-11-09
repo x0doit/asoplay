@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from core.classes.clock import utc_now
 from core.classes.db import connect
+from core.functions import lists
 from core.functions.privacy import PRIVACY_FIELDS, read_privacy
 from core.functions.sessions import current_user_required
 
@@ -147,4 +148,6 @@ def privacy_put(
         # Друзья на сайте сразу увидят «вышел» или перестанут видеть, что он смотрит
         from core.functions import realtime
         realtime.privacy_changed(int(user["id"]))
+    if "hide_lists" in given:
+        lists.changed(int(user["id"]))  # блок «Аниме» в профиле соцсети скроется или вернётся
     return read_privacy(user["id"])

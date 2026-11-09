@@ -94,6 +94,14 @@ class HubSocial:
         if self._loop is not None:
             asyncio.run_coroutine_threadsafe(self.lists_changed(user_id, items), self._loop)
 
+    def later_from_thread(self, delay: float, callback: Callable[..., Any], *args: Any) -> bool:
+        """callback(*args) в цикле хаба через delay секунд — из любого потока; хаб не запущен — False."""
+        loop = self._loop
+        if loop is None or loop.is_closed():
+            return False
+        loop.call_soon_threadsafe(loop.call_later, delay, callback, *args)
+        return True
+
     def status(self) -> dict[str, Any]:
         """Состояние сервера для вкладок — от status_provider (его связывает core.py; не связан — RuntimeError).
         Сбой поставщика — последнее известное состояние, а пока его нет — ok: False: случайный сбой не перекрашивает

@@ -520,6 +520,9 @@
  "HubSocial.broadcast_status": [
   "async def(self) -> None"
  ],
+ "HubSocial.later_from_thread": [
+  "def(self, delay: float, callback: Callable[..., Any], *args: Any) -> bool"
+ ],
  "HubSocial.lists_changed": [
   "async def(self, user_id: int, items: list[dict[str, Any]]) -> None"
  ],
@@ -720,6 +723,9 @@
  ],
  "PER_HOST": [
   "= c1dfd96eea8c"
+ ],
+ "PER_STATUS": [
+  "= 91032ad7bbcb"
  ],
  "PER_VISITOR": [
   "= 1b6453892473"
@@ -1000,7 +1006,8 @@
  ],
  "STATUSES": [
   "= 0c8df4bb6485",
-  "= bbc6f0539231"
+  "= bbc6f0539231",
+  "= e9c606e5f6b8"
  ],
  "SWEEP_BATCH": [
   "= f83a383c0fa8"
@@ -1249,6 +1256,9 @@
   "= 908c75757e0e",
   "= db63fca62705"
  ],
+ "TITLE_MAX": [
+  "= 9f9af029585b"
+ ],
  "TOTAL": [
   "= 1574bddb75c7"
  ],
@@ -1346,6 +1356,7 @@
   "= 9401503e431c"
  ],
  "WINDOW": [
+  "= 70142f66475a",
   "= b463555d4f85"
  ],
  "WINDOW_HOURS": [
@@ -1519,6 +1530,7 @@
  ],
  "_LOOPBACK": [
   "= 6aa6c39ae4ae",
+  "= 7d56bf911333",
   "= 7d56bf911333"
  ],
  "_MAX_REDIRECTS": [
@@ -1675,6 +1687,9 @@
  ],
  "_StaticAssets.get_response": [
   "async def(self, path, scope)"
+ ],
+ "_TAG": [
+  "= f660e361d279"
  ],
  "_TEXT_TYPES": [
   "= e5953ddec187"
@@ -2017,6 +2032,9 @@
  "_listed": [
   "def(user: dict[str, Any], **extra: Any) -> dict[str, Any]"
  ],
+ "_lists_url": [
+  "def(user_id: int) -> str"
+ ],
  "_load": [
   "def(session: str) -> dict[str, Any] | None"
  ],
@@ -2024,6 +2042,7 @@
   "def() -> dict[str, Any]"
  ],
  "_lock": [
+  "= c6d6acc28078",
   "= c6d6acc28078",
   "= c6d6acc28078"
  ],
@@ -2115,6 +2134,7 @@
   "def(pattern: str) -> re.Pattern[str] | None"
  ],
  "_pending": [
+  "= 9aadf8ef192d",
   "= bf21a9e8fbc5",
   "= bf21a9e8fbc5"
  ],
@@ -2141,6 +2161,9 @@
  ],
  "_points_lock": [
   "= c6d6acc28078"
+ ],
+ "_poster": [
+  "def(url: str | None) -> str | None"
  ],
  "_proxy_hosts_diff": [
   "def(old: Any, new: list[dict[str, str]]) -> dict[str, Any]"
@@ -2262,6 +2285,9 @@
  "_row_to_dict": [
   "def(row: tuple) -> dict[str, Any]"
  ],
+ "_rows": [
+  "def(cur, user_id: int) -> tuple[dict[str, int], dict[str, list[tuple]], dict[int, int], dict[int, str]]"
+ ],
  "_rule_applies_to_player_url": [
   "def(modifiers: str) -> bool"
  ],
@@ -2290,7 +2316,8 @@
   "= 5af8cc004a97"
  ],
  "_send": [
-  "async def(method: str, url: str, *, stream: bool=False, **kwargs: Any) -> httpx.Response"
+  "async def(method: str, url: str, *, stream: bool=False, **kwargs: Any) -> httpx.Response",
+  "def(user_id: int) -> None"
  ],
  "_sender": [
   "= 6eef6648406c"
@@ -2380,6 +2407,9 @@
  "_thread_title": [
   "async def(mal_id: int, episode: int | None) -> tuple[str, str]"
  ],
+ "_title": [
+  "def(raw: str | None) -> str"
+ ],
  "_title_item": [
   "def(mal_id: int, name: str, flags: tuple | None) -> dict[str, Any]"
  ],
@@ -2395,6 +2425,9 @@
  ],
  "_too_short": [
   "def(card: dict) -> bool"
+ ],
+ "_ts": [
+  "def(at: datetime | None) -> int | None"
  ],
  "_tunnel": [
   "async def(stream: httpcore.AsyncNetworkStream, address: str, port: int, timeout: float | None) -> None"
@@ -2649,6 +2682,9 @@
  "bind_port": [
   "def() -> int"
  ],
+ "block": [
+  "def(user_id: int) -> dict[str, Any]"
+ ],
  "breaker": [
   "= b3baedf540b2"
  ],
@@ -2694,6 +2730,8 @@
   "async def(path: str, params: dict | None=None) -> dict"
  ],
  "changed": [
+  "def(user_id: int) -> None",
+  "def(user_id: int) -> None",
   "def(what: set[str]) -> None"
  ],
  "chunks": [
@@ -3110,6 +3148,9 @@
  "listeners": [
   "= 97d170e1550e"
  ],
+ "lists_block": [
+  "@router.get('/lists/{user_id}') def(user_id: int=Path(ge=1, lt=2 ** 32), _peer: None=Depends(social_peer)) -> dict[str, Any]"
+ ],
  "lists_changed": [
   "def(user_id: int, items: list[dict[str, Any]]) -> None"
  ],
@@ -3172,7 +3213,8 @@
   "= eae50792383d",
   "= ee32d4684644",
   "= ee32d4684644",
-  "= ee32d4684644"
+  "= ee32d4684644",
+  "= f74e8eca001d"
  ],
  "login_url": [
   "def() -> str"
@@ -3334,7 +3376,7 @@
   "@router.get('/profile/{handle}/lists') def(handle: str, status: str='watching', viewer: dict[str, Any] | None=Depends(current_user_optional)) -> dict[str, Any]"
  ],
  "profile_page": [
-  "@router.get('/@{handle}', response_class=HTMLResponse) @router.get('/@{handle}/', response_class=HTMLResponse) def(handle: str)"
+  "@router.get('/@{handle}', response_class=HTMLResponse) @router.get('/@{handle}/', response_class=HTMLResponse) @router.get('/@{handle}/lists', response_class=HTMLResponse) @router.get('/@{handle}/lists/', response_class=HTMLResponse) def(handle: str)"
  ],
  "profile_summary": [
   "@router.get('/profile/{handle}/summary') def(handle: str, days: int=Query(default=30, ge=1, le=365), viewer: dict[str, Any] | None=Depends(current_user_optional)) -> dict[str, Any]"
@@ -3465,6 +3507,9 @@
  "remember_route": [
   "def(host: str, route: str) -> None"
  ],
+ "remove_entry": [
+  "def(conn, user_id: int, mal_id: int) -> None"
+ ],
  "render_generic": [
   "def() -> HTMLResponse"
  ],
@@ -3522,6 +3567,7 @@
   "= 2350873edac3",
   "= 38a8009d6ab6",
   "= 603dd6e11367",
+  "= 60402b34e88b",
   "= 82e1a4f1c862",
   "= 82e1a4f1c862",
   "= 82e1a4f1c862",
@@ -3633,7 +3679,8 @@
   "def() -> None"
  ],
  "sign": [
-  "def(secret: bytes, ts: str, method: str, path_with_query: str, admin_user: str, body: bytes) -> str"
+  "def(secret: bytes, ts: str, method: str, path_with_query: str, admin_user: str, body: bytes) -> str",
+  "def(secret: bytes, ts: str, method: str, path_with_query: str, body: bytes) -> str"
  ],
  "since_utc": [
   "def(day: str) -> datetime"
@@ -3654,6 +3701,9 @@
  "social_call": [
   "def(request: Request, session: str | None, method: str, path: str, body: dict[str, Any] | None=None) -> Any",
   "def(request: Request, session: str | None, method: str, path: str, body: dict[str, Any] | None=None, *, token: str | None=None) -> Any"
+ ],
+ "social_peer": [
+  "async def(request: Request) -> None"
  ],
  "social_session": [
   "def(request: Request, session: str | None) -> tuple[str | None, str, str]"
