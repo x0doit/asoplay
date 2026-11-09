@@ -165,6 +165,12 @@
  "CACHE_DIR": [
   "= c5061ae78c53"
  ],
+ "CACHE_MAX": [
+  "= 8a12a315082a"
+ ],
+ "CACHE_SECONDS": [
+  "= e26973e6ee8a"
+ ],
  "CATALOG_PACE": [
   "= bdc1408a91f1"
  ],
@@ -570,6 +576,9 @@
  ],
  "LIMIT": [
   "= b1d5781111d8"
+ ],
+ "LIST_KINDS": [
+  "= e8f4b9b6b0df"
  ],
  "LOGIN_WINDOW": [
   "= f142b51ba867"
@@ -1787,6 +1796,9 @@
  "_brief": [
   "def(user: dict[str, Any]) -> dict[str, Any]"
  ],
+ "_cache": [
+  "= a902315319ba"
+ ],
  "_cache_get_any": [
   "def(key: str) -> tuple[bytes, str, int] | None"
  ],
@@ -1866,7 +1878,7 @@
   "async def(url: str, allowed: Callable[[httpx.URL], bool], via: str, key: str, visitor: str) -> tuple[bytes, str]"
  ],
  "_fetch_recent": [
-  "def(conn, user_id: int, *, offset: int=0, limit: int=10, group: str | None=None, day: str | None=None) -> list[dict[str, Any]]"
+  "def(conn, user_id: int, *, offset: int=0, limit: int=10, group: str | None=None, day: str | None=None, without: Collection[str]=()) -> list[dict[str, Any]]"
  ],
  "_fetch_uncached": [
   "async def(method, url, *, params, json_body, timeout, headers, key, stale, catalog_api=False)"
@@ -1924,6 +1936,9 @@
  ],
  "_hidden": [
   "= 08fd15ac4243"
+ ],
+ "_hidden_kinds": [
+  "def(privacy: dict[str, bool], is_owner: bool) -> frozenset[str]"
  ],
  "_hls_quality_sources": [
   "def(master_url: str, playlist: str) -> list[dict[str, str]]"
@@ -2009,6 +2024,7 @@
   "def() -> dict[str, Any]"
  ],
  "_lock": [
+  "= c6d6acc28078",
   "= c6d6acc28078"
  ],
  "_log_refusal": [
@@ -2180,6 +2196,9 @@
  "_register_url": [
   "def() -> str"
  ],
+ "_remember": [
+  "def(user_id: int, state: str | None, now: float) -> None"
+ ],
  "_render_shell": [
   "def(head_extra: str, noscript: str, *, title: str | None=None, description: str | None=None, robots: str | None=None) -> HTMLResponse"
  ],
@@ -2342,6 +2361,9 @@
  "_sweep_select": [
   "def(user_id: int | None, after: tuple[int, int] | None) -> str"
  ],
+ "_target": [
+  "def(handle: str) -> dict[str, Any]"
+ ],
  "_task": [
   "= 6eef6648406c",
   "= 6eef6648406c"
@@ -2454,6 +2476,9 @@
  ],
  "_with_as": [
   "def(path: str, outcome: str) -> str"
+ ],
+ "_without_kinds": [
+  "def(without: Collection[str]) -> tuple[str, tuple[str, ...]]"
  ],
  "_without_query": [
   "def(text: str) -> str"
@@ -2698,6 +2723,9 @@
  "client_ip": [
   "def(request: Request) -> str"
  ],
+ "closed": [
+  "def(user_id: int) -> bool"
+ ],
  "comment_add": [
   "@router.post('') async def(payload: CommentIn, request: Request, user: dict[str, Any]=_USER, session: str | None=_SESSION) -> Any"
  ],
@@ -2754,6 +2782,9 @@
  ],
  "db_settings": [
   "def() -> dict[str, Any]"
+ ],
+ "deactivated": [
+  "def(user_id: int) -> str | None"
  ],
  "debug_check": [
   "@router.get('/debug/check') def(url: str=Query(..., min_length=4))"
@@ -2836,7 +2867,7 @@
   "def(conn, user_id: int, mal_id: int) -> dict[str, Any] | None"
  ],
  "fetch_recent_paged": [
-  "def(user_id: int, *, offset: int, limit: int, group: str | None, day: str | None=None) -> dict[str, Any]"
+  "def(user_id: int, *, offset: int, limit: int, group: str | None, day: str | None=None, without: Collection[str]=()) -> dict[str, Any]"
  ],
  "filter_by_year": [
   "def(results: list[dict], year: int | None) -> list[dict]"
@@ -2857,7 +2888,8 @@
   "def(user_ids: Iterable[int]) -> dict[int, Privacy]"
  ],
  "forget": [
-  "def(mal_id: int) -> None"
+  "def(mal_id: int) -> None",
+  "def(user_id: int) -> None"
  ],
  "forget_friends": [
   "def(user_id: int) -> None"
@@ -2931,10 +2963,10 @@
   "async def() -> httpx.AsyncClient | None"
  ],
  "graph_for_user": [
-  "def(user_id: int, days: int=DEFAULT_DAYS) -> dict[str, Any]"
+  "def(user_id: int, days: int=DEFAULT_DAYS, without: Collection[str]=()) -> dict[str, Any]"
  ],
  "graph_for_user_public": [
-  "def(user_id: int, days: int=DEFAULT_DAYS) -> dict[str, Any]"
+  "def(user_id: int, days: int=DEFAULT_DAYS, without: Collection[str]=()) -> dict[str, Any]"
  ],
  "guard_source": [
   "async def(source: str, op: str, awaitable, timeout: float)"
@@ -3115,6 +3147,7 @@
   "= 48bd8c61a38f",
   "= 6cddf65a201a",
   "= 6cddf65a201a",
+  "= 760f162a90c0",
   "= 8d79196ccde5",
   "= 96797f0c7e5f",
   "= 9a6a5b08b0f5",

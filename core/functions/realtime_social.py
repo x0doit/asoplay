@@ -15,7 +15,7 @@ import asyncio
 import logging
 from typing import Any, Callable
 
-from core.functions import friends as friend_data, presence_batch, sessions
+from core.functions import friends as friend_data, presence_batch, sessions, social_pages
 
 log = logging.getLogger("asoplay.realtime")
 
@@ -72,6 +72,7 @@ class HubSocial:
             uid = data.get("user_id")
             if not isinstance(uid, int):
                 return
+            social_pages.forget(uid)  # открытого профиля у него больше нет — без ожидания памяти ответа
             try:
                 await asyncio.to_thread(sessions.revoke_user_sessions, uid)
             except Exception:  # noqa: BLE001 — вкладки закроем всё равно; сессии закроет сверка

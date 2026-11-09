@@ -31,6 +31,10 @@ KIND_GROUPS = {
     "rate":      ["rate"],
 }
 
+# По этим событиям видно, что лежит в списках и избранном: при «Скрыть мои списки» постороннему их не показывают
+# ни в ленте, ни в графике (core/api/sections/profile.py)
+LIST_KINDS = frozenset({"list_add", "list_move", "list_remove", "favorite", "unfavorite", "complete"})
+
 # Для этих событий дедуп должен быть «один раз в день на тайтл», а не по
 # конкретному значению meta. Иначе 5 переносов «watching→dropped→watching→…»
 # спамят активность. Пишем их с пустой meta — уникальный индекс

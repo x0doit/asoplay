@@ -6,7 +6,9 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
 Handle — alias из Just_accounts (например, edward), а если alias пуст — profile{user_id}. Приватность решает сервер:
 скрыл человек списки (hide_lists) или активность (hide_activity) — посторонний их не получает вовсе, никакого
-скрытия в CSS; владелец видит всё. Страница /@handle для поисковиков — core/modules/profile_pages.py.
+скрытия в CSS; владелец видит всё. Скрытые списки прячут и действия со списками в ленте и графике активности.
+Страница человека в соцсети заблокирована или удалена — профиля нет (404). Страница /@handle для поисковиков —
+core/modules/profile_pages.py.
 """
 from __future__ import annotations
 
@@ -15,12 +17,26 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from core.classes.accounts import resolve_handle
-from core.functions import lists
+from core.functions import lists, social_pages
+from core.functions.activity import LIST_KINDS
 from core.functions.activity_feed import fetch_recent_paged, graph_for_user_public
 from core.functions.privacy import read_privacy
 from core.functions.sessions import current_user_optional
 
 router = APIRouter()
+
+
+def _target(handle: str) -> dict[str, Any]:
+    """Человек открытого профиля; такого нет или его страница в соцсети заблокирована или удалена — 404."""
+    target = resolve_handle(handle)
+    if not target or social_pages.closed(target["id"]):
+        raise HTTPException(404, "profile not found")
+    return target
+
+
+def _hidden_kinds(privacy: dict[str, bool], is_owner: bool) -> frozenset[str]:
+    """Каких событий активности постороннему не показывать: при скрытых списках — действий со списками."""
+    return LIST_KINDS if privacy["hide_lists"] and not is_owner else frozenset()
 
 
 @router.get("/profile/{handle}/summary")
@@ -31,9 +47,7 @@ def profile_summary(
 ) -> dict[str, Any]:
     """Сводка профиля: человек, его приватность (только hide_lists и hide_activity), счётчики списков и график
     активности за days дней — то, что он не скрыл; владельцу — всё."""
-    target = resolve_handle(handle)
-    if not target:
-        raise HTTPException(404, "profile not found")
+    target = _target(handle)
     is_owner = bool(viewer and int(viewer["id"]) == int(target["id"]))
     privacy = read_privacy(target["id"])
     out: dict[str, Any] = {
@@ -49,7 +63,7 @@ def profile_summary(
     if not privacy["hide_lists"] or is_owner:
         out["counts"] = lists.counts_for(target["id"])
     if not privacy["hide_activity"] or is_owner:
-        out["activity"] = graph_for_user_public(target["id"], days=days)
+        out["activity"] = graph_for_user_public(target["id"], days=days, without=_hidden_kinds(privacy, is_owner))
     return out
 
 
@@ -60,14 +74,12 @@ def profile_activity(
     viewer: dict[str, Any] | None = Depends(current_user_optional),
 ) -> dict[str, Any]:
     """График активности за days дней; активность скрыта, а смотрит не владелец, — {"hidden": true}."""
-    target = resolve_handle(handle)
-    if not target:
-        raise HTTPException(404, "profile not found")
+    target = _target(handle)
     is_owner = bool(viewer and int(viewer["id"]) == int(target["id"]))
     privacy = read_privacy(target["id"])
     if privacy["hide_activity"] and not is_owner:
         return {"hidden": True}
-    return graph_for_user_public(target["id"], days=days)
+    return graph_for_user_public(target["id"], days=days, without=_hidden_kinds(privacy, is_owner))
 
 
 @router.get("/profile/{handle}/activity/recent")
@@ -81,15 +93,13 @@ def profile_activity_recent(
 ) -> dict[str, Any]:
     """Лента активности страницами: offset и limit, группа событий, один день; активность скрыта, а смотрит
     не владелец, — пустая лента с hidden."""
-    target = resolve_handle(handle)
-    if not target:
-        raise HTTPException(404, "profile not found")
+    target = _target(handle)
     is_owner = bool(viewer and int(viewer["id"]) == int(target["id"]))
     privacy = read_privacy(target["id"])
     if privacy["hide_activity"] and not is_owner:
         return {"hidden": True, "items": [], "has_more": False}
     return fetch_recent_paged(target["id"], offset=offset, limit=limit,
-                              group=group, day=date)
+                              group=group, day=date, without=_hidden_kinds(privacy, is_owner))
 
 
 @router.get("/profile/{handle}/lists")
@@ -100,9 +110,7 @@ def profile_lists(
 ) -> dict[str, Any]:
     """Записи одного статуса или избранного; списки скрыты, а смотрит не владелец, — пусто с hidden; неизвестный
     статус — 400."""
-    target = resolve_handle(handle)
-    if not target:
-        raise HTTPException(404, "profile not found")
+    target = _target(handle)
     is_owner = bool(viewer and int(viewer["id"]) == int(target["id"]))
     privacy = read_privacy(target["id"])
     if privacy["hide_lists"] and not is_owner:

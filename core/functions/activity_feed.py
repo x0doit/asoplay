@@ -10,7 +10,7 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import Any
+from typing import Any, Collection
 
 from core.classes.clock import utc_now
 from core.classes.db import connect
@@ -45,6 +45,14 @@ def _clamp_days(days: int | None) -> int:
     return 365
 
 
+def _without_kinds(without: Collection[str]) -> tuple[str, tuple[str, ...]]:
+    """Условие «кроме этих событий» для WHERE (с AND впереди) и его параметры; пусто — без условия."""
+    kinds = tuple(sorted(without))
+    if not kinds:
+        return "", ()
+    return f"AND a.kind NOT IN ({','.join(['%s'] * len(kinds))})", kinds
+
+
 def _resolve_kinds(group: str | None) -> list[str] | None:
     """Map группы UI → список kind'ов для WHERE-фильтра.
     None → без фильтра (все события)."""
@@ -64,14 +72,15 @@ def _activity_title(value: str | None) -> str:
 
 
 def _fetch_recent(conn, user_id: int, *, offset: int = 0, limit: int = 10,
-                  group: str | None = None, day: str | None = None) -> list[dict[str, Any]]:
+                  group: str | None = None, day: str | None = None,
+                  without: Collection[str] = ()) -> list[dict[str, Any]]:
     """Постраничная выборка recent events с enrich тайтлом. Возвращает список
     items; вызывающий сам решает has_more по len(items) == limit+1.
     Для экономии запросов мы забираем limit+1 элементов, обрезаем до limit,
     и по факту len==limit+1 решаем, есть ли следующая страница.
 
     `day` — опциональный YYYY-MM-DD для фильтрации активности по одному дню
-    (клик по клетке GitHub-grid'а). Комбинируется с group.
+    (клик по клетке GitHub-grid'а). Комбинируется с group. without — события, которые не показывать.
     """
     import re as _re
 
@@ -86,6 +95,10 @@ def _fetch_recent(conn, user_id: int, *, offset: int = 0, limit: int = 10,
     if day:
         where.append("day=%s")
         params.append(day)
+    hidden_sql, hidden = _without_kinds(without)
+    if hidden:
+        where.append(hidden_sql.removeprefix("AND "))
+        params.extend(hidden)
     sql = (
         f"""SELECT a.kind, a.mal_id, a.meta, a.at FROM aviev_activity a
             WHERE {' AND '.join(where)}
@@ -145,8 +158,9 @@ def _fetch_recent(conn, user_id: int, *, offset: int = 0, limit: int = 10,
 
 
 def fetch_recent_paged(user_id: int, *, offset: int, limit: int,
-                       group: str | None, day: str | None = None) -> dict[str, Any]:
-    """Обёртка над _fetch_recent — открывает коннект, считает has_more."""
+                       group: str | None, day: str | None = None,
+                       without: Collection[str] = ()) -> dict[str, Any]:
+    """Обёртка над _fetch_recent — открывает коннект, считает has_more; without — события, которые не показывать."""
     limit = max(1, min(limit, 50))
     offset = max(0, offset)
     # Мягкая валидация day: ожидаем YYYY-MM-DD, иначе игнорируем.
@@ -156,37 +170,39 @@ def fetch_recent_paged(user_id: int, *, offset: int, limit: int,
             day = None
     with connect() as conn:
         items = _fetch_recent(conn, user_id, offset=offset, limit=limit + 1,
-                              group=group, day=day)
+                              group=group, day=day, without=without)
     has_more = len(items) > limit
     return {"items": items[:limit], "has_more": has_more, "offset": offset, "limit": limit,
             "group": group or "all", "day": day}
 
 
-def graph_for_user(user_id: int, days: int = DEFAULT_DAYS) -> dict[str, Any]:
+def graph_for_user(user_id: int, days: int = DEFAULT_DAYS, without: Collection[str] = ()) -> dict[str, Any]:
     """Возвращает агрегат за последние `days` дней: грид по дням + summary +
-    последние 20 событий в виде списка (c тайтлами и эпизодами, если есть)."""
+    последние 20 событий в виде списка (c тайтлами и эпизодами, если есть); without — события, которых в графике
+    и ленте нет вовсе."""
     days = _clamp_days(days)
     now = utc_now()
     start = (now - timedelta(days=days - 1)).date()
+    hidden_sql, hidden = _without_kinds(without)
     with connect() as conn:
         cur = conn.cursor()
         cur.execute(
             f"""SELECT a.day, COUNT(*) AS n FROM aviev_activity a
                 WHERE a.user_id=%s AND a.day >= %s
-                  AND {WATCH_EVENT_HAS_PROGRESS_SQL}
+                  AND {WATCH_EVENT_HAS_PROGRESS_SQL} {hidden_sql}
                 GROUP BY a.day""",
-            (user_id, start),
+            (user_id, start, *hidden),
         )
         by_day = {d.isoformat(): int(n) for d, n in cur.fetchall()}
         cur.execute(
             f"""SELECT a.kind, COUNT(*) FROM aviev_activity a
                 WHERE a.user_id=%s AND a.day >= %s
-                  AND {WATCH_EVENT_HAS_PROGRESS_SQL}
+                  AND {WATCH_EVENT_HAS_PROGRESS_SQL} {hidden_sql}
                 GROUP BY a.kind""",
-            (user_id, start),
+            (user_id, start, *hidden),
         )
         by_kind = {k: int(n) for k, n in cur.fetchall()}
-        recent = _fetch_recent(conn, user_id, offset=0, limit=10, group=None)
+        recent = _fetch_recent(conn, user_id, offset=0, limit=10, group=None, without=without)
 
     cells = []
     total = 0
@@ -228,7 +244,7 @@ def graph_for_user(user_id: int, days: int = DEFAULT_DAYS) -> dict[str, Any]:
     }
 
 
-def graph_for_user_public(user_id: int, days: int = DEFAULT_DAYS) -> dict[str, Any]:
+def graph_for_user_public(user_id: int, days: int = DEFAULT_DAYS, without: Collection[str] = ()) -> dict[str, Any]:
     """Без auth — используется public-профилем, который уже проверил
-    приватность в вызывающем коде."""
-    return graph_for_user(user_id, days=days)
+    приватность в вызывающем коде и передал, каких событий не показывать."""
+    return graph_for_user(user_id, days=days, without=without)

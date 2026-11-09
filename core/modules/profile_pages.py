@@ -24,7 +24,7 @@ from fastapi.responses import HTMLResponse
 
 from core.classes.accounts import resolve_handle
 from core.config.config import SITE_NAME, SITE_URL
-from core.functions import lists
+from core.functions import lists, social_pages
 from core.functions.privacy import read_privacy
 from core.modules import title_render
 
@@ -50,9 +50,9 @@ def _render_shell(head_extra: str, noscript: str, *,
 @router.get("/@{handle}/", response_class=HTMLResponse)
 def profile_page(handle: str):
     """Страница профиля: canonical, Open Graph, JSON-LD ProfilePage и noscript со счётчиками списков, если они
-    открыты. Неизвестный handle — оболочка SPA с 404."""
+    открыты. Неизвестный handle или страница в соцсети заблокирована или удалена — оболочка SPA с 404."""
     target = resolve_handle(handle)
-    if not target:
+    if not target or social_pages.closed(target["id"]):
         # Неизвестный handle: оболочка SPA с кодом 404, а «Профиль не найден» рисует сам фронтенд.
         # Голый HTTPException отдавал браузеру JSON вместо страницы.
         missing = _render_shell(

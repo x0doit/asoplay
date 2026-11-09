@@ -16,7 +16,7 @@ import websockets
 
 from core.classes import as_api, as_realtime
 from core.config.config import SITE_URL
-from core.functions import presence, presence_batch, privacy as privacy_rules, realtime, realtime_social, sessions
+from core.functions import presence, presence_batch, privacy as privacy_rules, realtime, realtime_social, sessions, social_pages
 
 
 class FakeClock:
@@ -123,9 +123,11 @@ class HubSocialTests(unittest.TestCase):
         _, ws_a = self.connect(1)
         _, ws_b = self.connect(1)
         _, other = self.connect(2)
+        social_pages._cache[1] = (None, time.monotonic())  # «страница открыта» — из памяти, до бана
         asyncio.run(self.hub.on_social_event("account_banned", {"user_id": 1}, []))
         self.assertEqual(self.revoked, [1])
         self.assertEqual((ws_a.closed, ws_b.closed, other.closed), (4001, 4001, None))
+        self.assertNotIn(1, social_pages._cache)  # открытый профиль спросит соцсеть заново
 
     def test_the_snapshot_is_the_batch_body(self):
         with patch.object(presence_batch, "build_batch", return_value={"users": [1], "watching": []}):
