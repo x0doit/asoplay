@@ -16,7 +16,6 @@ const state = {
 };
 
 const NOTICE_KEY = "av_notice_dismissed";
-const ADULT_KEY = "av_adult_ok";
 let noticeTimer = null;
 
 const ids = list => (Array.isArray(list) ? list.filter(Number.isInteger) : []);
@@ -60,15 +59,6 @@ export const sourceOrder = () => [...state.sources];
 
 export function visible(list, key = "mal_id") {
   return state.hidden.size ? (list || []).filter(x => !state.hidden.has(Number(x?.[key]))) : list;
-}
-
-// ---------- 18+ ----------
-export function adultConfirmed() {
-  try { return localStorage.getItem(ADULT_KEY) === "1"; } catch { return false; }
-}
-
-export function confirmAdult() {
-  try { localStorage.setItem(ADULT_KEY, "1"); } catch { /* приватный режим — спросим ещё раз */ }
 }
 
 // ---------- плашка ----------

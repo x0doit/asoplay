@@ -15,7 +15,7 @@ const { OUT, SITE, STATUS, foreign, quietSocialSession, report } = require("./li
 
 // Сценарии по порядку: файл scenarios/<имя>.cjs отдаёт свой сценарий под ключом (lists-live.cjs → listsLive)
 const FILES = ["desktop-guest", "desktop-account", "phone", "as-login", "friends", "realtime", "lists-live", "admin",
-  "admin-report", "landscape", "embedded", "narrow"];
+  "admin-report", "landscape", "embedded", "narrow", "images", "autonext", "chat", "chat-more", "player-keys", "resume", "chat-replay"];
 const scenarios = {}, byName = {};
 for (const file of FILES) {
   const found = require(`./scenarios/${file}.cjs`);

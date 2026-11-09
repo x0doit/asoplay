@@ -37,7 +37,6 @@
   "GET /shiki/search",
   "GET /proxy/jikan/{path:path}",
   "POST /proxy/anilist",
-  "GET /proxy/translate",
   "GET /proxy/img",
   "POST /auth/login",
   "POST /auth/logout",
@@ -78,6 +77,13 @@
   "POST /account/friends/{peer_id}/decline",
   "DELETE /account/friends/{peer_id}",
   "POST /account/messages/{peer_id}",
+  "GET /comments",
+  "GET /comments/item/{comment_id}",
+  "POST /comments",
+  "DELETE /comments/{comment_id}",
+  "PUT /comments/{comment_id}/like",
+  "DELETE /comments/{comment_id}/like",
+  "POST /comments/{comment_id}/report",
   "WS /ws",
   "GET /account/lists",
   "GET /account/lists/counts",
@@ -108,7 +114,6 @@
   "GET,HEAD,OPTIONS,POST /seria/{rest:path}",
   "GET,HEAD,OPTIONS,POST /video/{rest:path}",
   "GET,HEAD,OPTIONS,POST /uv/{rest:path}",
-  "POST /title-pages/record",
   "GET /anime/{stub}",
   "GET /anime/{stub}/",
   "GET /sitemap.xml",
@@ -2712,7 +2717,7 @@
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/SettingsIn@953e8edf"
+        "$ref": "#/components/schemas/SettingsIn@f3e7d11d"
        }
       }
      },
@@ -3261,6 +3266,481 @@
      }
     },
     "summary": "Auth Register Redirect"
+   }
+  },
+  "/comments": {
+   "get": {
+    "parameters": [
+     {
+      "in": "query",
+      "name": "object",
+      "required": true,
+      "schema": {
+       "maxLength": 150,
+       "title": "Object",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "sort",
+      "required": false,
+      "schema": {
+       "default": "new",
+       "enum": [
+        "new",
+        "old",
+        "top",
+        "moment"
+       ],
+       "title": "Sort",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "thread",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Thread"
+      }
+     },
+     {
+      "in": "query",
+      "name": "cursor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 200,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Cursor"
+      }
+     },
+     {
+      "in": "query",
+      "name": "from",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maximum": 86400,
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "From"
+      }
+     },
+     {
+      "in": "query",
+      "name": "to",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maximum": 86400,
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "To"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 20,
+       "maximum": 100,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Comments List Comments Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Comments List"
+   },
+   "post": {
+    "parameters": [
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CommentIn@08a5d833"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Comment Add Comments Post"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Comment Add"
+   }
+  },
+  "/comments/item/{comment_id}": {
+   "get": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "comment_id",
+      "required": true,
+      "schema": {
+       "minimum": 1,
+       "title": "Comment Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Comment Item Comments Item  Comment Id  Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Comment Item"
+   }
+  },
+  "/comments/{comment_id}": {
+   "delete": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "comment_id",
+      "required": true,
+      "schema": {
+       "minimum": 1,
+       "title": "Comment Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Comment Delete Comments  Comment Id  Delete"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Comment Delete"
+   }
+  },
+  "/comments/{comment_id}/like": {
+   "delete": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "comment_id",
+      "required": true,
+      "schema": {
+       "minimum": 1,
+       "title": "Comment Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Comment Unlike Comments  Comment Id  Like Delete"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Comment Unlike"
+   },
+   "put": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "comment_id",
+      "required": true,
+      "schema": {
+       "minimum": 1,
+       "title": "Comment Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Comment Like Comments  Comment Id  Like Put"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Comment Like"
+   }
+  },
+  "/comments/{comment_id}/report": {
+   "post": {
+    "parameters": [
+     {
+      "in": "path",
+      "name": "comment_id",
+      "required": true,
+      "schema": {
+       "minimum": 1,
+       "title": "Comment Id",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "cookie",
+      "name": "aviev_session",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Aviev Session"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReportIn@b6227f8d"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Comment Report Comments  Comment Id  Report Post"
+        }
+       }
+      }
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
+        }
+       }
+      }
+     }
+    },
+    "summary": "Comment Report"
    }
   },
   "/episode/{rest}": {
@@ -4334,60 +4814,6 @@
     "summary": "Proxy Jikan"
    }
   },
-  "/proxy/translate": {
-   "get": {
-    "parameters": [
-     {
-      "in": "query",
-      "name": "q",
-      "required": true,
-      "schema": {
-       "title": "Q",
-       "type": "string"
-      }
-     },
-     {
-      "in": "query",
-      "name": "sl",
-      "required": false,
-      "schema": {
-       "default": "auto",
-       "title": "Sl",
-       "type": "string"
-      }
-     },
-     {
-      "in": "query",
-      "name": "tl",
-      "required": false,
-      "schema": {
-       "default": "ru",
-       "title": "Tl",
-       "type": "string"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
-        }
-       }
-      }
-     }
-    },
-    "summary": "Proxy Translate"
-   }
-  },
   "/random/watchable": {
    "get": {
     "responses": {
@@ -5259,43 +5685,6 @@
     "summary": "Videos"
    }
   },
-  "/title-pages/record": {
-   "post": {
-    "requestBody": {
-     "content": {
-      "application/json": {
-       "schema": {
-        "$ref": "#/components/schemas/RecordIn@6f456e35"
-       }
-      }
-     },
-     "required": true
-    },
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "additionalProperties": true,
-         "title": "Response Title Record Title Pages Record Post",
-         "type": "object"
-        }
-       }
-      }
-     },
-     "422": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
-        }
-       }
-      }
-     }
-    },
-    "summary": "Title Record"
-   }
-  },
   "/uv/{rest}": {
    "get": {
     "parameters": [
@@ -5558,6 +5947,7 @@
   }
  },
  "schemas": [
+  "{\"CommentIn@08a5d833\": {\"properties\": {\"moment\": {\"anyOf\": [{\"maximum\": 86400.0, \"minimum\": 0.0, \"type\": \"integer\"}, {\"type\": \"null\"}], \"title\": \"Moment\"}, \"object\": {\"maxLength\": 150, \"title\": \"Object\", \"type\": \"string\"}, \"reply_to\": {\"anyOf\": [{\"minimum\": 1.0, \"type\": \"integer\"}, {\"type\": \"null\"}], \"title\": \"Reply To\"}, \"text\": {\"maxLength\": 5000, \"title\": \"Text\", \"type\": \"string\"}, \"thread\": {\"anyOf\": [{\"minimum\": 1.0, \"type\": \"integer\"}, {\"type\": \"null\"}], \"title\": \"Thread\"}}, \"required\": [\"object\", \"text\"], \"title\": \"CommentIn\", \"type\": \"object\"}}",
   "{\"DubPrefIn@773e9b6b\": {\"properties\": {\"dub_norm\": {\"maxLength\": 128, \"minLength\": 1, \"title\": \"Dub Norm\", \"type\": \"string\"}}, \"required\": [\"dub_norm\"], \"title\": \"DubPrefIn\", \"type\": \"object\"}}",
   "{\"FavoriteIn@4e87e294\": {\"properties\": {\"is_favorite\": {\"title\": \"Is Favorite\", \"type\": \"boolean\"}, \"poster_url\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Poster Url\", \"type\": \"string\"}, \"title\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title\", \"type\": \"string\"}}, \"required\": [\"is_favorite\"], \"title\": \"FavoriteIn\", \"type\": \"object\"}}",
   "{\"FavoriteIn@e06f352c\": {\"properties\": {\"mal_id\": {\"maximum\": 10000000.0, \"minimum\": 1.0, \"title\": \"Mal Id\", \"type\": \"integer\"}, \"poster_url\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Poster Url\", \"type\": \"string\"}, \"title\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title\", \"type\": \"string\"}}, \"required\": [\"mal_id\"], \"title\": \"FavoriteIn\", \"type\": \"object\"}}",
@@ -5572,12 +5962,13 @@
   "{\"PrivacyIn@0e038f5a\": {\"properties\": {\"hide_activity\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Hide Activity\"}, \"hide_lists\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Hide Lists\"}, \"hide_presence\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Hide Presence\"}, \"show_watching\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Show Watching\"}}, \"title\": \"PrivacyIn\", \"type\": \"object\"}}",
   "{\"ProgressEventIn@ac3450b2\": {\"properties\": {\"duration\": {\"default\": 0, \"maximum\": 200000.0, \"minimum\": 0.0, \"title\": \"Duration\", \"type\": \"integer\"}, \"episode_num\": {\"maximum\": 10000.0, \"minimum\": 1.0, \"title\": \"Episode Num\", \"type\": \"integer\"}, \"episodes_total\": {\"default\": 0, \"maximum\": 10000.0, \"minimum\": 0.0, \"title\": \"Episodes Total\", \"type\": \"integer\"}, \"mal_id\": {\"maximum\": 10000000.0, \"minimum\": 1.0, \"title\": \"Mal Id\", \"type\": \"integer\"}, \"poster_url\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Poster Url\", \"type\": \"string\"}, \"seconds\": {\"maximum\": 200000.0, \"minimum\": 0.0, \"title\": \"Seconds\", \"type\": \"integer\"}, \"title\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title\", \"type\": \"string\"}}, \"required\": [\"mal_id\", \"episode_num\", \"seconds\"], \"title\": \"ProgressEventIn\", \"type\": \"object\"}}",
   "{\"ProgressIn@edebfdb1\": {\"properties\": {\"duration\": {\"default\": 0, \"maximum\": 200000.0, \"minimum\": 0.0, \"title\": \"Duration\", \"type\": \"integer\"}, \"episode_num\": {\"maximum\": 10000.0, \"minimum\": 1.0, \"title\": \"Episode Num\", \"type\": \"integer\"}, \"episodes_total\": {\"default\": 0, \"maximum\": 10000.0, \"minimum\": 0.0, \"title\": \"Episodes Total\", \"type\": \"integer\"}, \"poster_url\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Poster Url\", \"type\": \"string\"}, \"seconds\": {\"maximum\": 200000.0, \"minimum\": 0.0, \"title\": \"Seconds\", \"type\": \"integer\"}, \"title\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title\", \"type\": \"string\"}}, \"required\": [\"episode_num\", \"seconds\"], \"title\": \"ProgressIn\", \"type\": \"object\"}}",
+  "{\"ProxyHostIn@b57302aa\": {\"properties\": {\"host\": {\"maxLength\": 300, \"minLength\": 1, \"title\": \"Host\", \"type\": \"string\"}, \"via\": {\"default\": \"site\", \"enum\": [\"site\", \"vpn\"], \"title\": \"Via\", \"type\": \"string\"}}, \"required\": [\"host\"], \"title\": \"ProxyHostIn\", \"type\": \"object\"}}",
   "{\"RatingIn@06d6aff6\": {\"properties\": {\"score\": {\"maximum\": 10.0, \"minimum\": 1.0, \"title\": \"Score\", \"type\": \"integer\"}}, \"required\": [\"score\"], \"title\": \"RatingIn\", \"type\": \"object\"}}",
-  "{\"RecordIn@6f456e35\": {\"properties\": {\"airing_status\": {\"default\": \"\", \"maxLength\": 24, \"title\": \"Airing Status\", \"type\": \"string\"}, \"banner_url\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Banner Url\", \"type\": \"string\"}, \"episodes_total\": {\"anyOf\": [{\"type\": \"integer\"}, {\"type\": \"null\"}], \"title\": \"Episodes Total\"}, \"genres\": {\"items\": {\"type\": \"string\"}, \"title\": \"Genres\", \"type\": \"array\"}, \"kind\": {\"default\": \"\", \"maxLength\": 24, \"title\": \"Kind\", \"type\": \"string\"}, \"mal_id\": {\"maximum\": 10000000.0, \"minimum\": 1.0, \"title\": \"Mal Id\", \"type\": \"integer\"}, \"poster_url\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Poster Url\", \"type\": \"string\"}, \"score\": {\"anyOf\": [{\"type\": \"number\"}, {\"type\": \"null\"}], \"title\": \"Score\"}, \"studios\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Studios\", \"type\": \"string\"}, \"synopsis\": {\"default\": \"\", \"maxLength\": 20000, \"title\": \"Synopsis\", \"type\": \"string\"}, \"title_en\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title En\", \"type\": \"string\"}, \"title_jp\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title Jp\", \"type\": \"string\"}, \"title_ru\": {\"default\": \"\", \"maxLength\": 500, \"title\": \"Title Ru\", \"type\": \"string\"}, \"year\": {\"anyOf\": [{\"type\": \"integer\"}, {\"type\": \"null\"}], \"title\": \"Year\"}}, \"required\": [\"mal_id\"], \"title\": \"RecordIn\", \"type\": \"object\"}}",
   "{\"ReportIn@187c883a\": {\"properties\": {\"dub\": {\"default\": \"\", \"maxLength\": 200, \"title\": \"Dub\", \"type\": \"string\"}, \"episode\": {\"anyOf\": [{\"maximum\": 65535.0, \"minimum\": 1.0, \"type\": \"integer\"}, {\"type\": \"null\"}], \"title\": \"Episode\"}, \"kind\": {\"title\": \"Kind\", \"type\": \"string\"}, \"mal_id\": {\"exclusiveMaximum\": 10000000.0, \"exclusiveMinimum\": 0.0, \"title\": \"Mal Id\", \"type\": \"integer\"}, \"player\": {\"default\": \"\", \"maxLength\": 100, \"title\": \"Player\", \"type\": \"string\"}, \"source\": {\"default\": \"\", \"maxLength\": 64, \"title\": \"Source\", \"type\": \"string\"}, \"text\": {\"default\": \"\", \"maxLength\": 2000, \"title\": \"Text\", \"type\": \"string\"}}, \"required\": [\"mal_id\", \"kind\"], \"title\": \"ReportIn\", \"type\": \"object\"}}",
+  "{\"ReportIn@b6227f8d\": {\"properties\": {\"comment\": {\"default\": \"\", \"maxLength\": 300, \"title\": \"Comment\", \"type\": \"string\"}, \"reason\": {\"enum\": [\"spam\", \"insult\", \"adult\", \"violence\", \"fraud\", \"other\"], \"title\": \"Reason\", \"type\": \"string\"}}, \"required\": [\"reason\"], \"title\": \"ReportIn\", \"type\": \"object\"}}",
   "{\"ReportPatch@b8d71a2b\": {\"properties\": {\"note\": {\"default\": \"\", \"maxLength\": 1000, \"title\": \"Note\", \"type\": \"string\"}, \"status\": {\"title\": \"Status\", \"type\": \"string\"}}, \"required\": [\"status\"], \"title\": \"ReportPatch\", \"type\": \"object\"}}",
   "{\"SettingsIn@26a952e3\": {\"properties\": {\"auto_add_lists\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Auto Add Lists\"}, \"autonext\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Autonext\"}, \"extra\": {\"anyOf\": [{\"additionalProperties\": true, \"type\": \"object\"}, {\"type\": \"null\"}], \"title\": \"Extra\"}}, \"title\": \"SettingsIn\", \"type\": \"object\"}}",
-  "{\"SettingsIn@953e8edf\": {\"properties\": {\"features\": {\"anyOf\": [{\"$ref\": \"#/components/schemas/FeaturesIn@7efcfba0\"}, {\"type\": \"null\"}]}, \"notice\": {\"anyOf\": [{\"$ref\": \"#/components/schemas/NoticeIn@e0fa44fe\"}, {\"type\": \"null\"}]}, \"sources\": {\"anyOf\": [{\"items\": {\"$ref\": \"#/components/schemas/SourceIn@f0d06b14\"}, \"maxItems\": 50, \"type\": \"array\"}, {\"type\": \"null\"}], \"title\": \"Sources\"}}, \"title\": \"SettingsIn\", \"type\": \"object\"}}",
+  "{\"SettingsIn@f3e7d11d\": {\"properties\": {\"features\": {\"anyOf\": [{\"$ref\": \"#/components/schemas/FeaturesIn@7efcfba0\"}, {\"type\": \"null\"}]}, \"notice\": {\"anyOf\": [{\"$ref\": \"#/components/schemas/NoticeIn@e0fa44fe\"}, {\"type\": \"null\"}]}, \"players_off\": {\"anyOf\": [{\"items\": {\"type\": \"string\"}, \"maxItems\": 5, \"type\": \"array\"}, {\"type\": \"null\"}], \"title\": \"Players Off\"}, \"proxy_hosts\": {\"anyOf\": [{\"items\": {\"$ref\": \"#/components/schemas/ProxyHostIn@b57302aa\"}, \"maxItems\": 100, \"type\": \"array\"}, {\"type\": \"null\"}], \"title\": \"Proxy Hosts\"}, \"sources\": {\"anyOf\": [{\"items\": {\"$ref\": \"#/components/schemas/SourceIn@f0d06b14\"}, \"maxItems\": 50, \"type\": \"array\"}, {\"type\": \"null\"}], \"title\": \"Sources\"}}, \"title\": \"SettingsIn\", \"type\": \"object\"}}",
   "{\"SourceIn@f0d06b14\": {\"properties\": {\"enabled\": {\"default\": true, \"title\": \"Enabled\", \"type\": \"boolean\"}, \"id\": {\"maxLength\": 32, \"minLength\": 1, \"title\": \"Id\", \"type\": \"string\"}, \"order\": {\"default\": 0, \"maximum\": 1000.0, \"minimum\": 0.0, \"title\": \"Order\", \"type\": \"integer\"}}, \"required\": [\"id\"], \"title\": \"SourceIn\", \"type\": \"object\"}}",
   "{\"TitleIn@a8c13772\": {\"properties\": {\"adult\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Adult\"}, \"hidden\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Hidden\"}, \"note\": {\"anyOf\": [{\"maxLength\": 1000, \"type\": \"string\"}, {\"type\": \"null\"}], \"title\": \"Note\"}, \"pinned\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Pinned\"}}, \"title\": \"TitleIn\", \"type\": \"object\"}}",
   "{\"ValidationError@0bf248aa\": {\"properties\": {\"ctx\": {\"title\": \"Context\", \"type\": \"object\"}, \"input\": {\"title\": \"Input\"}, \"loc\": {\"items\": {\"anyOf\": [{\"type\": \"string\"}, {\"type\": \"integer\"}]}, \"title\": \"Location\", \"type\": \"array\"}, \"msg\": {\"title\": \"Message\", \"type\": \"string\"}, \"type\": {\"title\": \"Error Type\", \"type\": \"string\"}}, \"required\": [\"loc\", \"msg\", \"type\"], \"title\": \"ValidationError\", \"type\": \"object\"}}"

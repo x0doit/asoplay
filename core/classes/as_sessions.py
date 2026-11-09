@@ -34,6 +34,14 @@ def enabled() -> bool:
     return flag and as_api.configured() and token_box.available()
 
 
+def linked(cur: Any, user_id: int) -> bool:
+    """Есть ли у человека живая сессия соцсети у AsoPlay (токен обновления не истёк). Курсор — вызывающего, чтобы
+    проверка шла в его транзакции: события просмотра соцсеть засчитывает только таким людям."""
+    cur.execute("SELECT 1 FROM `aviev_as_sessions` WHERE `user_id` = %s AND `refresh_expires_at` > %s LIMIT 1",
+                (user_id, int(time.time())))
+    return cur.fetchone() is not None
+
+
 # ---------- сессии устройства Anime Social ----------
 def _context(session: str, field: str) -> str:
     """Привязка шифротекста к строке и полю: сессия AsoPlay и access или refresh."""
@@ -117,14 +125,18 @@ def _delete(session: str) -> None:
 _refresh_locks = [threading.Lock() for _ in range(64)]
 
 
-def access_token(session: str, user_ip: str = "", user_agent: str = "") -> str | None:
-    """Действующий токен доступа сессии соцсети, при необходимости обновлённый; None — связи нет."""
+def access_token(session: str, user_ip: str = "", user_agent: str = "", *, stale: str | None = None) -> str | None:
+    """Действующий токен доступа сессии соцсети, при необходимости обновлённый; None — связи нет. stale — токен,
+    который соцсеть только что не приняла (401 token_expired): он обновляется и до своего срока, если его ещё не
+    обновил параллельный запрос — второе обновление того же токена соцсеть сочла бы кражей."""
     lock = _refresh_locks[int(hashlib.sha256(session.encode("utf-8")).hexdigest()[:8], 16) % len(_refresh_locks)]
     with lock:
         row = _load(session)
         if row is None:
             return None
-        if row["access_expires_at"] - _REFRESH_MARGIN > time.time():
+        if stale is not None and row["access"] != stale:
+            return row["access"]  # его уже обновил параллельный запрос
+        if stale is None and row["access_expires_at"] - _REFRESH_MARGIN > time.time():
             return row["access"]
         try:
             tokens = as_api.refresh(row["refresh"], user_ip, user_agent)

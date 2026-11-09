@@ -17,7 +17,7 @@ function harness(api = {}, globals = {}) {
   const nodes = new Map();
   const context = vm.createContext({ api, console: { warn() {} }, Set, Map, esc: s => s,
     state: { backendSources: ['oldyummy', 'yummy_anime'] },
-    site: { isHidden: () => false, isAdult: () => false, adultConfirmed: () => true, confirmAdult() {}, sourceOrder: () => [] },
+    site: { isHidden: () => false, isAdult: () => false, sourceOrder: () => [] },
     ruEpisodeTitle: (name, num) => name || `Episode ${num}`,
     titleSimilarity: () => 1,
     $: selector => {
@@ -25,6 +25,15 @@ function harness(api = {}, globals = {}) {
       return nodes.get(selector);
     },
     $$: () => [],
+    // Чат серии (js/episode-chat.js) создаётся при показе серии — в песочнице он пустой
+    EpisodeChat: class { setSeek() {} setEpisode() {} show() {} time() {} destroy() {} },
+    // Клавиши плеера (js/player-keys.js) слушают страницу — в песочнице слушать нечего
+    bindPlayerKeys: () => () => {},
+    // «Продолжить с» (js/resume.js) рисует кнопку в шапке — в песочнице её нет
+    ResumeButton: class { set() {} setCan() {} episode() {} time() {} destroy() {} },
+    resumePoint: () => null,
+    account: {}, realtime: {}, SheetDrag: {}, BACKEND: '',
+    document: { addEventListener() {}, removeEventListener() {} },
     ...globals,
   });
   vm.runInContext(playerSource + '\nglobalThis.Player = Player;\nglobalThis.playerVolume = playerVolume;', context);

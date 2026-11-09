@@ -9,7 +9,9 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
   - пометки тайтлов (aviev_title_flags): hidden — скрыт по жалобе правообладателя, pinned — закреплён в карусели
     главной, adult — 18+;
   - настройки (aviev_site_settings): notice — плашка на сайте, features — какие функции включены,
-    sources — какие источники видео включены и в каком порядке.
+    sources — какие источники видео включены и в каком порядке, proxy_hosts — хосты, чьи картинки браузер
+    сразу берёт через /proxy/img (core/functions/image_hosts.py), players_off — выключенные виды плееров:
+    их озвучек нет в выборе, их кадры и запросы прокси — 403.
 
 Сайт спрашивает это на каждой странице, поэтому всё держится в памяти процесса: читается из базы при старте и
 меняется вместе с базой в момент правки из панели (бэкенд работает одним процессом). Вкладкам состояние уходит
@@ -26,6 +28,7 @@ from typing import Any, Callable
 
 from core.classes import as_sessions
 from core.classes.db import connect
+from core.functions import image_hosts, player_hosts
 
 log = logging.getLogger("asoplay.site_settings")
 
@@ -57,11 +60,15 @@ class Flags:
 
 @dataclass(frozen=True)
 class Settings:
-    """Настройки из панели: плашка, включённые функции, источники видео и их порядок."""
+    """Настройки из панели: плашка, включённые функции, источники видео и их порядок, хосты картинок через прокси."""
 
     notice: dict[str, Any] = field(default_factory=lambda: {"text": "", "until": None})
     features: dict[str, bool] = field(default_factory=lambda: {"comments": True, "password_login": True, "as_login": True})
     sources: tuple[dict[str, Any], ...] = ()
+    proxy_hosts: tuple[dict[str, str], ...] = ()  # [{host, via}]; пусто, пока панель не сохранила список
+    # Выключенные виды плееров (player_hosts.PLAYER_KINDS). Пока панель не сохранила — Alloha: его API не отвечает
+    # адресам серверов (02.11), а AsoPlay всегда на сервере
+    players_off: tuple[str, ...] = ("alloha",)
 
 
 class _State:
@@ -90,6 +97,9 @@ class _State:
         raw_notice = stored.get("notice") if isinstance(stored.get("notice"), dict) else {}
         features = stored.get("features") if isinstance(stored.get("features"), dict) else {}
         sources = stored.get("sources") if isinstance(stored.get("sources"), list) else []
+        proxy_hosts = stored.get("proxy_hosts") if isinstance(stored.get("proxy_hosts"), list) else []
+        players_off = (tuple(dict.fromkeys(k for k in stored["players_off"] if k in player_hosts.PLAYER_KINDS))
+                       if isinstance(stored.get("players_off"), list) else defaults.players_off)
         with self._lock:
             self.flags = Flags(
                 hidden=frozenset(int(r[0]) for r in rows if r[1]),
@@ -101,6 +111,8 @@ class _State:
                         "until": _int_or_none(raw_notice.get("until"))},
                 features={k: bool(features.get(k, v)) for k, v in defaults.features.items()},
                 sources=tuple(s for s in sources if isinstance(s, dict) and s.get("id") in SOURCE_NAMES),
+                proxy_hosts=tuple(image_hosts.parse_proxy_hosts(proxy_hosts, strict=False)),
+                players_off=players_off,
             )
 
 
@@ -195,8 +207,30 @@ def source_enabled(source: str) -> bool:
     return source in source_order()
 
 
+def player_off(url: str) -> bool:
+    """Адрес кадра или запроса плеера выключенного вида (players_off)."""
+    return player_hosts.player_kind(url) in state.settings.players_off
+
+
+def proxy_hosts() -> list[str]:
+    """Хосты из панели, чьи картинки браузер сразу берёт через /proxy/img."""
+    return [item["host"] for item in state.settings.proxy_hosts]
+
+
+def img_hosts() -> list[str]:
+    """Все хосты, которые принимает /proxy/img: хосты каталога и хосты из панели."""
+    return list(dict.fromkeys([*image_hosts.IMG_HOSTS, *proxy_hosts()]))
+
+
+def proxy_via(host: str) -> str:
+    """Как сервер идёт к хосту картинки: vpn — если панель так велела для самой точной его записи, иначе site."""
+    entry = image_hosts.entry_for(host, proxy_hosts())
+    return next((item["via"] for item in state.settings.proxy_hosts if item["host"] == entry), "site")
+
+
 def public_state() -> dict[str, Any]:
-    """Что нужно каждой странице: плашка, скрытые, 18+ и закреплённые тайтлы, способы входа, порядок источников."""
+    """Что нужно каждой странице: плашка, скрытые, 18+ и закреплённые тайтлы, способы входа, порядок источников,
+    хосты картинок через прокси."""
     flags = state.flags
     return {
         "notice": notice(),
@@ -205,4 +239,6 @@ def public_state() -> dict[str, Any]:
         "pinned": list(flags.pinned),
         "login": {"social": as_sessions.enabled() and feature("as_login"), "password": feature("password_login")},
         "sources": source_order(),
+        "proxy_hosts": proxy_hosts(),
+        "img_hosts": img_hosts(),
     }

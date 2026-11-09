@@ -6,17 +6,22 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
 Координаты MySQL — из core/config/db.php (общий PHP-конфиг экосистемы); для разработки вне OpenServer их задают
 AV_DB_HOST, AV_DB_USER, AV_DB_PASS, AV_DB_NAME и AV_DB_PORT. Соединение пробует адреса по очереди: имя «MySQL-8.0»
-знает только OpenServer. pymysql — необязательный пакет, без него 503. Аккаунты — core/classes/accounts.py, пароли —
-passwords.py, сессии AsoPlay — core/functions/sessions.py, вход — core/api/sections/auth.py.
+знает только OpenServer. pymysql — необязательный пакет, без него 503. Подробности сбоя (текст ошибки MySQL, в нём
+бывает имя пользователя базы) — только в журнал, наружу — 503 «database unavailable». Аккаунты —
+core/classes/accounts.py, сессии AsoPlay — core/functions/sessions.py, вход — core/api/sections/auth.py.
 """
 from __future__ import annotations
 
+import logging
 from contextlib import contextmanager
 from typing import Any, Iterable, Iterator
 
 from fastapi import HTTPException
 
 from core.config import config
+
+log = logging.getLogger("asoplay.db")
+UNAVAILABLE = "database unavailable"
 
 # ---------- connection pool ----------
 _cfg_cache: dict[str, Any] | None = None
@@ -30,10 +35,8 @@ def _pymysql_module():
         try:
             import pymysql  # type: ignore
         except ImportError as exc:
-            raise HTTPException(
-                503,
-                "AnimeSocial DB client not available: pip install pymysql",
-            ) from exc
+            log.error("AnimeSocial DB client not available: pip install pymysql")
+            raise HTTPException(503, UNAVAILABLE) from exc
         _pymysql = pymysql
     return _pymysql
 
@@ -74,7 +77,8 @@ def connect() -> Iterator[Any]:
             last_err = exc
             conn = None
     if conn is None:
-        raise HTTPException(503, f"AnimeSocial DB unreachable: {last_err}")
+        log.warning("AnimeSocial DB unreachable: %s", last_err)  # текст pymysql — только в журнал
+        raise HTTPException(503, UNAVAILABLE)
     try:
         yield conn
     finally:
@@ -82,7 +86,7 @@ def connect() -> Iterator[Any]:
 
 
 def health() -> dict[str, Any]:
-    """Quick read-only probe. Used by /health. Never raises."""
+    """Короткая проверка базы для /health (он открыт всем): ошибок не бросает, текст сбоя — только в журнал."""
     try:
         with connect() as conn:
             cur = conn.cursor()
@@ -91,10 +95,11 @@ def health() -> dict[str, Any]:
             cur.execute("SHOW TABLES LIKE 'aviev_sessions'")
             has_sessions = cur.fetchone() is not None
             return {"ok": True, "aviev_schema_present": has_sessions}
-    except HTTPException as exc:
-        return {"ok": False, "error": exc.detail}
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)}
+    except HTTPException:
+        return {"ok": False, "error": "unavailable"}  # подробность connect() уже записал в журнал
+    except Exception as exc:  # noqa: BLE001 — /health не падает
+        log.warning("Database health check failed: %s", exc)
+        return {"ok": False, "error": "unavailable"}
 
 
 # ---------- части для SQL IN ----------

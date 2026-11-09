@@ -12,7 +12,14 @@ module.exports = {
       const ctx = await browser.newContext({ viewport: vp, isMobile: true, hasTouch: true, deviceScaleFactor: 2, colorScheme: "dark", locale: "ru-RU" });
       const page = await ctx.newPage();
       await page.goto(SITE + "/anime/52991", { waitUntil: "domcontentloaded" }); await settle(page, 6000);
-      await page.tap("#avCtaPlay"); await page.waitForTimeout(1500);
+      await page.tap("#avCtaPlay");
+      // «Смотреть» прокручивает плавно: мерим, когда шапка плеера встала (два кадра без сдвига, не дольше 4 с), а не
+      // через время. Предел — 1 px: значок чата в 40 px однажды сделал шапку выше на 4 px, и видео ушло под панель
+      await page.waitForFunction(() => new Promise(done => {
+        const top = () => document.querySelector(".sp-head").getBoundingClientRect().top, at = top();
+        requestAnimationFrame(() => requestAnimationFrame(() => done(Math.abs(top() - at) < 0.5)));
+      }), null, { timeout: 4000 }).catch(() => {});
+      await page.waitForTimeout(300);
       const m = await page.evaluate(() => {
         const r = s => document.querySelector(s).getBoundingClientRect();
         const tab = document.querySelector(".app-tabbar");

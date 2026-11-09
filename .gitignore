@@ -22,13 +22,27 @@ __pycache__/
 # Installed PHP dependencies; reproducible from composer.lock, included in deploy.
 core/classes/jikan/php/vendor/
 
+# Копия оформления комментариев ленты Anime Social: файлы соцсети на GitHub не идут, в выкладку — из рабочей копии
+assets/eddas/css/chat/01-comments.css
+
 # Старые/внешние агентские workspace-артефакты
 .claude/
 .serena/
 claude-playbook-*/
 .playwright-mcp/
 CODEX.md
-docs/
+# docs/: в git — только документация к коду; заметки о ходе работ, планы, внутренние идеи и снимки остаются здесь
+docs/*
+!docs/info/
+docs/info/*
+!docs/info/cvh-clean-player.html
+!docs/info/cvh-clean-player.css
+!docs/info/cvh-clean-player.js
+!docs/info/player-incident-report.md
+!docs/internal/
+docs/internal/*
+!docs/internal/asoplay-admin-api-contract.md
+!docs/internal/asoplay-client-icon.png
 tmp-frame.html
 .run.log
 .run.out.log

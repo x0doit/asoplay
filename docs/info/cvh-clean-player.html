@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="./cvh-clean-player.css">
+</head>
+<body>
+  <!-- Runtime server output replaces VIDEO_SRC, POSTER_SRC and SOURCES_JSON. -->
+  <video id="av-cvh-video" src="VIDEO_SRC" poster="POSTER_SRC" playsinline preload="metadata"></video>
+
+  <button id="av-start" type="button" aria-label="Play">
+    <span></span>
+  </button>
+
+  <div id="av-controls">
+    <button id="av-toggle" type="button" aria-label="Play or pause">▶</button>
+    <input id="av-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek">
+    <div id="av-time">0:00 / 0:00</div>
+    <select id="av-quality" aria-label="Quality"></select>
+    <button id="av-fullscreen" type="button" aria-label="Fullscreen">⛶</button>
+  </div>
+
+  <script>
+    window.__ASOPLAY_CVH_SOURCES__ = SOURCES_JSON;
+  </script>
+  <script src="./cvh-clean-player.js"></script>
+</body>
+</html>

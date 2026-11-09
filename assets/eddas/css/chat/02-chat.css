@@ -1,0 +1,295 @@
+/*
+ * Чат серии, панель: значок у «Эпизод N», панель вместо «Эпизодов», лист снизу на узком экране, отметка «Сейчас»,
+ * «К текущей минуте», поле ввода, подсказка гостю, меню «Ещё», жалоба и полоски поверх видео. Только токены EDDAS.
+ *
+ * Автор: Чепела Даниил Максимович.
+ * AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
+ */
+
+/* Значок — сразу за «Эпизод N», озвучка остаётся справа */
+.sp-chat {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: var(--space-2);
+	margin-right: auto;
+}
+
+/* 32 px — как квадрат номера серии и кнопка озвучки: шапка плеера не растёт (на телефоне боком она ровно 60 px) */
+.sp-chat__btn {
+	width: 32px;
+	height: 32px;
+	font-size: 15px;
+}
+
+@media (max-width: 767px) {
+	.sp-head .sp-ep {
+		flex: 0 1 auto;
+	}
+}
+
+/* Панель вместо «Эпизодов» */
+.ep-sidebar.is-chat .ep-panel {
+	display: none;
+}
+
+.chat-panel {
+	display: flex;
+	flex-direction: column;
+	min-height: 420px;
+}
+
+.chat-panel[hidden],
+.chat-tonow[hidden],
+.chat-notice[hidden] {
+	display: none;
+}
+
+.chat-panel .ed-panel__head {
+	justify-content: flex-start;
+	padding-right: var(--space-3);
+	padding-left: var(--space-3);
+}
+
+.chat-spoilers {
+	gap: var(--space-2);
+	margin-left: auto;
+	font: 500 13px/1.3 var(--font-sans);
+	color: var(--text-muted);
+}
+
+.chat-close,
+.chat-grip {
+	display: none;
+}
+
+.chat-panel .ed-panel__body {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	min-height: 0;
+	padding: var(--space-3) var(--space-3) var(--space-4);
+}
+
+/* Список и «К текущей минуте» поверх его низа; неподвижные части панели не сжимаются */
+.chat-scroll {
+	position: relative;
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.chat-list {
+	position: relative;
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	min-height: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
+.chat-notice,
+.chat-compose-slot,
+.chat-compose,
+.chat-guest {
+	flex: 0 0 auto;
+}
+
+.chat-list > .chat-state,
+.chat-list > .ed-loading {
+	flex: 1 1 auto;
+}
+
+.chat-now {
+	margin: var(--space-2) 0;
+}
+
+/* Пока «К текущей минуте» видна, низ списка прокручивается выше неё: кнопка не закрывает поле ответа */
+.chat-scroll:has(.chat-tonow:not([hidden])) .chat-list {
+	padding-bottom: calc(32px + var(--space-3) * 2);
+}
+
+.chat-tonow {
+	position: absolute;
+	bottom: var(--space-3);
+	left: 50%;
+	flex: 0 0 auto;
+	box-shadow: var(--shadow-float);
+	transform: translateX(-50%);
+}
+
+.chat-notice {
+	margin-top: var(--space-2);
+}
+
+.chat-compose,
+.chat-guest {
+	display: flex;
+	gap: var(--space-2);
+	margin-top: var(--space-2);
+	padding-top: var(--space-3);
+	border-top: 1px solid var(--border);
+}
+
+.chat-compose {
+	align-items: flex-end;
+}
+
+.chat-compose .ed-textarea,
+.chat-replybox .ed-textarea {
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 40px;
+	max-height: 120px;
+	resize: none;
+}
+
+.chat-guest {
+	align-items: center;
+	justify-content: space-between;
+	font: 400 14px/1.4 var(--font-sans);
+	color: var(--text-muted);
+}
+
+/* 1024–1311 px «Эпизоды» стоят под плеером; чат встаёт колонкой справа, иначе он ниже экрана */
+@media (min-width: 1024px) and (max-width: 1311.98px) {
+	.title-layout.is-chat {
+		grid-template-columns: minmax(0, 1fr) var(--layout-side);
+		grid-template-areas:
+			"watch side"
+			"details side";
+	}
+
+	.title-layout.is-chat .ep-sidebar {
+		position: sticky;
+		top: calc(var(--header-h) + var(--space-6));
+	}
+}
+
+/* Узкий экран: лист снизу под видео, без затемнения — видео над ним остаётся на экране */
+.chat-panel.is-sheet {
+	position: fixed;
+	right: 0;
+	left: 0;
+	z-index: 1050;
+	min-height: 0;
+	padding: var(--space-2) var(--space-2) env(safe-area-inset-bottom);
+	border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+	background: var(--overlay);
+	box-shadow: var(--shadow-modal);
+	overscroll-behavior: contain;
+}
+
+.chat-panel.is-sheet .chat-grip {
+	display: block;
+}
+
+.chat-panel.is-sheet .ed-panel__head {
+	padding: 0 var(--space-2) var(--space-2);
+}
+
+.chat-panel.is-sheet .chat-close {
+	display: inline-flex;
+}
+
+.chat-panel.is-sheet .ed-panel__body {
+	padding: 0 var(--space-2) var(--space-2);
+}
+
+html.chat-sheet-open,
+html.chat-sheet-open body {
+	overflow: hidden;
+}
+
+/* Спойлер: текст к ещё не просмотренной части серии размыт до нажатия (решение владельца) */
+.comment__text.is-spoiler {
+	filter: blur(5px);
+	cursor: pointer;
+	user-select: none;
+}
+
+.comment__text.is-spoiler a {
+	pointer-events: none;
+}
+
+.comment__text.is-spoiler:focus-visible {
+	border-radius: var(--radius-xs);
+	outline: 2px solid var(--focus);
+	outline-offset: 2px;
+}
+
+/* Меню «Ещё» — у кнопки, поверх страницы */
+.chat-menu {
+	position: fixed;
+	z-index: 1100;
+	min-width: 200px;
+}
+
+.chat-report__reasons {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	margin: var(--space-3) 0;
+}
+
+.chat-report__note {
+	width: 100%;
+	resize: vertical;
+}
+
+/* Полоски поверх видео: справа, под кнопкой снимка и над панелью плеера; обрезанное — жирным «…» */
+.chat-strips {
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.chat-strip {
+	position: absolute;
+	right: var(--space-4);
+	max-width: 75%;
+	overflow: hidden;
+	padding: 6px var(--space-3);
+	border-radius: var(--radius-pill);
+	background: var(--scrim);
+	color: var(--on-brand-fill);
+	font: 500 14px/1.35 var(--font-sans);
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	opacity: 0;
+	transition: opacity var(--duration-base) var(--ease-out);
+}
+
+.chat-strip.is-in {
+	opacity: 0.7;
+}
+
+.chat-strip b {
+	font-size: 1.1em;
+	font-weight: 800;
+}
+
+@media (max-width: 767px) {
+	.chat-strip {
+		max-width: 85%;
+		padding: 4px var(--space-2);
+		font-size: 12px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-strip {
+		transition: none;
+	}
+}
+
+/* Во весь экран раскрывается контейнер видео — вместе с полосками */
+.sp-video:fullscreen {
+	width: 100vw;
+	height: 100vh;
+	aspect-ratio: auto;
+}

@@ -5,9 +5,9 @@
 Автор: Чепела Даниил Максимович.
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
-Пароль проверяет соцсеть, если вход через неё включён, иначе — AsoPlay по хешу в базе (core/classes/passwords.py).
-Перебор паролей ограничен, как на сайте соцсети. Блокировку называем только тому, кто знает пароль. Регистрации
-здесь нет: /auth/register ведёт на сайт соцсети.
+Пароль проверяет только соцсеть. Вход через неё выключен — 503 «login_unavailable»: AsoPlay пароль не проверяет
+никогда, иначе вход шёл бы мимо лимитов, банов и сессий соцсети. Перебор паролей ограничен, как на сайте соцсети.
+Блокировку называем только тому, кто знает пароль. Регистрации здесь нет: /auth/register ведёт на сайт соцсети.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from core.classes import accounts, as_api, as_sessions, passwords
+from core.classes import as_api, as_sessions
 from core.config import animesocial, config
 from core.functions import rate_limit, realtime, sessions, site_settings, social_login
 
@@ -45,11 +45,14 @@ _login_by_identity = rate_limit.SlidingWindow(8, LOGIN_WINDOW)
 
 @router.post("/login")
 def auth_login(payload: LoginIn, request: Request, response: Response) -> dict[str, Any]:
-    """Вход по логину или почте и паролю: лимиты попыток, проверка пароля (соцсетью или по хешу в базе),
-    бан — только тому, кто знает пароль; удачный вход ставит cookie сессии."""
+    """Вход по почте и паролю через соцсеть: лимиты попыток, пароль проверяет соцсеть, бан — только тому, кто знает
+    пароль; удачный вход ставит cookie сессии. Вход через соцсеть выключен — 503, пароль не читаем."""
     if not site_settings.feature("password_login"):
         # Вход по почте выключили в панели Anime Social
         raise HTTPException(403, "password_login_disabled")
+    if not as_sessions.enabled():
+        # Без соцсети входа нет: проверка пароля у себя шла бы мимо её лимитов, банов и сессий
+        raise HTTPException(503, "login_unavailable")
     identity = payload.login.strip()
     ip = rate_limit.client_ip(request)
     identity_key = identity.lower()
@@ -58,30 +61,15 @@ def auth_login(payload: LoginIn, request: Request, response: Response) -> dict[s
         raise HTTPException(429, "too many login attempts", headers={"Retry-After": str(wait)})
     if not identity or not payload.password:
         raise HTTPException(401, "invalid credentials")
-    if as_sessions.enabled():
-        # Пароль проверяет соцсеть, и вошедший по почте получает ту же сессию AsoPlay в соцсети,
-        # что и вошедший кнопкой; вход только по почте — как на сайте соцсети
-        signed = social_login.password_login(identity, payload.password, request)
-        if signed is None:
-            _login_by_ip.hit(ip)
-            _login_by_identity.hit(identity_key)
-            raise HTTPException(401, "invalid credentials")
-        _login_by_identity.reset(identity_key)
-        token, user = signed
-        sessions.set_session_cookie(response, token)
-        return {"ok": True, "user": user}
-    row = accounts.lookup_user(identity)
-    # Блокировку называем только тому, кто знает пароль: иначе форма выдаёт, что аккаунт есть
-    if not row or not passwords.verify_password(payload.password, row["hash_col"], row.get("salt_col")):
+    # Пароль проверяет соцсеть, и вошедший по почте получает ту же сессию AsoPlay в соцсети,
+    # что и вошедший кнопкой; вход только по почте — как на сайте соцсети
+    signed = social_login.password_login(identity, payload.password, request)
+    if signed is None:
         _login_by_ip.hit(ip)
         _login_by_identity.hit(identity_key)
         raise HTTPException(401, "invalid credentials")
     _login_by_identity.reset(identity_key)
-    schema = accounts.introspect_schema()
-    if accounts.is_banned(schema.get("status_col"), row.get("status_col")):
-        raise HTTPException(403, "account is blocked")
-    user = accounts.serialize_user(row)
-    token = sessions.create_session(user["id"], request)
+    token, user = signed
     sessions.set_session_cookie(response, token)
     return {"ok": True, "user": user}
 

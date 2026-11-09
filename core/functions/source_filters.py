@@ -13,6 +13,7 @@ from __future__ import annotations
 import re as _re
 
 from core.classes.adblock import engine as adblock
+from core.functions import site_settings
 from core.functions.player_hosts import VK_SCORE, is_disabled_player_url, vk_video_ref
 
 
@@ -45,9 +46,10 @@ def norm_dub_name(name: str) -> str:
 
 
 def unplayable_player_url(url: str) -> bool:
-    """Плеер, который не сыграть: выключенный хост, кроме VK со ссылкой на видео."""
+    """Плеер, который не сыграть: выключенный хост, кроме VK со ссылкой на видео, и вид плеера, выключенный
+    в панели (players_off)."""
     # VK plays only through the clean frame, which needs the owner/video ids.
-    return is_disabled_player_url(url) and not vk_video_ref(url)
+    return (is_disabled_player_url(url) and not vk_video_ref(url)) or site_settings.player_off(url)
 
 
 def vk_last(identities: list, scores: dict) -> list:

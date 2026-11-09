@@ -170,6 +170,11 @@ def prepare_runtime() -> Path | None:
         )
         return None
     for inbound in cfg.get("inbounds", []):
+        sniffing = inbound.get("sniffing")
+        if isinstance(sniffing, dict) and sniffing.get("enabled"):
+            # Имя из TLS — только для маршрутизации: назначение остаётся тем адресом, что попросил клиент
+            # (картинки через мост подключаются к проверенному IP — core/classes/http_bridge.py)
+            sniffing["routeOnly"] = True
         if inbound.get("protocol") == "socks":
             inbound["port"] = VPN_SOCKS_PORT
         elif inbound.get("protocol") == "http":

@@ -23,9 +23,14 @@ CONFIG_DIR = ROOT / "core" / "config"
 DB_PHP = CONFIG_DIR / "db.php"  # конфиг БД в формате Anime Social; на сервере — файл владельца
 ANIMESOCIAL_JSON = CONFIG_DIR / "animesocial.json"  # адреса и медиа Anime Social; на сервере — файл владельца
 XRAY_TEMPLATE = CONFIG_DIR / "server" / "xray.template.json"
+# Тексты кадров плеера: страница кадра, мост, ошибка, щит, скин Kodik (core/modules/player)
+PLAYER_DIR = ROOT / "design" / "EDDAS" / "player"
 # Рабочие файлы, вне git: HTTP-кеш, списки adblock, конфиг и журнал запущенного xray
 CACHE_DIR = CONFIG_DIR / "cache"
 ADBLOCK_CACHE_DIR = CACHE_DIR / "adblock"
+IMG_CACHE_DIR = CACHE_DIR / "img"  # картинки /proxy/img: своя папка с пределом размера (core/classes/image_cache.py)
+# Public Suffix List (publicsuffix.org, MPL-2.0): общие суффиксы не берутся строкой списка хостов панели
+PUBLIC_SUFFIX_FILE = CONFIG_DIR / "public_suffix_list.dat"
 XRAY_RUNTIME = CACHE_DIR / "xray-runtime.json"
 XRAY_LOG = CACHE_DIR / "xray.log"
 # Старые полные конфиги xray (теперь их задают AV_VPN_URL или AV_VPN_CONFIG) — там же, где были
@@ -114,13 +119,8 @@ def user_table() -> str | None:
 
 
 def user_column(env_key: str) -> str | None:
-    """Колонка таблицы людей из AV_USER_ID_COL, AV_USER_LOGIN_COL, AV_USER_EMAIL_COL, AV_USER_HASH_COL и т. п."""
+    """Колонка таблицы людей из AV_USER_ID_COL, AV_USER_LOGIN_COL, AV_USER_EMAIL_COL, AV_USER_NAME_COL и т. п."""
     return os.environ.get(env_key)
-
-
-def user_banned_values() -> str:
-    """AV_USER_BANNED_VALUES — значения колонки статуса, при которых вход закрыт, через запятую."""
-    return os.environ.get("AV_USER_BANNED_VALUES", "").strip()
 
 
 def register_url_override() -> str:

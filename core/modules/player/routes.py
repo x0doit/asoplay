@@ -25,7 +25,8 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response, Streamin
 
 from core.classes import http_public
 from core.classes.adblock import engine as adblock
-from core.config import config, env
+from core.config import config
+from core.functions import site_settings
 from core.functions.player_hosts import is_disabled_player_url, proxy_url_refusal, vk_video_ref
 
 log = logging.getLogger("asoplay.player_proxy")
@@ -35,18 +36,50 @@ kodik_router = APIRouter()
 
 _client: httpx.AsyncClient | None = None
 _PROXY_VERSION = "20261029-player39"
-_KODIK_SKIN_CSS = env.ROOT / "assets" / "player" / "kodik-skin.css"
-_SHIELD_LOGGER_JS = (
-    '(function(){if(typeof window.__asoplayShieldLog==="function")return;'
-    'var q=[],c={};try{["log","warn","error","info","debug"].forEach(function(m){'
-    'var f=typeof console!=="undefined"&&console[m];if(typeof f==="function")c[m]=f.bind(console);});}catch(_){}'
-    'function flush(){try{var x;while((x=q.shift())){var f=c[x.m]||c.info;'
-    'if(typeof f==="function")f.apply(console,x.a);}}catch(_){}}'
-    'function l(m,a){try{q.push({m:m,a:a});'
-    'if(q.length>40)q.splice(0,q.length-40);setTimeout(flush,0);}catch(_){}}'
-    'try{Object.defineProperty(window,"__asoplayShieldLog",{value:l,configurable:true});}'
-    'catch(_){window.__asoplayShieldLog=l;}setInterval(flush,250);})();\n'
-)
+_KODIK_SKIN_CSS = config.PLAYER_DIR / "kodik-skin.css"
+_SLOT = re.compile(r"@@(\w+)@@")
+_AUTHOR = "Автор: Чепела Даниил Максимович."
+
+
+def _text(name: str) -> str:
+    """Текст файла из design/EDDAS/player без шапки-комментария с автором: она для читателя, в ответ не идёт.
+
+    Шапка должна быть ровно одна и в начале файла. Нет её или их две — ошибка при запуске, а не лишний текст в ответе.
+    """
+    raw = (config.PLAYER_DIR / name).read_text(encoding="utf-8")
+    end = "*/\n" if raw.startswith("/*") else "-->\n" if raw.startswith("<!--") else ""
+    if not end or end not in raw:
+        raise RuntimeError(f"design/EDDAS/player/{name}: в начале нет шапки-комментария")
+    cut = raw.index(end) + len(end)
+    if _AUTHOR not in raw[:cut] or _AUTHOR in raw[cut:]:
+        raise RuntimeError(f"design/EDDAS/player/{name}: шапка с автором должна быть ровно одна, в начале")
+    return raw[cut:]
+
+
+def _template(name: str, slots: set[str], **parts: tuple[str, ...]) -> str:
+    """Шаблон кадра: файл, в чьи места @@часть@@ вставлены склеенные части; в итоге — ровно места slots."""
+    out = _text(name)
+    for slot, files in parts.items():
+        out = out.replace(f"@@{slot}@@", "".join(_text(f) for f in files), 1)
+    found = set(_SLOT.findall(out))
+    if found != slots:
+        raise RuntimeError(f"design/EDDAS/player/{name}: места {sorted(found)}, ждали {sorted(slots)}")
+    return out
+
+
+def _fill(template: str, **values: str) -> str:
+    """Подстановка в один проход, как у f-string: вставленные значения повторно не просматриваются."""
+    return _SLOT.sub(lambda m: values[m.group(1)], template)
+
+
+_FRAME_PAGE = _template("frame.html", {"safe_id", "proxied_src", "poster_attr", "sources_json", "hls_only",
+                                      "page_origins"},
+                        frame_js=("frame/01-player.js", "frame/02-controls.js"))
+_BRIDGE_PAGE = _template("bridge.html", {"kodik_skin", "base_js", "is_kodik_js", "is_alloha_js", "proxy_version"},
+                         bridge_js=("bridge/01-shield.js", "bridge/02-urls.js", "bridge/03-network.js",
+                                    "bridge/04-dom.js"))
+_ERROR_PAGE = _template("error.html", {"message"})
+_SHIELD_LOGGER_JS = _text("shield.js")
 _CHROME_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
@@ -178,13 +211,15 @@ async def _get_client() -> httpx.AsyncClient:
 
 
 class _RefusalLog:
-    """Refusal lines in the log: at most one per host a minute and LINES a minute for all hosts, so requests to
-    random hosts cannot flood the log. Refusals left out are counted into the next line."""
+    """Lines about refused (or failed) hosts in the log: at most one per host a minute and LINES a minute for all
+    hosts, so requests to random hosts cannot flood the log. Events left out are counted into the next line.
+    what — the verb of the line: «refused» by default, «upstream failed for» for upstream errors."""
 
     WINDOW = 60.0
     LINES = 30
 
-    def __init__(self) -> None:
+    def __init__(self, what: str = "refused") -> None:
+        self._what = what
         self._hosts: dict[str, list] = {}  # host -> [when its line was written, refusals since then]
         self._minute: float | None = None
         self._lines = 0
@@ -209,13 +244,21 @@ class _RefusalLog:
         self._lines += 1
         quiet = entry[1] if entry is not None else 0
         dropped, self._dropped = self._dropped, 0
-        log.info("player proxy refused %s (%s)%s%s", host, reason,
+        log.info("player proxy %s %s (%s)%s%s", self._what, host, reason,
                  f"; {quiet} more for this host since its last line" if quiet else "",
                  f"; {dropped} more for other hosts not logged" if dropped else "")
         self._hosts[host] = [now, 0]
 
 
 _log_refusal = _RefusalLog()
+_log_upstream_failure = _RefusalLog("upstream failed for")  # текст ошибки источника — сюда, не в ответ
+# Адрес в тексте ошибки httpx (например, Location в «bad redirect») — до хоста и пути: в query бывают токены плеера
+_URL_TAIL = re.compile(r"([a-z][a-z0-9+.-]*://[^\s'\"?#]*)[?#][^\s'\"]*", re.I)
+
+
+def _without_query(text: str) -> str:
+    """Текст ошибки для журнала: у адресов в нём срезаны query и фрагмент."""
+    return _URL_TAIL.sub(r"\1", text)
 
 
 async def _send(method: str, url: str, *, stream: bool = False, **kwargs: Any) -> httpx.Response:
@@ -375,6 +418,14 @@ def _site_origin(request: Request) -> str:
     proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "").split(",")[0].strip().lower()
     host = (request.headers.get("host") or "").strip()
     return f"{proto}://{host}" if proto in {"http", "https"} and _HOST_HEADER_RE.fullmatch(host) else ""
+
+
+def _page_origins(request: Request) -> list[str]:
+    """Адреса страниц сайта, от которых кадр плеера принимает перемотку и полный экран: сайт, каким его видит браузер,
+    AV_SITE_URL и AV_ALLOWED_ORIGINS — как у живого соединения. Кадр может прийти с другого адреса, чем страница
+    (локально страница 127.0.0.1, кадр — localhost), поэтому одного адреса запроса мало."""
+    found = [_site_origin(request), config.SITE_URL, *(o for o in config.ALLOWED_ORIGINS if o != "*")]
+    return list(dict.fromkeys(o.rstrip("/") for o in found if o))
 
 
 def _response_headers(upstream: httpx.Response, *, html_frame: bool = False, origin: str = "") -> dict[str, str]:
@@ -614,12 +665,7 @@ def _cvh_video_sources(data: dict) -> list[dict[str, str]]:
 
 def _cvh_error_frame(message: str) -> Response:
     safe = html.escape(message, quote=True)
-    body = f"""<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-html,body{{margin:0;width:100%;height:100%;background:#050507;color:#f4f4f5;font:600 16px Arial,sans-serif}}
-body{{display:grid;place-items:center}}.box{{text-align:center;opacity:.78}}
-</style></head><body><div class="box">{safe}</div></body></html>"""
+    body = _fill(_ERROR_PAGE, message=safe)
     return Response(body, media_type="text/html", headers={"Cache-Control": "no-store"})
 
 
@@ -630,6 +676,7 @@ def _clean_video_frame(
     *,
     element_id: str = "av-clean-video",
     sources: list[dict[str, str]] | None = None,
+    page_origins: list[str] | None = None,
 ) -> Response:
     source_items: list[dict[str, str]] = []
     seen_urls: set[str] = set()
@@ -653,421 +700,10 @@ def _clean_video_frame(
     proxied_poster = html.escape(_proxy_url(poster_url, base_url), quote=True) if poster_url else ""
     poster_attr = f' poster="{proxied_poster}"' if proxied_poster else ""
     sources_json = json.dumps(source_items, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
-    body = f"""<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-:root{{--media:#05080c;--panel:#1b2532;--panel-2:#2a3a4c;--hover:#34475c;--border:#3a4d62;--text:#f4f7fa;--muted:#aab9c9;--brand-fill:#5f748c;--brand-fill-hover:#6d839b;--focus:#9db3cc;--scrim:rgba(5,9,14,.6);--shadow-float:0 16px 40px -8px rgba(0,0,0,.6),0 0 0 1px #3a4d62;--font:Onest,"Segoe UI",system-ui,-apple-system,sans-serif}}
-html,body{{margin:0;width:100%;height:100%;background:var(--media);overflow:hidden}}
-body{{display:flex;position:relative;font-family:var(--font);-webkit-font-smoothing:antialiased}}
-button{{font-family:var(--font)}}
-button:focus-visible,input:focus-visible{{outline:2px solid var(--focus);outline-offset:2px}}
-video{{width:100%;height:100%;background:var(--media);object-fit:contain}}
-video::-webkit-media-controls-start-playback-button,video::-webkit-media-controls-overlay-play-button{{display:none!important;-webkit-appearance:none}}
-#av-start{{position:absolute;left:50%;top:50%;width:72px;height:72px;margin:-36px 0 0 -36px;border:0;border-radius:50%;
-background:var(--brand-fill);box-shadow:var(--shadow-float);cursor:pointer;display:grid;place-items:center}}
-#av-start span{{display:block;width:0;height:0;border-top:15px solid transparent;border-bottom:15px solid transparent;
-border-left:22px solid var(--text);margin-left:6px}}
-#av-start.hidden{{display:none}}
-#av-note{{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100% - 32px));box-sizing:border-box;padding:16px 18px;border-radius:14px;background:var(--panel);box-shadow:var(--shadow-float);color:var(--text);font:400 15px/1.5 var(--font);text-align:center;z-index:5}}
-#av-note[hidden]{{display:none}}
-#av-shot{{position:absolute;right:12px;top:12px;width:40px;height:40px;border:0;border-radius:50%;background:var(--scrim);color:var(--text);display:grid;place-items:center;cursor:pointer;transition:background-color .12s,opacity .2s,transform .2s;z-index:3}}
-#av-shot svg{{width:18px;height:18px;display:block}}
-#av-controls{{position:absolute;left:12px;right:12px;bottom:12px;display:grid;grid-template-columns:48px minmax(90px,1fr) auto 112px 92px 44px;align-items:center;gap:10px;padding:8px;border-radius:14px;background:var(--panel);box-shadow:var(--shadow-float);transition:opacity .2s,transform .2s}}
-body.playing.controls-hidden #av-controls{{opacity:0;transform:translateY(12px);pointer-events:none}}
-body.playing.controls-hidden #av-shot{{opacity:0;transform:translateY(-8px);pointer-events:none}}
-body.playing.controls-hidden{{cursor:none}}
-#av-toggle,#av-fullscreen,#av-mute,#av-quality-btn{{height:40px;border:0;border-radius:10px;color:var(--text);font:500 14px var(--font);display:grid;place-items:center;cursor:pointer;transition:background-color .12s}}
-#av-toggle,#av-fullscreen,#av-mute{{width:44px}}
-#av-toggle{{width:48px;background:var(--brand-fill)}}
-.av-toggle-icon{{width:20px;height:20px;display:block}}
-.av-icon-pause,body.playing .av-icon-play{{display:none}}
-body.playing .av-icon-pause{{display:block}}
-#av-fullscreen{{background:transparent}}
-.av-fullscreen-icon{{width:18px;height:18px;display:block}}
-#av-seek{{width:100%;accent-color:var(--brand-fill);cursor:pointer}}
-#av-time{{min-width:92px;color:var(--muted);font:500 13px var(--font);text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}}
-#av-volume{{display:flex;align-items:center;gap:6px;min-width:0}}
-#av-mute{{background:transparent;flex:0 0 40px;width:40px}}
-.av-volume-icon{{width:20px;height:20px;display:block}}
-.av-volume-off{{display:none}}
-body.muted .av-volume-on{{display:none}}
-body.muted .av-volume-off{{display:block}}
-#av-volume-range{{width:66px;accent-color:var(--brand-fill);cursor:pointer}}
-#av-quality-wrap{{position:relative}}
-#av-quality-btn{{width:92px;background:var(--panel-2);grid-template-columns:1fr auto;gap:8px;padding:0 10px;text-align:left}}
-#av-quality-btn:after{{content:"";width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--muted)}}
-#av-quality-menu{{position:absolute;right:0;bottom:calc(100% + 8px);min-width:120px;max-height:190px;overflow:auto;padding:4px;border-radius:14px;background:var(--panel);box-shadow:var(--shadow-float);display:none;z-index:4}}
-#av-quality-wrap.open #av-quality-menu{{display:grid;gap:2px}}
-#av-quality-menu button{{height:36px;border:0;border-radius:10px;background:transparent;color:var(--text);font:500 14px var(--font);text-align:left;padding:0 12px;cursor:pointer}}
-#av-quality-menu button.active{{background:var(--panel-2)}}
-#av-quality-wrap.disabled{{display:none}}
-@media (hover:hover) and (pointer:fine){{#av-shot:hover{{background:var(--panel-2)}}#av-start:hover,#av-toggle:hover{{background:var(--brand-fill-hover)}}#av-fullscreen:hover,#av-mute:hover,#av-quality-btn:hover,#av-quality-menu button:hover{{background:var(--hover)}}}}
-@media (max-width:700px){{#av-controls{{left:8px;right:8px;bottom:8px;grid-template-columns:44px minmax(70px,1fr) 92px 44px;gap:6px;padding:6px}}#av-toggle,#av-fullscreen{{width:44px;height:38px}}#av-time,#av-volume{{display:none}}#av-quality-btn{{width:92px;height:38px}}}}
-</style></head><body>
-<video id="{safe_id}" src="{proxied_src}"{poster_attr} playsinline preload="metadata" crossorigin="anonymous"></video>
-<div id="av-note" role="status" hidden></div>
-<button id="av-start" type="button" aria-label="Смотреть"><span></span></button>
-<button id="av-shot" type="button" aria-label="Сделать скриншот" title="Сделать скриншот">
-  <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 4h6l1.6 2H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3.4L9 4Zm3 5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/></svg>
-</button>
-<div id="av-controls">
-  <button id="av-toggle" type="button" aria-label="Пауза или воспроизведение">
-    <svg class="av-toggle-icon av-icon-play" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8 5.6v12.8a1 1 0 0 0 1.53.85l10.2-6.4a1 1 0 0 0 0-1.7L9.53 4.75A1 1 0 0 0 8 5.6Z"/></svg>
-    <svg class="av-toggle-icon av-icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7V5Zm6.5 0H17v14h-3.5V5Z"/></svg>
-  </button>
-  <input id="av-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Перемотка">
-  <div id="av-time">0:00 / 0:00</div>
-  <div id="av-volume">
-    <button id="av-mute" type="button" aria-label="Выключить звук">
-      <svg class="av-volume-icon av-volume-on" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 9v6h4l5 4V5L8 9H4Zm12.2-1.2-1.4 1.4A4 4 0 0 1 16 12a4 4 0 0 1-1.2 2.8l1.4 1.4A6 6 0 0 0 18 12a6 6 0 0 0-1.8-4.2Zm2.8-2.8-1.4 1.4A8 8 0 0 1 20 12a8 8 0 0 1-2.4 5.6L19 19a10 10 0 0 0 3-7 10 10 0 0 0-3-7Z"/></svg>
-      <svg class="av-volume-icon av-volume-off" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 9v6h4l5 4V5L8 9H4Zm14.6 3 2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7-2.7 2.7 2.7 1.4-1.4-2.7-2.7Z"/></svg>
-    </button>
-    <input id="av-volume-range" type="range" min="0" max="100" value="100" step="1" aria-label="Громкость">
-  </div>
-  <div id="av-quality-wrap">
-    <button id="av-quality-btn" type="button" aria-label="Качество">Авто</button>
-    <div id="av-quality-menu" role="menu"></div>
-  </div>
-  <button id="av-fullscreen" type="button" aria-label="Во весь экран"><svg class="av-fullscreen-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 4h6v2H6v4H4V4Zm10 0h6v6h-2V6h-4V4ZM4 14h2v4h4v2H4v-6Zm14 0h2v6h-6v-2h4v-4Z"/></svg></button>
-</div>
-<script>
-(() => {{
-  const video = document.getElementById("{safe_id}");
-  const start = document.getElementById("av-start");
-  const shot = document.getElementById("av-shot");
-  const controls = document.getElementById("av-controls");
-  const toggle = document.getElementById("av-toggle");
-  const seek = document.getElementById("av-seek");
-  const timeText = document.getElementById("av-time");
-  const mute = document.getElementById("av-mute");
-  const volumeRange = document.getElementById("av-volume-range");
-  const qualityWrap = document.getElementById("av-quality-wrap");
-  const qualityBtn = document.getElementById("av-quality-btn");
-  const qualityMenu = document.getElementById("av-quality-menu");
-  const fullscreen = document.getElementById("av-fullscreen");
-  const sources = {sources_json};
-  if ({"true" if hls_only else "false"} && !video.canPlayType("application/vnd.apple.mpegurl")) {{
-    const note = document.getElementById("av-note");
-    note.textContent = "Этот браузер не воспроизводит такой поток. Откройте серию в Chrome, Edge или Safari.";
-    note.hidden = false;
-    start.classList.add("hidden");
-    controls.hidden = true;
-    shot.hidden = true;
-    video.removeAttribute("src");
-    return;
-  }}
-  let controlsTimer = 0;
-  let seeking = false;
-  let currentQuality = 0;
-  const send = (key, value) => {{
-    try {{ parent.postMessage({{ key, value }}, "*"); }} catch (_) {{}}
-  }};
-  const sendShotError = (message) => {{
-    try {{ parent.postMessage({{ type: "asoplay:screenshot-error", message }}, "*"); }} catch (_) {{}}
-  }};
-  const waitForDrawableFrame = (item) => new Promise((resolve) => {{
-    let done = false;
-    const finish = () => {{
-      if (done) return;
-      done = true;
-      try {{ item.removeEventListener("loadeddata", finish); }} catch (_) {{}}
-      resolve();
-    }};
-    try {{
-      if (item.readyState < 2) item.addEventListener("loadeddata", finish, {{ once: true }});
-      if (typeof item.requestVideoFrameCallback === "function") item.requestVideoFrameCallback(finish);
-    }} catch (_) {{}}
-    requestAnimationFrame(() => requestAnimationFrame(finish));
-    setTimeout(finish, 450);
-  }});
-  const canvasLooksEmpty = (canvas) => {{
-    const probe = document.createElement("canvas");
-    const width = Math.min(24, Math.max(1, canvas.width));
-    const height = Math.min(24, Math.max(1, canvas.height));
-    probe.width = width;
-    probe.height = height;
-    const ctx = probe.getContext("2d", {{ willReadFrequently: true }});
-    if (!ctx) return false;
-    ctx.drawImage(canvas, 0, 0, width, height);
-    const data = ctx.getImageData(0, 0, width, height).data;
-    let alpha = 0;
-    for (let i = 3; i < data.length; i += 4) alpha += data[i];
-    return alpha < width * height * 8;
-  }};
-  const drawViaImageCapture = async (item) => {{
-    try {{
-      if (!item.captureStream || !window.ImageCapture) return null;
-      const stream = item.captureStream();
-      const track = stream && stream.getVideoTracks ? stream.getVideoTracks()[0] : null;
-      if (!track) return null;
-      try {{
-        const bitmap = await new ImageCapture(track).grabFrame();
-        const canvas = document.createElement("canvas");
-        canvas.width = bitmap.width || item.videoWidth;
-        canvas.height = bitmap.height || item.videoHeight;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return null;
-        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-        if (bitmap.close) bitmap.close();
-        return canvasLooksEmpty(canvas) ? null : canvas;
-      }} finally {{
-        try {{ track.stop(); }} catch (_) {{}}
-      }}
-    }} catch (_) {{
-      return null;
-    }}
-  }};
-  const makeFrameCanvas = async (item) => {{
-    await waitForDrawableFrame(item);
-    const canvas = document.createElement("canvas");
-    canvas.width = item.videoWidth;
-    canvas.height = item.videoHeight;
-    const ctx = canvas.getContext("2d", {{ willReadFrequently: true }});
-    if (!ctx) throw new Error("canvas unavailable");
-    ctx.drawImage(item, 0, 0, canvas.width, canvas.height);
-    if (canvasLooksEmpty(canvas)) {{
-      const fallback = await drawViaImageCapture(item);
-      if (fallback) return fallback;
-      throw new Error("blank frame");
-    }}
-    return canvas;
-  }};
-  const canvasToDataUrl = (canvas) => new Promise((resolve, reject) => {{
-    if (canvas.toBlob && window.FileReader) {{
-      canvas.toBlob((blob) => {{
-        if (!blob) {{ reject(new Error("empty blob")); return; }}
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ""));
-        reader.onerror = () => reject(new Error("reader failed"));
-        reader.readAsDataURL(blob);
-      }}, "image/png");
-    }} else {{
-      try {{ resolve(canvas.toDataURL("image/png")); }} catch (err) {{ reject(err); }}
-    }}
-  }});
-  const captureScreenshot = async () => {{
-    if (!video || !video.videoWidth || !video.videoHeight) {{
-      sendShotError("Кадр еще не готов. Запустите видео и попробуйте снова.");
-      return;
-    }}
-    try {{
-      const canvas = await makeFrameCanvas(video);
-      const dataUrl = await canvasToDataUrl(canvas);
-      try {{
-        parent.postMessage({{
-          type: "asoplay:screenshot",
-          dataUrl,
-          width: canvas.width,
-          height: canvas.height,
-          time: Number(video.currentTime) || 0,
-          title: document.title || ""
-        }}, "*");
-      }} catch (_) {{}}
-    }} catch (err) {{
-      const name = err && err.name ? String(err.name) : "";
-      sendShotError(name === "SecurityError"
-        ? "Источник не разрешил снять кадр из видео."
-        : "Кадр еще не отрисовался. Запустите видео и попробуйте снова.");
-    }}
-  }};
-  const sendTime = () => {{
-    const duration = Number.isFinite(video.duration) ? video.duration : 0;
-    const time = Number.isFinite(video.currentTime) ? video.currentTime : 0;
-    syncProgress();
-    if (duration > 0) send("kodik_player_duration_update", duration);
-    if (time >= 0) send("kodik_player_time_update", time);
-  }};
-  const fmt = (value) => {{
-    value = Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
-    const h = Math.floor(value / 3600);
-    const m = Math.floor((value % 3600) / 60);
-    const s = value % 60;
-    return h ? h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0") : m + ":" + String(s).padStart(2, "0");
-  }};
-  const syncProgress = () => {{
-    const duration = Number.isFinite(video.duration) ? video.duration : 0;
-    const time = Number.isFinite(video.currentTime) ? video.currentTime : 0;
-    if (!seeking) seek.value = duration > 0 ? String(Math.min(1000, Math.max(0, Math.round(time / duration * 1000)))) : "0";
-    timeText.textContent = fmt(time) + " / " + fmt(duration);
-  }};
-  const showStart = () => {{ if (video.paused && !video.ended) start.classList.remove("hidden"); }};
-  const hideStart = () => start.classList.add("hidden");
-  const syncToggle = () => {{
-    // Text glyphs like U+25B6 render as colour emoji on phones; the icons are SVG.
-    document.body.classList.toggle("playing", !video.paused && !video.ended);
-    if (video.paused || video.ended) {{
-      document.body.classList.remove("controls-hidden");
-      clearTimeout(controlsTimer);
-    }}
-  }};
-  const scheduleControlsHide = (delay = 4000) => {{
-    clearTimeout(controlsTimer);
-    if (!video.paused && !video.ended) {{
-      controlsTimer = setTimeout(() => {{
-        if (!video.paused && !video.ended && !qualityWrap.classList.contains("open")) {{
-          document.body.classList.add("controls-hidden");
-        }}
-      }}, delay);
-    }}
-  }};
-  const showControls = () => {{
-    document.body.classList.remove("controls-hidden");
-    scheduleControlsHide();
-  }};
-  const tryPlay = () => {{
-    hideStart();
-    const p = video.play();
-    if (p && typeof p.catch === "function") p.catch(showStart);
-    scheduleControlsHide();
-  }};
-  const togglePlay = () => {{
-    if (video.paused || video.ended) tryPlay();
-    else video.pause();
-    showControls();
-  }};
-  const syncVolume = () => {{
-    volumeRange.value = String(Math.round((video.muted ? 0 : video.volume) * 100));
-    document.body.classList.toggle("muted", video.muted || video.volume <= 0);
-    mute.setAttribute("aria-label", video.muted || video.volume <= 0 ? "Включить звук" : "Выключить звук");
-  }};
-  // The frame is sandboxed without storage: the page passes the saved volume
-  // in the fragment and keeps every change reported below.
-  const handoff = (() => {{
-    const match = /(?:^#|&)asoplay=([^&]*)/.exec(location.hash);
-    if (!match) return null;
-    try {{ return JSON.parse(decodeURIComponent(match[1])); }} catch (_) {{ return null; }}
-  }})();
-  if (handoff && typeof handoff.volume === "number" && handoff.volume >= 0 && handoff.volume <= 1) {{
-    video.volume = handoff.volume;
-    video.muted = handoff.muted === true;
-  }}
-  syncVolume();
-  mute.addEventListener("click", () => {{
-    video.muted = !video.muted;
-    if (!video.muted && video.volume <= 0) video.volume = 0.75;
-    syncVolume();
-    showControls();
-  }});
-  volumeRange.addEventListener("input", () => {{
-    const value = Math.min(100, Math.max(0, Number(volumeRange.value) || 0)) / 100;
-    video.volume = value;
-    video.muted = value <= 0;
-    syncVolume();
-    showControls();
-  }});
-  const closeQuality = () => {{
-    if (!qualityWrap.classList.contains("open")) return;
-    qualityWrap.classList.remove("open");
-    scheduleControlsHide();
-  }};
-  const renderQuality = () => {{
-    qualityMenu.innerHTML = "";
-    const list = Array.isArray(sources) ? sources : [];
-    if (!list.length) {{
-      qualityWrap.classList.add("disabled");
-      return;
-    }}
-    qualityBtn.textContent = list[currentQuality] && list[currentQuality].label ? list[currentQuality].label : "Авто";
-    if (list.length <= 1) return;
-    list.forEach((item, index) => {{
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = item.label || "Авто";
-      button.className = index === currentQuality ? "active" : "";
-      button.addEventListener("click", () => selectQuality(index));
-      qualityMenu.appendChild(button);
-    }});
-  }};
-  const selectQuality = (index) => {{
-    const item = sources[index];
-    if (!item || !item.url) return;
-    const time = Number.isFinite(video.currentTime) ? video.currentTime : 0;
-    const wasPaused = video.paused;
-    currentQuality = index;
-    renderQuality();
-    closeQuality();
-    const resume = () => {{
-      if (time > 0) {{
-        try {{ video.currentTime = time; }} catch (_) {{}}
-      }}
-      if (!wasPaused) tryPlay();
-      video.removeEventListener("loadedmetadata", resume);
-    }};
-    video.addEventListener("loadedmetadata", resume);
-    video.src = item.url;
-    video.load();
-    showControls();
-  }};
-  renderQuality();
-  qualityBtn.addEventListener("click", () => {{
-    if (!Array.isArray(sources) || sources.length <= 1) return;
-    qualityWrap.classList.toggle("open");
-    document.body.classList.remove("controls-hidden");
-    if (qualityWrap.classList.contains("open")) clearTimeout(controlsTimer);
-    else scheduleControlsHide();
-  }});
-  document.addEventListener("pointerdown", (event) => {{
-    if (!qualityWrap.contains(event.target)) closeQuality();
-  }}, true);
-  start.addEventListener("click", tryPlay);
-  shot.addEventListener("click", () => {{ captureScreenshot(); showControls(); }});
-  toggle.addEventListener("click", togglePlay);
-  video.addEventListener("click", togglePlay);
-  seek.addEventListener("input", () => {{
-    const duration = Number.isFinite(video.duration) ? video.duration : 0;
-    if (duration > 0) video.currentTime = duration * (Number(seek.value) || 0) / 1000;
-    showControls();
-  }});
-  seek.addEventListener("pointerdown", () => {{ seeking = true; }});
-  seek.addEventListener("pointerup", () => {{ seeking = false; syncProgress(); }});
-  seek.addEventListener("change", () => {{ seeking = false; syncProgress(); }});
-  fullscreen.addEventListener("click", () => {{
-    const root = document.documentElement;
-    if (document.fullscreenElement) {{
-      document.exitFullscreen && document.exitFullscreen();
-    }} else if (root.requestFullscreen) {{
-      root.requestFullscreen().catch(() => {{}});
-    }} else if (video.webkitEnterFullscreen) {{
-      video.webkitEnterFullscreen();
-    }}
-    showControls();
-  }});
-  document.addEventListener("mousemove", showControls, true);
-  document.addEventListener("pointermove", showControls, true);
-  document.addEventListener("focusin", showControls, true);
-  document.addEventListener("pointerdown", (event) => {{
-    if (event.button !== 0) return;
-    showControls();
-    try {{ parent.postMessage({{ type: "asoplay:player-pointerdown" }}, "*"); }} catch (_) {{}}
-  }}, true);
-  document.addEventListener("contextmenu", (event) => {{
-    event.preventDefault();
-    try {{ parent.postMessage({{ type: "asoplay:player-context-menu", x: event.clientX, y: event.clientY }}, "*"); }} catch (_) {{}}
-  }}, true);
-  window.addEventListener("message", (event) => {{
-    const data = event && event.data;
-    if (data && typeof data === "object" && data.type === "asoplay:capture-screenshot") captureScreenshot();
-  }});
-  video.addEventListener("loadedmetadata", sendTime);
-  video.addEventListener("durationchange", sendTime);
-  video.addEventListener("canplay", () => {{ sendTime(); if (video.paused) showStart(); }});
-  video.addEventListener("timeupdate", sendTime);
-  video.addEventListener("volumechange", () => {{
-    syncVolume();
-    send("kodik_player_volume_change", {{ volume: video.volume, muted: video.muted }});
-  }});
-  video.addEventListener("playing", () => {{ hideStart(); syncToggle(); scheduleControlsHide(); }});
-  video.addEventListener("play", () => {{ syncToggle(); scheduleControlsHide(); send("kodik_player_play"); }});
-  video.addEventListener("pause", () => {{ syncToggle(); send("kodik_player_pause"); showStart(); }});
-  video.addEventListener("ended", () => send("kodik_player_video_ended"));
-  video.addEventListener("error", () => {{ showStart(); document.body.classList.remove("controls-hidden"); }});
-  setInterval(sendTime, 1000);
-  try {{ video.load(); }} catch (_) {{}}
-  syncToggle();
-  syncProgress();
-  setTimeout(() => {{ if (video.paused) showStart(); }}, 500);
-}})();
-</script></body></html>"""
+    # Адреса страниц сайта: только от них кадр принимает перемотку и полный экран (чат серии)
+    origins_json = json.dumps(page_origins or []).replace("</", "<\\/")
+    body = _fill(_FRAME_PAGE, safe_id=safe_id, proxied_src=proxied_src, poster_attr=poster_attr,
+                 sources_json=sources_json, hls_only="true" if hls_only else "false", page_origins=origins_json)
     headers = {
         "Cache-Control": "no-store",
         "Content-Security-Policy": (
@@ -1151,6 +787,7 @@ async def _cvh_frame(request: Request, iframe_url: str) -> Response:
         poster_url,
         element_id="av-cvh-video",
         sources=source_items,
+        page_origins=_page_origins(request),
     )
 
 
@@ -1203,7 +840,8 @@ async def _sibnet_frame(request: Request, iframe_url: str) -> Response:
     ), text)
     source_url = urljoin(str(frame_resp.url), source_url)
     poster_url = urljoin(str(frame_resp.url), poster_url) if poster_url else ""
-    return _clean_video_frame(source_url, str(frame_resp.url), poster_url, element_id="av-sibnet-video")
+    return _clean_video_frame(source_url, str(frame_resp.url), poster_url, element_id="av-sibnet-video",
+                              page_origins=_page_origins(request))
 
 
 _VK_STREAM_KEYS = ("hls_ondemand", "hls")
@@ -1274,7 +912,8 @@ async def _vk_frame(request: Request, ref: dict[str, str]) -> Response:
             sources += _hls_quality_sources(master, _decode_text(playlist))
     except httpx.HTTPError:
         pass  # Auto still plays the adaptive master playlist.
-    return _clean_video_frame(master, "https://vk.com/", element_id="av-vk-video", sources=sources)
+    return _clean_video_frame(master, "https://vk.com/", element_id="av-vk-video", sources=sources,
+                              page_origins=_page_origins(request))
 
 
 def _is_kodik_base(base: str) -> bool:
@@ -1301,886 +940,8 @@ def _bridge_script(base: str) -> str:
         f'<link rel="stylesheet" href="/player/kodik-skin.css?v={_PROXY_VERSION}">\n'
         if _is_kodik_base(base) else ""
     )
-    return f"""
-{kodik_skin}
-<script src="/player/asoplay-shield.js"></script>
-<script data-asoplay-bridge>
-(() => {{
-  "use strict";
-  const bridgeMarkup = document.currentScript
-    ? '<script src="/player/asoplay-shield.js"><' + '/script>' + document.currentScript.outerHTML : "";
-  const BASE = {base_js};
-  const IS_KODIK = {is_kodik_js};
-  const IS_ALLOHA = {is_alloha_js};
-  const UPSTREAM_ORIGIN = new URL(BASE).origin;
-  const LOCAL_ORIGIN = location.protocol === "about:"
-    ? new URL(document.baseURI).origin : location.origin;
-  const AD_RE = /(casino|bookmaker|betting|vulkan|1xbet|pin[-\\s]?up|av\\s*casino|werbung|реклам|казино|ставк|букмекер|advert|preroll|vast|vpaid|popunder)/i;
-  const ATTRS = new Set(["src", "href", "poster", "data", "action"]);
-  const AD_EXTRA_RE = /(buzzoola|adfox|doubleclick|googlesyndication|googletag|\\/ad(?:[/?#]|$)|\\/ads(?:[/?#]|$))/i;
-  const shieldStyleA = "background:#ff5c66;color:#fff;padding:3px 7px;border-radius:5px;font-weight:800";
-  const shieldStyleB = "color:#dc2626;font-weight:800";
-  const pauseStyleA = "background:#2563eb;color:#fff;padding:3px 7px;border-radius:5px;font-weight:800";
-  const pauseStyleB = "color:#2563eb;font-weight:800";
-  const extensionStyleA = "background:#f59e0b;color:#111827;padding:3px 7px;border-radius:5px;font-weight:900";
-  const extensionStyleB = "color:#b45309;font-weight:800";
-  const nativeConsole = {{
-    log: console.log ? console.log.bind(console) : () => {{}},
-    warn: console.warn ? console.warn.bind(console) : () => {{}},
-    error: console.error ? console.error.bind(console) : () => {{}},
-    info: console.info ? console.info.bind(console) : () => {{}},
-    debug: console.debug ? console.debug.bind(console) : () => {{}}
-  }};
-  const shieldConsole = window.__asoplayShieldLog || ((method, args) => {{
-    const fn = nativeConsole[method] || nativeConsole.info;
-    return fn(...args);
-  }});
-  const shieldInfo = (...args) => shieldConsole("info", args);
-  const diagnosticNotices = new Set();
-  const diagnosticLog = (key, message) => {{
-    if (diagnosticNotices.has(key)) return;
-    diagnosticNotices.add(key);
-    shieldInfo("%cAsoPlay Shield:%c " + message, extensionStyleA, extensionStyleB);
-  }};
-  const castQueues = new WeakSet();
-  window.__asoplayPrepareCast = (urls) => {{
-    if (!Array.isArray(urls)) return;
-    const modern = "//www.gstatic.com/eureka/clank/cast_sender.js";
-    const legacy = value => /^chrome-extension:\\/\\/(?:pkedcjkdefgpdelpbcmbmeomcjbeemfm|enhhojjnijigcajfphajepfemndkmdlo)\\/cast_sender\\.js$/.test(value);
-    if (!castQueues.has(urls)) {{
-      castQueues.add(urls);
-      const firstLegacy = urls.findIndex(legacy);
-      const modernIndex = urls.indexOf(modern);
-      if (firstLegacy >= 0 && (modernIndex < 0 || modernIndex > firstLegacy)) {{
-        if (modernIndex >= 0) urls.splice(modernIndex, 1);
-        urls.splice(firstLegacy, 0, modern);
-      }}
-    }}
-    if (urls[0] === modern && urls.some(legacy)) {{
-      diagnosticLog("cast-modern", "Google Cast заглянул в архив расширений. Сэмпай Даниэль показал ему современный вход.");
-    }}
-  }};
-  const shieldState = {{ windowStart: 0, hits: 0, mutedUntil: 0 }};
-  const shieldLog = () => {{
-    try {{
-      const now = Date.now();
-      if (now < shieldState.mutedUntil) return;
-      if (!shieldState.windowStart || now - shieldState.windowStart > 5000) {{
-        shieldState.windowStart = now;
-        shieldState.hits = 0;
-      }}
-      shieldState.hits += 1;
-      if (shieldState.hits >= 3) {{
-        shieldInfo(
-          "%cAsoPlay Shield:%c У Kodik настоящий понос, но у Даниэля Сэмпая есть волшебная \\"Антиспам\\" палочка, которая блокирует его запросы. ^-^",
-          shieldStyleA,
-          shieldStyleB
-        );
-        shieldState.mutedUntil = now + 60000;
-        shieldState.windowStart = now;
-        shieldState.hits = 0;
-        return;
-      }}
-      if (shieldState.hits === 1) {{
-        shieldInfo(
-          "%cAsoPlay Shield:%c Kodik пытается засрать твое видео рекламой, но обосрался. Сэмпай Даниэль защитил твои глазки от мусора.",
-          shieldStyleA,
-          shieldStyleB
-        );
-      }}
-    }} catch (_) {{}}
-  }};
-  const storageShieldState = {{ windowStart: 0, hits: 0, mutedUntil: 0 }};
-  const storageShieldLog = () => {{
-    try {{
-      const now = Date.now();
-      if (now < storageShieldState.mutedUntil) return;
-      if (!storageShieldState.windowStart || now - storageShieldState.windowStart > 5000) {{
-        storageShieldState.windowStart = now;
-        storageShieldState.hits = 0;
-      }}
-      storageShieldState.hits += 1;
-      if (storageShieldState.hits >= 3) {{
-        shieldInfo(
-          "%cAsoPlay Shield:%c Kodik устроил storage-истерику, но антиспам Сэмпая Даниэля отправил ее в угол подумать. ^-^",
-          shieldStyleA,
-          shieldStyleB
-        );
-        storageShieldState.mutedUntil = now + 60000;
-        storageShieldState.windowStart = now;
-        storageShieldState.hits = 0;
-        return;
-      }}
-      if (storageShieldState.hits === 1) {{
-        shieldInfo(
-          "%cAsoPlay Shield:%c Kodik полез в localStorage за мутной фигней, но Сэмпай Даниэль выдал ему безопасную пустышку.",
-          shieldStyleA,
-          shieldStyleB
-        );
-      }}
-    }} catch (_) {{}}
-  }};
-  const pauseShieldState = {{ mutedUntil: 0 }};
-  const pauseShieldLog = () => {{
-    try {{
-      const now = Date.now();
-      if (now < pauseShieldState.mutedUntil) return;
-      shieldInfo(
-        "%cAsoPlay Shield:%c Пауза поставлена. Серия терпеливо ждёт, пока ты вернёшься к просмотру.",
-        pauseStyleA,
-        pauseStyleB
-      );
-      pauseShieldState.mutedUntil = now + 30000;
-    }} catch (_) {{}}
-  }};
-  const sandboxCookieState = {{ shown: false }};
-  const sandboxCookieLog = () => {{
-    try {{
-      if (sandboxCookieState.shown) return;
-      sandboxCookieState.shown = true;
-      shieldInfo(
-        "%cAsoPlay Shield:%c Cookies этого iframe под замком sandbox. Сэмпай Даниэль ключи не раздаёт. :З",
-        extensionStyleA,
-        extensionStyleB
-      );
-    }} catch (_) {{}}
-  }};
-  queueMicrotask(() => {{
-    let blocked = false;
-    try {{
-      void document.cookie;
-    }} catch (err) {{
-      const text = String((err && err.name) || "") + " " + String((err && err.message) || "");
-      blocked = /SecurityError|sandbox|cookie/i.test(text);
-    }}
-    if (blocked) sandboxCookieLog();
-  }});
-  const patchConsoleMethod = (name) => {{
-    const native = nativeConsole[name];
-    try {{
-      console[name] = (...args) => {{
-        const text = args.map(x => {{
-          try {{
-            if (typeof x === "string") return x;
-            if (x && typeof x.message === "string") return x.message;
-            return JSON.stringify(x);
-          }} catch (_) {{
-            return String(x);
-          }}
-        }}).join(" ");
-        if (/AUTO\\s+PAUSED/i.test(text)) {{
-          pauseShieldLog();
-          return;
-        }}
-        if (/Unable to send stat|VAST ended|noad|original_manifest/i.test(text)) {{
-          shieldLog();
-          return;
-        }}
-        return shieldConsole(name, args);
-      }};
-    }} catch (_) {{}}
-  }};
-  ["log", "warn", "error", "info", "debug"].forEach(patchConsoleMethod);
-  // A sandboxed frame keeps nothing between episodes. The page passes the
-  // volume keys this player saved last time in the URL fragment and stores
-  // the ones it writes now: keys named after the volume or Plyr-style JSON.
-  const handoff = (() => {{
-    const match = /(?:^#|&)asoplay=([^&]*)/.exec(location.hash);
-    if (!match) return null;
-    try {{ history.replaceState(history.state, "", location.href.split("#")[0]); }} catch (_) {{}}
-    try {{ return JSON.parse(decodeURIComponent(match[1])); }} catch (_) {{ return null; }}
-  }})();
-  const keepsVolume = (key, value) => key.length <= 100 && value.length <= 2048
-    && (/volume|mute/i.test(key) || /"(?:volume|muted)"\\s*:/.test(value));
-  const volumeRelay = (initial) => {{
-    let last = JSON.stringify(initial || {{}});
-    return (data) => {{
-      const entries = {{}};
-      for (const [key, value] of data) if (keepsVolume(key, value)) entries[key] = value;
-      const next = JSON.stringify(entries);
-      if (next === last) return;
-      last = next;
-      try {{ window.parent.postMessage({{ type: "asoplay:storage", entries }}, "*"); }} catch (_) {{}}
-    }};
-  }};
-  const makeStorage = (initial, onChange) => {{
-    const data = new Map();
-    if (initial && typeof initial === "object") {{
-      for (const [key, value] of Object.entries(initial)) if (typeof value === "string") data.set(key, value);
-    }}
-    const changed = () => {{ if (onChange) onChange(data); }};
-    return {{
-      get length() {{ return data.size; }},
-      clear() {{ data.clear(); changed(); }},
-      getItem(key) {{
-        key = String(key);
-        return data.has(key) ? data.get(key) : null;
-      }},
-      key(index) {{
-        return Array.from(data.keys())[Number(index)] ?? null;
-      }},
-      removeItem(key) {{ data.delete(String(key)); changed(); }},
-      setItem(key, value) {{ data.set(String(key), String(value)); changed(); }}
-    }};
-  }};
-  const ensureStorage = (name, initial, onChange) => {{
-    try {{
-      const storage = window[name];
-      const probe = "__av_probe__";
-      storage.setItem(probe, "1");
-      storage.removeItem(probe);
-    }} catch (_) {{
-      try {{
-        Object.defineProperty(window, name, {{
-          configurable: true,
-          enumerable: true,
-          value: makeStorage(initial, onChange)
-        }});
-      }} catch (_) {{}}
-    }}
-  }};
-  ensureStorage("localStorage", handoff && handoff.storage, handoff ? volumeRelay(handoff.storage) : null);
-  ensureStorage("sessionStorage");
-  const setupAllohaBootstrap = () => {{
-    if (!IS_ALLOHA) return;
-    try {{
-      const params = new URL(BASE).searchParams;
-      const toInt = (value, fallback) => {{
-        const num = Number.parseInt(String(value || ""), 10);
-        return Number.isFinite(num) && num > 0 ? num : fallback;
-      }};
-      const season = toInt(params.get("season"), 1);
-      const episode = toInt(params.get("episode"), 1);
-      const translation = toInt(params.get("translation"), 0);
-      const movieToken = params.get("token_movie") || params.get("token") || "";
-      const ensureObject = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {{}};
-      const ensureArray = (value) => Array.isArray(value) ? value : [];
-      const cacheKey = "__asoplayAllohaFileList:" + BASE;
-      let cached = null;
-      try {{ cached = JSON.parse(sessionStorage.getItem(cacheKey) || "null"); }} catch (_) {{}}
-      const list = ensureObject(window.fileList || cached);
-      const active = ensureObject(list.active);
-      active.season = active.season || season;
-      active.episode = active.episode || episode;
-      active.translation = active.translation || translation;
-      active.token_movie = active.token_movie || movieToken;
-      active.token = active.token || movieToken;
-      active.typeList = ensureObject(active.typeList);
-      active.typeList.active = active.typeList.active || active.type || "iframe";
-      active.types = ensureObject(active.types);
-      active.files = ensureArray(active.files);
-      list.active = active;
-      list.typeList = ensureObject(list.typeList);
-      list.typeList.active = list.typeList.active || active.typeList.active;
-      list.typeList.list = ensureArray(list.typeList.list);
-      list.season = ensureObject(list.season);
-      list.season.active = list.season.active || season;
-      list.season.list = ensureArray(list.season.list);
-      list.seasons = ensureArray(list.seasons);
-      list.episode = ensureObject(list.episode);
-      list.episode.active = list.episode.active || episode;
-      list.episode.list = ensureArray(list.episode.list);
-      list.episodes = ensureArray(list.episodes);
-      list.translation = ensureObject(list.translation);
-      list.translation.active = list.translation.active || translation;
-      list.translation.list = ensureArray(list.translation.list);
-      list.translations = ensureArray(list.translations);
-      list.movie = ensureObject(list.movie);
-      list.movie.active = ensureObject(list.movie.active || active);
-      list.serial = ensureObject(list.serial);
-      list.serial.active = ensureObject(list.serial.active || active);
-      list.serial.season = list.serial.season || list.season;
-      list.serial.seasons = ensureArray(list.serial.seasons || list.seasons);
-      list.serial.episode = list.serial.episode || list.episode;
-      list.serial.episodes = ensureArray(list.serial.episodes || list.episodes);
-      list.serial.translation = list.serial.translation || list.translation;
-      list.serial.translations = ensureArray(list.serial.translations || list.translations);
-      window.fileList = list;
-      window.config = ensureObject(window.config);
-      window.config.player = ensureObject(window.config.player);
-      window.__asoplayAllohaFileList = list;
-      try {{ sessionStorage.setItem(cacheKey, JSON.stringify(list)); }} catch (_) {{}}
-    }} catch (_) {{}}
-  }};
-  setupAllohaBootstrap();
-  const passthrough = (value) => {{
-    const s = String(value || "").trim();
-    return !s || s[0] === "#" || /^(about|blob|data|javascript|mailto|tel|chrome-extension|moz-extension|safari-web-extension|ms-browser-extension):/i.test(s) || /^[a-z][a-z0-9+.-]*-extension:/i.test(s);
-  }};
-  const isPlayerInternalPath = (value) =>
-    /^\\/player\\/(?:frame|proxy|modules|documents|cvh-api|cdn-check)(?:[/?#]|$)|^\\/player\\/(?:asoplay-shield\\.js|kodik-skin\\.css)(?:[?#]|$)/i
-      .test(String(value || "").trim());
-  const isLocalProxyPath = (value) => isPlayerInternalPath(value);
-  const isLocalProxyUrl = (value) => {{
-    try {{
-      const u = new URL(String(value || ""), LOCAL_ORIGIN);
-      return u.origin === LOCAL_ORIGIN && isLocalProxyPath(u.pathname);
-    }} catch (_) {{
-      return false;
-    }}
-  }};
-  const unwrapProxyTarget = (value) => {{
-    const raw = String(value || "");
-    try {{
-      const u = new URL(raw, LOCAL_ORIGIN);
-      if (u.origin === LOCAL_ORIGIN && isLocalProxyPath(u.pathname)) {{
-        const path = u.pathname.match(/^\\/player\\/(?:documents|modules)\\/(https?)\\/([^/]+)(\\/.*)$/);
-        if (path) return path[1] + "://" + path[2] + path[3] + u.search + u.hash;
-        return u.searchParams.get("url") || raw;
-      }}
-    }} catch (_) {{}}
-    return raw;
-  }};
-  const isAdTarget = (value) => {{
-    const raw = String(value || "");
-    const unwrapped = unwrapProxyTarget(raw);
-    return AD_RE.test(raw) || AD_EXTRA_RE.test(raw) || AD_RE.test(unwrapped) || AD_EXTRA_RE.test(unwrapped);
-  }};
-  const absolute = (value) => {{
-    if (isLocalProxyPath(value)) return LOCAL_ORIGIN + String(value || "").trim();
-    try {{ return new URL(String(value || ""), BASE).href; }} catch (_) {{ return String(value || ""); }}
-  }};
-  const normalizeUpstream = (url) => {{
-    try {{
-      const u = new URL(url);
-      if (u.origin === LOCAL_ORIGIN && !isPlayerInternalPath(u.pathname)) {{
-        return UPSTREAM_ORIGIN + u.pathname + u.search + u.hash;
-      }}
-      return u.href;
-    }} catch (_) {{
-      return url;
-    }}
-  }};
-  const proxied = (value) => {{
-    if (isAdTarget(value)) shieldLog();
-    if (passthrough(value)) return value;
-    if (isLocalProxyUrl(value)) return String(value || "");
-    const u = normalizeUpstream(absolute(value));
-    if (isLocalProxyUrl(u)) {{
-      if (isAdTarget(u)) shieldLog();
-      return u;
-    }}
-    if (isAdTarget(u)) shieldLog();
-    return "/player/proxy?url=" + encodeURIComponent(u) + "&base=" + encodeURIComponent(BASE) + "&pv={_PROXY_VERSION}";
-  }};
-  const proxiedFrame = (value) => {{
-    if (passthrough(value)) return value;
-    const mapped = proxied(value);
-    try {{
-      const proxy = new URL(mapped, LOCAL_ORIGIN);
-      if (proxy.pathname !== "/player/proxy") return mapped;
-      const target = new URL(proxy.searchParams.get("url"));
-      if (!/^https?:$/.test(target.protocol) || target.username || target.password) return mapped;
-      return "/player/documents/" + target.protocol.slice(0, -1) + "/" + target.host
-        + target.pathname + target.search + target.hash;
-    }} catch (_) {{ return mapped; }}
-  }};
-  const rewriteHtml = (html) => String(html || "").replace(
-    /\\b(src|href|poster|data|action)\\s*=\\s*(['"])(.*?)\\2/gi,
-    (_, attr, q, val) => attr + "=" + q + proxied(val).replace(/"/g, "&quot;") + q
-  );
-  const rewriteSrcdoc = (value) => {{
-    const text = rewriteHtml(value);
-    if (!bridgeMarkup || text.includes("data-asoplay-bridge")) return text;
-    return /<head\\b[^>]*>/i.test(text)
-      ? text.replace(/<head\\b[^>]*>/i, head => head + bridgeMarkup) : bridgeMarkup + text;
-  }};
-  const sanitizeMessage = (message) => message;
-
-  window.open = () => null;
-  try {{ Object.defineProperty(window, "opener", {{ value: null, configurable: false }}); }} catch (_) {{}}
-  const normalizeTargetOrigin = (origin) => {{
-    if (!origin || origin === "*") return origin;
-    try {{
-      const wanted = new URL(String(origin)).origin;
-      if (wanted !== LOCAL_ORIGIN) return "*";
-    }} catch (_) {{}}
-    return origin;
-  }};
-  // Never install a sender wrapper into another window: that changes event.source.
-  const nativePostMessage = window.postMessage;
-  const proxiedWindows = new WeakMap();
-  if (window.HTMLIFrameElement && HTMLIFrameElement.prototype) {{
-    const contentWindowDesc = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, "contentWindow");
-    if (contentWindowDesc && contentWindowDesc.get) {{
-      try {{
-        Object.defineProperty(HTMLIFrameElement.prototype, "contentWindow", {{
-          configurable: true,
-          enumerable: contentWindowDesc.enumerable,
-          get() {{
-            const win = contentWindowDesc.get.call(this);
-            if (!win) return win;
-            if (proxiedWindows.has(win)) return proxiedWindows.get(win);
-            const proxy = new Proxy(win, {{
-              set(target, prop, value) {{
-                return Reflect.set(target, prop, value, target);
-              }},
-              get(target, prop, receiver) {{
-                if (prop === "postMessage") {{
-                  return (message, targetOrigin, transfer) => {{
-                    message = sanitizeMessage(message);
-                    targetOrigin = normalizeTargetOrigin(targetOrigin);
-                    if (typeof transfer !== "undefined") return nativePostMessage.call(target, message, targetOrigin, transfer);
-                    return nativePostMessage.call(target, message, targetOrigin);
-                  }};
-                }}
-                if (prop === "fetch" && typeof target.fetch === "function") {{
-                  return (input, init) => {{
-                    const url = input && input.url ? input.url : input;
-                    try {{
-                      if (input && input.url && typeof target.Request !== "undefined") {{
-                        return target.fetch(new target.Request(proxied(url), input), init);
-                      }}
-                    }} catch (_) {{}}
-                    return target.fetch(proxied(url), init);
-                  }};
-                }}
-                let value;
-                try {{
-                  value = Reflect.get(target, prop, target);
-                }} catch (_) {{
-                  storageShieldLog();
-                  return undefined;
-                }}
-                return typeof value === "function" ? value.bind(target) : value;
-              }}
-            }});
-            proxiedWindows.set(win, proxy);
-            return proxy;
-          }}
-        }});
-      }} catch (_) {{}}
-    }}
-  }}
-  const fallbackMessageOrigin = () => {{
-    try {{
-      return document.referrer ? new URL(document.referrer).origin : LOCAL_ORIGIN;
-    }} catch (_) {{
-      return LOCAL_ORIGIN;
-    }}
-  }};
-  const wrapMessageEvent = (event) => {{
-    if (!event || event.type !== "message") return event;
-    return new Proxy(event, {{
-      get(target, prop, receiver) {{
-        if (prop === "origin" && target.origin === "null") return fallbackMessageOrigin();
-        if (prop === "source") {{
-          const source = target.source;
-          // SDKs identify their iframe with event.source === iframe.contentWindow.
-          if (source && !proxiedWindows.has(source)) {{
-            document.querySelectorAll("iframe").forEach(frame => {{
-              try {{ void frame.contentWindow; }} catch (_) {{}}
-            }});
-          }}
-          return proxiedWindows.get(source) || source;
-        }}
-        let value;
-        try {{
-          value = Reflect.get(target, prop, target);
-        }} catch (_) {{
-          storageShieldLog();
-          return undefined;
-        }}
-        return typeof value === "function" ? value.bind(target) : value;
-      }}
-    }});
-  }};
-  const nativeAddEventListener = EventTarget.prototype.addEventListener;
-  const nativeRemoveEventListener = EventTarget.prototype.removeEventListener;
-  const messageListeners = new WeakMap();
-  const wrapMessageListener = (listener) => {{
-    if (!listener || (typeof listener !== "function" && typeof listener.handleEvent !== "function")) return listener;
-    if (messageListeners.has(listener)) return messageListeners.get(listener);
-    const wrapped = typeof listener === "function"
-      ? function(event) {{ return listener.call(this, wrapMessageEvent(event)); }}
-      : {{
-          handleEvent(event) {{ return listener.handleEvent(wrapMessageEvent(event)); }}
-        }};
-    messageListeners.set(listener, wrapped);
-    return wrapped;
-  }};
-  EventTarget.prototype.addEventListener = function(type, listener, options) {{
-    if (String(type).toLowerCase() === "message" && listener) {{
-      return nativeAddEventListener.call(this, type, wrapMessageListener(listener), options);
-    }}
-    return nativeAddEventListener.call(this, type, listener, options);
-  }};
-  EventTarget.prototype.removeEventListener = function(type, listener, options) {{
-    if (String(type).toLowerCase() === "message" && listener) {{
-      return nativeRemoveEventListener.call(this, type, messageListeners.get(listener) || listener, options);
-    }}
-    return nativeRemoveEventListener.call(this, type, listener, options);
-  }};
-  try {{
-    let assignedOnMessage = null;
-    Object.defineProperty(window, "onmessage", {{
-      configurable: true,
-      enumerable: true,
-      get() {{ return assignedOnMessage; }},
-      set(listener) {{
-        if (assignedOnMessage) nativeRemoveEventListener.call(window, "message", wrapMessageListener(assignedOnMessage));
-        assignedOnMessage = listener;
-        if (listener && (typeof listener === "function" || typeof listener.handleEvent === "function")) {{
-          nativeAddEventListener.call(window, "message", wrapMessageListener(listener));
-        }}
-      }}
-    }});
-  }} catch (_) {{}}
-  addEventListener("click", (event) => {{
-    const a = event.target && event.target.closest ? event.target.closest("a[target], a[href]") : null;
-    if (!a) return;
-    if (isAdTarget(a.href || "") || a.target === "_blank") {{
-      if (isAdTarget(a.href || "")) shieldLog();
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    }}
-  }}, true);
-
-  const nativeFetch = window.fetch ? window.fetch.bind(window) : null;
-  if (IS_KODIK && nativeFetch) {{
-    window.__asoplayCheckCdn = async (url, report) => {{
-      let available = false;
-      try {{
-        const response = await nativeFetch("/player/cdn-check?url=" + encodeURIComponent(url)
-          + "&base=" + encodeURIComponent(BASE), {{ credentials: "omit", cache: "no-store" }});
-        if (!response.ok) throw new Error("CDN check failed: " + response.status);
-        available = (await response.json()).available === true;
-      }} catch (err) {{
-        nativeConsole.warn("AsoPlay CDN diagnostic failed", err);
-      }}
-      if (!available) {{
-        diagnosticLog("cdn-unavailable", "Проверочный сервер Kodik вышел из чата. Сэмпай Даниэль записал ему прогул.");
-      }}
-      report(available);
-    }};
-  }}
-  if (nativeFetch) {{
-    window.fetch = (input, init) => {{
-      const url = input && input.url ? input.url : input;
-      if (typeof Request !== "undefined" && input instanceof Request) {{
-        return nativeFetch(new Request(proxied(url), input), init);
-      }}
-      return nativeFetch(proxied(url), init);
-    }};
-  }}
-  const XHR = window.XMLHttpRequest;
-  if (XHR) {{
-    const open = XHR.prototype.open;
-    XHR.prototype.open = function(method, url, ...rest) {{
-      return open.call(this, method, proxied(url), ...rest);
-    }};
-  }}
-  if (navigator.sendBeacon) {{
-    navigator.sendBeacon = () => false;
-  }}
-  if (window.WebSocket) {{
-    const NativeWS = window.WebSocket;
-    window.WebSocket = function(url, protocols) {{
-      if (isAdTarget(url)) {{
-        shieldLog();
-        throw new Error("Blocked ad websocket");
-      }}
-      return new NativeWS(url, protocols);
-    }};
-  }}
-  if (window.Worker) {{
-    const NativeWorker = window.Worker;
-    window.Worker = function(url, options) {{
-      return new NativeWorker(proxied(url), options);
-    }};
-    window.Worker.prototype = NativeWorker.prototype;
-  }}
-  if (window.SharedWorker) {{
-    const NativeSharedWorker = window.SharedWorker;
-    window.SharedWorker = function(url, options) {{
-      return new NativeSharedWorker(proxied(url), options);
-    }};
-    window.SharedWorker.prototype = NativeSharedWorker.prototype;
-  }}
-
-  const setAttr = Element.prototype.setAttribute;
-  const prepareVideoCors = (el) => {{
-    if (String(el.tagName || "").toUpperCase() !== "VIDEO"
-        || el.getAttribute("crossorigin") === "anonymous") return;
-    try {{ setAttr.call(el, "crossorigin", "anonymous"); }} catch (_) {{}}
-  }};
-  Element.prototype.setAttribute = function(name, value) {{
-    if (String(name).toLowerCase() === "srcdoc") value = rewriteSrcdoc(value);
-    if (String(name).toLowerCase() === "src") prepareVideoCors(this);
-    if (ATTRS.has(String(name).toLowerCase())) value = String(name).toLowerCase() === "src"
-      && this.tagName === "IFRAME" ? proxiedFrame(value) : proxied(value);
-    return setAttr.call(this, name, value);
-  }};
-  const patchProp = (proto, prop) => {{
-    const desc = Object.getOwnPropertyDescriptor(proto, prop);
-    if (!desc || !desc.set) return;
-    Object.defineProperty(proto, prop, {{
-      configurable: true,
-      enumerable: desc.enumerable,
-      get: desc.get,
-      set(value) {{
-        if (prop === "src") prepareVideoCors(this);
-        return desc.set.call(this, prop === "src" && this.tagName === "IFRAME" ? proxiedFrame(value) : proxied(value));
-      }}
-    }});
-  }};
-  const propTargets = [
-    [window.HTMLScriptElement && HTMLScriptElement.prototype, "src"],
-    [window.HTMLIFrameElement && HTMLIFrameElement.prototype, "src"],
-    [window.HTMLImageElement && HTMLImageElement.prototype, "src"],
-    [window.HTMLMediaElement && HTMLMediaElement.prototype, "src"],
-    [window.HTMLSourceElement && HTMLSourceElement.prototype, "src"],
-    [window.HTMLTrackElement && HTMLTrackElement.prototype, "src"],
-    [window.HTMLLinkElement && HTMLLinkElement.prototype, "href"],
-    [window.HTMLAnchorElement && HTMLAnchorElement.prototype, "href"],
-    [window.HTMLVideoElement && HTMLVideoElement.prototype, "poster"],
-  ];
-  propTargets.forEach(([proto, prop]) => proto && patchProp(proto, prop));
-
-  const patchHtmlProp = (proto, prop, rewrite = rewriteHtml) => {{
-    const desc = Object.getOwnPropertyDescriptor(proto, prop);
-    if (!desc || !desc.set) return;
-    Object.defineProperty(proto, prop, {{
-      configurable: true,
-      enumerable: desc.enumerable,
-      get: desc.get,
-      set(value) {{ return desc.set.call(this, rewrite(value)); }}
-    }});
-  }};
-  patchHtmlProp(Element.prototype, "innerHTML");
-  patchHtmlProp(Element.prototype, "outerHTML");
-  if (window.HTMLIFrameElement) patchHtmlProp(HTMLIFrameElement.prototype, "srcdoc", rewriteSrcdoc);
-  const nativeInsertAdjacentHTML = Element.prototype.insertAdjacentHTML;
-  if (nativeInsertAdjacentHTML) {{
-    Element.prototype.insertAdjacentHTML = function(position, html) {{
-      return nativeInsertAdjacentHTML.call(this, position, rewriteHtml(html));
-    }};
-  }}
-  const nativeWrite = document.write.bind(document);
-  const nativeWriteln = document.writeln.bind(document);
-  document.write = (...items) => nativeWrite(...items.map(rewriteHtml));
-  document.writeln = (...items) => nativeWriteln(...items.map(rewriteHtml));
-
-  const prepareScreenshotVideo = (video) => {{
-    if (!video || String(video.tagName || "").toUpperCase() !== "VIDEO") return;
-    if (video.currentSrc || video.readyState > 0) return;
-    prepareVideoCors(video);
-  }};
-  const postScreenshot = (payload) => {{
-    try {{ window.parent.postMessage(payload, "*"); }} catch (_) {{}}
-  }};
-  const postScreenshotError = (message) => {{
-    postScreenshot({{ type: "asoplay:screenshot-error", message: String(message || "Скриншот недоступен") }});
-  }};
-  const setScreenshotBusy = (busy) => {{
-    try {{
-      document.querySelectorAll(".asoplay-screenshot-button").forEach((button) => {{
-        button.classList.toggle("asoplay-screenshot-busy", !!busy);
-      }});
-    }} catch (_) {{}}
-  }};
-  const waitForDrawableFrame = (video) => new Promise((resolve) => {{
-    let done = false;
-    const finish = () => {{
-      if (done) return;
-      done = true;
-      try {{ video.removeEventListener("loadeddata", finish); }} catch (_) {{}}
-      resolve();
-    }};
-    try {{
-      if (video.readyState < 2) video.addEventListener("loadeddata", finish, {{ once: true }});
-      if (typeof video.requestVideoFrameCallback === "function") video.requestVideoFrameCallback(finish);
-    }} catch (_) {{}}
-    requestAnimationFrame(() => requestAnimationFrame(finish));
-    setTimeout(finish, 450);
-  }});
-  const canvasLooksEmpty = (canvas) => {{
-    const probe = document.createElement("canvas");
-    const width = Math.min(24, Math.max(1, canvas.width));
-    const height = Math.min(24, Math.max(1, canvas.height));
-    probe.width = width;
-    probe.height = height;
-    const ctx = probe.getContext("2d", {{ willReadFrequently: true }});
-    if (!ctx) return false;
-    ctx.drawImage(canvas, 0, 0, width, height);
-    const data = ctx.getImageData(0, 0, width, height).data;
-    let alpha = 0;
-    for (let i = 3; i < data.length; i += 4) alpha += data[i];
-    return alpha < width * height * 8;
-  }};
-  const drawViaImageCapture = async (video) => {{
-    try {{
-      if (!video.captureStream || !window.ImageCapture) return null;
-      const stream = video.captureStream();
-      const track = stream && stream.getVideoTracks ? stream.getVideoTracks()[0] : null;
-      if (!track) return null;
-      try {{
-        const bitmap = await new ImageCapture(track).grabFrame();
-        const canvas = document.createElement("canvas");
-        canvas.width = bitmap.width || video.videoWidth;
-        canvas.height = bitmap.height || video.videoHeight;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return null;
-        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-        if (bitmap.close) bitmap.close();
-        return canvasLooksEmpty(canvas) ? null : canvas;
-      }} finally {{
-        try {{ track.stop(); }} catch (_) {{}}
-      }}
-    }} catch (_) {{
-      return null;
-    }}
-  }};
-  const makeFrameCanvas = async (video) => {{
-    await waitForDrawableFrame(video);
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d", {{ willReadFrequently: true }});
-    if (!ctx) throw new Error("canvas unavailable");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    if (canvasLooksEmpty(canvas)) {{
-      const fallback = await drawViaImageCapture(video);
-      if (fallback) return fallback;
-      throw new Error("blank frame");
-    }}
-    return canvas;
-  }};
-  const canvasToDataUrl = (canvas) => new Promise((resolve, reject) => {{
-    if (canvas.toBlob && window.FileReader) {{
-      canvas.toBlob((blob) => {{
-        if (!blob) {{ reject(new Error("empty blob")); return; }}
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ""));
-        reader.onerror = () => reject(new Error("reader failed"));
-        reader.readAsDataURL(blob);
-      }}, "image/png");
-    }} else {{
-      try {{ resolve(canvas.toDataURL("image/png")); }} catch (err) {{ reject(err); }}
-    }}
-  }});
-  const captureScreenshot = async () => {{
-    const video = Array.from(document.querySelectorAll("video")).find((item) =>
-      item && item.videoWidth > 0 && item.videoHeight > 0
-    );
-    if (!video) {{
-      postScreenshotError("Кадр еще не готов. Запустите видео и попробуйте снова.");
-      return;
-    }}
-    try {{
-      setScreenshotBusy(true);
-      const canvas = await makeFrameCanvas(video);
-      const payload = {{
-        type: "asoplay:screenshot",
-        width: canvas.width,
-        height: canvas.height,
-        time: Number(video.currentTime) || 0,
-        title: document.title || ""
-      }};
-      payload.dataUrl = await canvasToDataUrl(canvas);
-      setScreenshotBusy(false);
-      postScreenshot(payload);
-    }} catch (err) {{
-      setScreenshotBusy(false);
-      const name = err && err.name ? String(err.name) : "";
-      postScreenshotError(name === "SecurityError"
-        ? "Источник не разрешил снять кадр из видео."
-        : "Кадр еще не отрисовался. Запустите видео и попробуйте снова.");
-    }}
-  }};
-  const screenshotIcon =
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">' +
-    '<path class="fill" d="M9.2 4.5h5.6l1.2 2h3A2.5 2.5 0 0 1 21.5 9v8A2.5 2.5 0 0 1 19 19.5H5A2.5 2.5 0 0 1 2.5 17V9A2.5 2.5 0 0 1 5 6.5h3l1.2-2Zm2.8 4A4.3 4.3 0 1 0 12 17a4.3 4.3 0 0 0 0-8.5Zm0 2A2.3 2.3 0 1 1 12 15a2.3 2.3 0 0 1 0-4.5Z"/></svg>';
-  const markScreenshotUi = (root) => {{
-    if (!IS_KODIK) return;
-    const scope = root && root.querySelectorAll ? root : document;
-    const buttons = [];
-    try {{
-      if (scope.matches && (scope.matches(".share_button") || scope.matches(".fp-share_button"))) buttons.push(scope);
-      buttons.push(...scope.querySelectorAll(".share_button, .fp-share_button"));
-    }} catch (_) {{}}
-    buttons.forEach((button) => {{
-      if (!button || button.__asoplayScreenshotButton) return;
-      button.__asoplayScreenshotButton = true;
-      button.classList.add("asoplay-screenshot-button");
-      button.setAttribute("title", "Сделать скриншот");
-      button.setAttribute("aria-label", "Сделать скриншот");
-      try {{ button.innerHTML = screenshotIcon; }} catch (_) {{}}
-    }});
-    try {{
-      scope.querySelectorAll(".get_code_heading").forEach((item) => {{
-        item.textContent = "Сделать скриншот";
-      }});
-      scope.querySelectorAll("video").forEach(prepareScreenshotVideo);
-    }} catch (_) {{}}
-  }};
-  if (IS_KODIK) {{
-    document.addEventListener("click", (event) => {{
-      const button = event.target && event.target.closest
-        ? event.target.closest(".asoplay-screenshot-button, .share_button, .fp-share_button")
-        : null;
-      if (!button) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      captureScreenshot();
-    }}, true);
-  }}
-  document.addEventListener("pointerdown", (event) => {{
-    if (event.button !== 0) return;
-    try {{ window.parent.postMessage({{ type: "asoplay:player-pointerdown" }}, "*"); }} catch (_) {{}}
-  }}, true);
-  document.addEventListener("contextmenu", (event) => {{
-    try {{
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      window.parent.postMessage({{
-        type: "asoplay:player-context-menu",
-        x: event.clientX,
-        y: event.clientY
-      }}, "*");
-    }} catch (_) {{}}
-  }}, true);
-  window.addEventListener("message", (event) => {{
-    const data = event && event.data;
-    if (!data || typeof data !== "object") return;
-    if (data.type === "asoplay:capture-screenshot") captureScreenshot();
-  }});
-
-  const clean = (root) => {{
-    if (!root || !root.querySelectorAll) return;
-    const selector = "iframe, script, img, video, source, track, a, link, embed, object";
-    const nodes = root.matches && root.matches(selector)
-      ? [root, ...root.querySelectorAll(selector)]
-      : [...root.querySelectorAll(selector)];
-    nodes.forEach((el) => {{
-      for (const attr of ATTRS) {{
-        if (!el.hasAttribute || !el.hasAttribute(attr)) continue;
-        const current = el.getAttribute(attr);
-        const rewritten = attr === "src" && el.tagName === "IFRAME" ? proxiedFrame(current) : proxied(current);
-        // Reassigning even an identical media src restarts loading and aborts play().
-        if (rewritten !== current) el.setAttribute(attr, rewritten);
-      }}
-      prepareScreenshotVideo(el);
-      // Script text is code: Alloha's player config mentions "preroll", its referrer check "casino".
-      const text = el.tagName === "SCRIPT" ? "" : el.textContent;
-      const marker = [el.id, el.className, el.title, el.alt, text].join(" ");
-      if (AD_RE.test(marker) && !/video|player/i.test(marker)) el.remove();
-    }});
-  }};
-  new MutationObserver((items) => {{
-    for (const item of items) for (const node of item.addedNodes) {{
-      if (node.nodeType !== 1) continue;
-      clean(node);
-      markScreenshotUi(node);
-    }}
-  }}).observe(document.documentElement, {{ childList: true, subtree: true }});
-  clean(document);
-  markScreenshotUi(document);
-}})();
-</script>
-"""
+    return _fill(_BRIDGE_PAGE, kodik_skin=kodik_skin, base_js=base_js, is_kodik_js=is_kodik_js,
+                 is_alloha_js=is_alloha_js, proxy_version=_PROXY_VERSION)
 
 
 def _rewrite_html(text: str, base: str) -> str:
@@ -2237,7 +998,8 @@ async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = 
                  referer: str | None = None) -> Response:
     if not _valid_http_url(url):
         raise HTTPException(400, "invalid player url")
-    if is_disabled_player_url(url):
+    # Выключенный вид плеера (панель) — и его запросы: старые вкладки с открытым кадром не гоняют их через сервер
+    if is_disabled_player_url(url) or site_settings.player_off(url):
         raise HTTPException(403, "player disabled")
     blocked, reason = adblock.should_block(url)
     if blocked:
@@ -2258,7 +1020,8 @@ async def _fetch(request: Request, url: str, base: str | None, *, frame: bool = 
     except http_public.Refused as exc:
         raise HTTPException(403, "player host not allowed") from exc
     except httpx.HTTPError as exc:
-        raise HTTPException(502, f"player proxy upstream failed: {exc}") from exc
+        _log_upstream_failure(urlparse(url).netloc, f"{type(exc).__name__}: {_without_query(str(exc))}")
+        raise HTTPException(502, "player_upstream_failed") from exc
 
     final_url = str(upstream.url)
     if is_disabled_player_url(final_url):
@@ -2364,6 +1127,8 @@ def kodik_skin_css():
 
 @router.get("/frame")
 async def frame(request: Request, url: str = Query(..., min_length=8)):
+    if site_settings.player_off(url):
+        raise HTTPException(403, "player disabled")
     vk_ref = vk_video_ref(url)
     if vk_ref:
         return await _vk_frame(request, vk_ref)

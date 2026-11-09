@@ -29,16 +29,16 @@ env.load()  # до остальных импортов: настройки в co
 # free.
 from core.admin import auth as admin_auth, router as admin_router, summary as admin_summary
 from core.api.sections import account, activity, auth, catalog, friends, health, lists, messages, profile, social_login
-from core.api.sections import random as random_api, realtime as realtime_ws, reports, sources as source_api
-from core.classes import http, http_cache
+from core.api.sections import comments, random as random_api, realtime as realtime_ws, reports, sources as source_api
+from core.classes import http, http_cache, image_proxy
 from core.classes.adblock import engine as adblock
 from core.classes.jikan import catalog as jikan_catalog
 from core.classes.vpn import bridge as vpn_bridge
 from core.config import config
 from core.functions import (
-    lists_sweep, presence_batch, realtime, realtime_social, site_settings, sources,
+    as_events_sender, lists_sweep, presence_batch, realtime, realtime_social, site_settings, sources, title_completion,
 )
-from core.modules import profile_pages, seo, title_pages
+from core.modules import profile_pages, seo, title_cache, title_pages
 from core.modules.player import routes as player_proxy
 
 
@@ -96,7 +96,7 @@ async def _player_proxy_null_origin_cors(request: Request, call_next):
 @app.on_event("startup")
 async def _startup() -> None:
     """Запуск: мост VPN и его сторож, решения панели, каталог, реклама, плеер, пакет присутствия,
-    realtime, правило 30 дней."""
+    realtime и отправка событий просмотра по его связи с соцсетью, правило 30 дней."""
     # Start xray here, not at import time — tests and tooling can now import
     # the server module without spawning processes.
     if vpn_bridge.activate():
@@ -111,6 +111,13 @@ async def _startup() -> None:
     await player_proxy.startup()
     await presence_batch.startup()
     await realtime.startup()
+    await as_events_sender.startup(realtime.hub.social)
+    # Досмотр тайтла, которого нет в кеше страниц: каталог грузит title_cache, досмотр засчитает проверка после
+    # записи страницы (core/functions/title_completion.py), а списки, которые она поменяла, уйдут людям кадром
+    # «lists», как у правила 30 дней. Подключается здесь, до первого запроса
+    title_cache.bind_loop(asyncio.get_running_loop())
+    title_completion.unknown_title = title_cache.refresh_soon
+    title_completion.lists_moved = lists_sweep.announce
     await lists_sweep.startup()
 
 
@@ -118,11 +125,13 @@ async def _startup() -> None:
 async def _shutdown() -> None:
     """Остановка в обратном порядке; клиенты источников через мост VPN закрывает sources.shutdown()."""
     await lists_sweep.shutdown()
+    await as_events_sender.shutdown()
     await realtime.shutdown()
     await presence_batch.shutdown()
     await player_proxy.shutdown()
     await adblock.shutdown()
     await jikan_catalog.shutdown()
+    await image_proxy.shutdown()
     await http_cache.shutdown()
     await http.shutdown()
     await sources.shutdown()
@@ -157,6 +166,7 @@ app.include_router(social_login.router)
 app.include_router(account.router)
 app.include_router(friends.router)
 app.include_router(messages.router)
+app.include_router(comments.router)
 app.include_router(realtime_ws.router)
 app.include_router(lists.router)
 app.include_router(activity.router)

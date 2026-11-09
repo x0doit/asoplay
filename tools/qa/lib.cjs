@@ -29,7 +29,8 @@ function accountMocks(state) {
   const lists = TITLES.map(([mal_id, title, poster_url], i) => ({ mal_id, title, poster_url, status: STATUSES[i % 5],
     status_source: i === 1 ? "auto" : "user", is_favorite: i % 2 === 0, updated_at: iso(now - i * 3600e3) }));
   state.lists = lists;
-  state.history = TITLES.slice(0, 4).map(([mal_id, title, poster_url, total], i) => ({ mal_id, title, poster_url,
+  // Свои история и позиции в сериях (state.progress: mal → строки /account/progress) — у сценария «Продолжить с»
+  state.history ??= TITLES.slice(0, 4).map(([mal_id, title, poster_url, total], i) => ({ mal_id, title, poster_url,
     last_episode: i + 2, episode_seconds: 500 + i * 100, episode_duration: 1420, episodes_total: total, updated_at: iso(now - i * 5400e3) }));
   const days = (n) => Array.from({ length: n }, (_, k) => {
     const d = new Date(now - (n - 1 - k) * 86400e3);
@@ -68,6 +69,7 @@ function accountMocks(state) {
         return json(route, s ? state.lists.filter(l => l.status === s) : state.lists);
       }
       if (p === "/account/history") return json(route, state.history);
+      if (p.startsWith("/account/progress/")) return json(route, state.progress?.[Number(p.split("/")[3])] || []);
       if (p === "/account/settings") return json(route, { autonext: true, auto_add_lists: true });
       if (p === "/account/privacy") return json(route, { hide_lists: false, hide_activity: false });
       return json(route, {});
@@ -98,8 +100,6 @@ const STATUS = { ok: true, sources: [], vpn: false };  // запуск допи�
 // QA-FLAKY-1 (после шага 5 рефакторинга): плеер под нагрузкой ждёт по времени, а не признака готовности (CODEX)
 const KNOWN_FLAKY = new Map([
   ["dub choice changes the label and closes the menu", "QA-FLAKY-1"],
-  ["landscape 844: player head and video fit between the bars", "QA-FLAKY-1"],
-  ["landscape 740: player head and video fit between the bars", "QA-FLAKY-1"],
 ]);
 
 async function check(page, name, cond, detail = "") {

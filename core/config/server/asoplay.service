@@ -18,6 +18,10 @@ Environment=PYTHONUNBUFFERED=1
 Restart=always
 RestartSec=3
 NoNewPrivileges=true
+# Предел памяти: на этом сервере ещё MariaDB и соцсеть. Обычный пик — около 0,6 ГБ (двое суток работы); выше
+# MemoryHigh ядро поджимает кеш, при MemoryMax убивают и перезапускают только AsoPlay (02.11 сбой дошёл до 13 ГБ)
+MemoryHigh=1536M
+MemoryMax=2G
 
 [Install]
 WantedBy=multi-user.target

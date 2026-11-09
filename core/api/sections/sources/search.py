@@ -13,7 +13,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Query
 
-from core.functions import native_sources, site_settings, source_filters, sources
+from core.functions import native_sources, site_settings, source_episodes, source_filters, sources
 
 log = logging.getLogger("asoplay")  # тот же журнал, что у core.py до деления
 
@@ -34,6 +34,8 @@ async def search(
         raise HTTPException(451, "unavailable")
     if not site_settings.source_enabled(source):
         return []
+    # Тайтл запроса: найденное запомнит его, и ошибки разбора источнику засчитаются по тайтлу
+    sources.request_title.set(f"mal:{mal_id}" if mal_id else f"q:{q.strip().casefold()}")
     if source in sources.NATIVE_SOURCES:
         try:
             results = await sources.source_call(
@@ -118,6 +120,7 @@ async def search(
 @router.get("/src/episodes")
 async def episodes(key: str, source: str = "anilibria"):
     """Серии тайтла по ключу результата поиска: номер, название и ключ серии."""
+    sources.request_title.set(sources.title_of(key))
     if source in sources.NATIVE_SOURCES:
         return await sources.source_call(
             source,
@@ -133,6 +136,8 @@ async def episodes(key: str, source: str = "anilibria"):
         found = sources.on_route(source, search_result, route)
         get_anime = getattr(found, "a_get_anime", None) or found.get_anime
         anime = await sources.call(get_anime)
+        if source == "yummy_anime":  # библиотека роняет весь список на одной дробной серии
+            return await source_episodes.yummy_anime(anime)
         get_eps = getattr(anime, "a_get_episodes", None) or anime.get_episodes
         return await sources.call(get_eps)
 
@@ -142,7 +147,7 @@ async def episodes(key: str, source: str = "anilibria"):
         raise
     except Exception as exc:
         log.exception("episodes failed")
-        raise HTTPException(502, f"episodes failed: {exc}")
+        raise HTTPException(502, "episodes_failed") from exc  # подробность — в журнале
 
     out = []
     for idx, e in enumerate(episodes_list):

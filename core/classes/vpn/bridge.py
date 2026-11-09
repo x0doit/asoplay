@@ -8,6 +8,10 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 (core/classes/http.py, route_order и _source_call в core/core.py). Конфиг и процесс xray — в core/classes/vpn/xray.py;
 его функции и константы берутся через модуль (xray.launch и т. д.), чтобы у каждой была одна точка подмены. При
 импорте ничего не запускается: activate() зовёт обработчик старта FastAPI.
+
+destinations_pinned() — xray запущен этим процессом с рабочим конфигом, где назначение не подменяется именем из
+TLS (routeOnly, core/classes/vpn/xray.py prepare_runtime). Чужой уже работающий xray (порт занят — «reusing») может
+быть со старым конфигом: клиент картинок через мост (core/classes/http_bridge.py) тогда не ходит.
 """
 from __future__ import annotations
 
@@ -27,6 +31,7 @@ _BRIDGE_PROXY_VALUES = {xray.VPN_PROXY_URL, xray.VPN_SOCKS_URL}
 
 _xray_proc: subprocess.Popen | None = None
 _bridge_desired = False
+_pinned = False  # xray запущен здесь с рабочим конфигом, где назначение не подменяется (routeOnly)
 _restart_lock = threading.Lock()
 _watchdog_stop = threading.Event()
 _watchdog_thread: threading.Thread | None = None
@@ -68,7 +73,7 @@ def _restart_bridge_async() -> None:
 def activate() -> bool:
     """Spin up xray. Returns True when its HTTP proxy is up; callers send a
     request through it only after the direct path to that host failed."""
-    global _xray_proc, _bridge_desired
+    global _xray_proc, _bridge_desired, _pinned
     clear_env()
     if not is_enabled():
         _bridge_desired = False
@@ -76,7 +81,8 @@ def activate() -> bool:
         return False
     if xray.port_alive(xray.VPN_HOST, xray.VPN_HTTP_PORT):
         _bridge_desired = True
-        log.info("VPN already listening on %s (reusing)", VPN_PROXY_URL)
+        _pinned = False  # чужой процесс: его конфиг неизвестен
+        log.info("VPN already listening on %s (reusing; images will not go through it)", VPN_PROXY_URL)
         return True
     config_path = xray.prepare_runtime()
     if config_path is None:
@@ -84,6 +90,7 @@ def activate() -> bool:
         return False
     _bridge_desired = True
     _xray_proc = xray.launch(config_path)
+    _pinned = _xray_proc is not None
     if _xray_proc is None:
         return False
     atexit.register(shutdown)
@@ -160,8 +167,9 @@ def stop_watchdog() -> None:
 
 def shutdown() -> None:
     """Остановить сторожа и xray, убрать переменные прокси моста."""
-    global _xray_proc, _bridge_desired
+    global _xray_proc, _bridge_desired, _pinned
     _bridge_desired = False
+    _pinned = False
     stop_watchdog()
     if _xray_proc and _xray_proc.poll() is None:
         try:
@@ -179,6 +187,11 @@ def shutdown() -> None:
 def is_active() -> bool:
     """True while the bridge is wanted and its HTTP proxy port answers."""
     return is_enabled() and _bridge_desired and xray.port_alive(xray.VPN_HOST, xray.VPN_HTTP_PORT, timeout=0.25)
+
+
+def destinations_pinned() -> bool:
+    """Мост работает и запущен этим процессом с конфигом без подмены назначения (routeOnly)."""
+    return _pinned and is_active()
 
 
 def proxy_url() -> str | None:

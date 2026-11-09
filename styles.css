@@ -942,6 +942,16 @@ a.ed-tabs__item {
   text-overflow: ellipsis;
 }
 
+/* «Продолжить с m:ss» у «Эпизод N» (js/resume.js); на телефоне и сбоку — только время */
+.sp-resume {
+  flex: 0 0 auto;
+  margin-left: var(--space-2);
+}
+
+.sp-resume__short {
+  display: none;
+}
+
 .sp-dub-trigger {
   flex-shrink: 0;
   max-width: 50%;
@@ -3137,6 +3147,14 @@ html.is-compact-frame .hero-bg {
     font-size: 15px;
   }
 
+  .sp-resume__full {
+    display: none;
+  }
+
+  .sp-resume__short {
+    display: inline;
+  }
+
   .sp-dub-trigger {
     flex: 1 1 100%;
     max-width: none;
@@ -3366,6 +3384,14 @@ html.is-compact-frame .hero-bg {
     flex-basis: auto;
   }
 
+  .sp-resume__full {
+    display: none;
+  }
+
+  .sp-resume__short {
+    display: inline;
+  }
+
   .sp-dub-trigger {
     flex: 0 1 auto;
     max-width: min(280px, 42vw);
@@ -3440,7 +3466,7 @@ html.is-compact-frame .hero-bg {
   .char-img:not(:disabled):hover img { opacity: .92; }
 }
 
-/* ── Раздел «AsoPlay» панели Anime Social: плашка, «Не работает», 18+ ───── */
+/* ── Раздел «AsoPlay» панели Anime Social: плашка, «Не работает» ──────── */
 
 /* Плашка-объявление над страницей: текст из панели, крестик прячет именно это объявление */
 .site-notice {
@@ -3515,19 +3541,6 @@ html.is-compact-frame .hero-bg {
 
 .report-box #avReportNote:empty {
   display: none;
-}
-
-/* 18+: в шапке тайтла — метка, перед плеером — вопрос */
-.adult-gate__mark {
-  font: 700 26px/1 var(--font-sans);
-  color: var(--slate-50);
-}
-
-.adult-gate .unavail-links {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-2);
 }
 
 @media (max-width: 767px) {

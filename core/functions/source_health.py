@@ -5,15 +5,20 @@
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
 Состояние нарочно живёт только в процессе: оно защищает работающий сайт от источника, который раз за разом не
-отвечает или падает, не трогая базу и не публикуя постоянного состояния. После FAIL_THRESHOLD сбоев подряд источник
-остывает COOLDOWN_SECONDS секунд. Для «Обзора» в панели Anime Social — доля ошибок и задержка за последние сутки,
-по часам.
+отвечает или падает, не трогая базу и не публикуя постоянного состояния. Источник остывает COOLDOWN_SECONDS секунд
+после FAIL_THRESHOLD сбоев связи подряд (таймауты, ошибки httpx, ответы 5xx и 429) или после ошибок разбора у
+FAIL_THRESHOLD разных тайтлов подряд: один кривой тайтл источник не остужает, сломанный разбор у всех — остужает.
+Быстрый отказ (ответ 4xx) не остужает. Успех сбрасывает обе серии. Все сбои идут в счётчики; для «Обзора» в панели
+Anime Social — доля ошибок и задержка за последние сутки, по часам.
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 import time
 from typing import Iterable
+
+import httpx
 
 
 FAIL_THRESHOLD = 3
@@ -39,6 +44,8 @@ class SourceState:
     latency_ms: int | None = None
     # номер часа → [успехи, ошибки, сумма задержек успехов в мс]
     hours: dict[int, list[int]] = field(default_factory=dict)
+    # тайтлы с ошибкой разбора с последнего успеха — не больше FAIL_THRESHOLD
+    parse_titles: set[object] = field(default_factory=set)
 
     def _hour(self) -> list[int]:
         """Итоги текущего часа [успехи, ошибки, сумма задержек]; часы старше суток выбрасываются."""
@@ -49,6 +56,30 @@ class SourceState:
 
 
 _STATES: dict[str, SourceState] = {}
+
+
+class SourceDown(Exception):
+    """Сбой связи или источника, пришедший не исключением httpx: клиент API библиотеки прячет его в ответ
+    (core/functions/source_episodes.py)."""
+
+
+class SourceRefused(Exception):
+    """Отказ 4xx, пришедший не исключением httpx (клиент API библиотеки)."""
+
+
+def kind(error: object) -> str:
+    """Вид сбоя: "outage" — связь или сам источник: таймаут (он приходит и текстом), ошибка httpx, ответ 5xx или 429,
+    SourceDown; "refusal" — быстрый отказ: ответ 4xx, SourceRefused; "parse" — остальное, ошибка разбора ответа."""
+    if not isinstance(error, BaseException):
+        return "outage"
+    if isinstance(error, httpx.HTTPStatusError):
+        code = error.response.status_code
+        return "outage" if code >= 500 or code == 429 else "refusal"
+    if isinstance(error, SourceRefused):
+        return "refusal"
+    if isinstance(error, (httpx.HTTPError, asyncio.TimeoutError, TimeoutError, OSError, SourceDown)):
+        return "outage"
+    return "parse"
 
 
 def _state(source: str) -> SourceState:
@@ -71,10 +102,11 @@ def cooldown_remaining(source: str) -> int:
 
 
 def mark_success(source: str, latency_ms: int | None = None) -> None:
-    """Засчитать успех: серия сбоев и остывание сбрасываются, задержка — в почасовые итоги."""
+    """Засчитать успех: обе серии сбоев и остывание сбрасываются, задержка — в почасовые итоги."""
     state = _state(source)
     state.successes += 1
     state.consecutive_failures = 0
+    state.parse_titles.clear()
     state.cooldown_until = 0.0
     state.last_ok_at = time.time()
     state.latency_ms = latency_ms
@@ -83,16 +115,29 @@ def mark_success(source: str, latency_ms: int | None = None) -> None:
     hour[2] += max(0, latency_ms or 0)
 
 
-def mark_failure(source: str, error: object) -> None:
-    """Засчитать сбой с текстом ошибки; FAIL_THRESHOLD сбоев подряд — остывание на COOLDOWN_SECONDS."""
+def mark_failure(source: str, error: object, title: str | None = None) -> None:
+    """Засчитать сбой с текстом ошибки; по его виду (kind) — в серию:
+    - сбой связи или источника — FAIL_THRESHOLD подряд дают остывание на COOLDOWN_SECONDS;
+    - ошибка разбора — в свою серию, где тайтл (title) считается один раз: остывание — после FAIL_THRESHOLD разных
+      тайтлов. Без тайтла каждая ошибка — как новый тайтл;
+    - быстрый отказ — ни в какую серию."""
     state = _state(source)
     state.failures += 1
-    state.consecutive_failures += 1
     state._hour()[1] += 1
     state.last_error_at = time.time()
     msg = str(error or "").replace("\n", " ").strip()
     state.last_error = msg[:MAX_ERROR_LENGTH]
-    if state.consecutive_failures >= FAIL_THRESHOLD:
+    what = kind(error)
+    if what == "refusal":
+        return
+    if what == "parse":
+        if len(state.parse_titles) < FAIL_THRESHOLD:
+            state.parse_titles.add(object() if title is None else title)
+        streak = len(state.parse_titles)
+    else:
+        state.consecutive_failures += 1
+        streak = state.consecutive_failures
+    if streak >= FAIL_THRESHOLD:
         state.cooldown_until = time.time() + COOLDOWN_SECONDS
 
 

@@ -49,6 +49,18 @@ def client_ip(request: Request) -> str:
     return peer
 
 
+def visitor_key(ip: str) -> str:
+    """Ключ посетителя для пределов: IPv4 — сам адрес, IPv6 — его сеть /64 (у одного подключения она обычно
+    целиком своя, и адреса из неё иначе давали бы бесконечный предел)."""
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return ip
+    if address.version == 6 and address.ipv4_mapped is None:
+        return str(ipaddress.ip_network(f"{address}/64", strict=False))
+    return str(getattr(address, "ipv4_mapped", None) or address)
+
+
 class SlidingWindow:
     """Не больше `limit` событий за `window` секунд на один ключ."""
 

@@ -10,8 +10,9 @@
  *   av:presence        {user, on_asoplay, watching}       — друг зашёл на AsoPlay, вышел, начал или перестал смотреть
  *   av:social-presence {user_id, online_where, last_seen} — друг зашёл в Anime Social или вышел оттуда
  *   av:friendship      {user_id, status}                  — дружба изменилась (заявка, принята, удалена)
- *   av:lists           {items}                            — правило 30 дней перенесло тайтлы в «Брошено»
+ *   av:lists           {items}                            — сервер перенёс тайтлы: правило 30 дней, досмотр по каталогу
  *   av:session-ended   {}                                 — вход закрыт: выход в другой вкладке, блокировка
+ *   av:comment         {object, comment_id, thread, moment, action, likes_count} — событие ветки, на которую подписан чат
  *   av:link            {up, failures}                     — соединение есть / его нет столько попыток подряд
  * Обрыв соединение переживает само: переподключается с растущей паузой, сразу — при возврате сети и
  * когда вкладка снова на экране. Как на сайте соцсети, вкладка без действий человека 5 минут перестаёт
@@ -34,6 +35,7 @@ let started = false;
 let sentVisible = null;
 let sentWatching = "null";
 let lastActivity = Date.now();
+let commentObjects = [];
 
 function _url() {
   const u = new URL("/ws", backend || location.origin);
@@ -100,6 +102,7 @@ function _connect() {
     _emit("av:link", { up: true, failures: 0 });
     _sendVisible();
     refreshWatching();
+    if (commentObjects.length) _send({ type: "comments.watch", objects: commentObjects });
     clearInterval(pingTimer);
     pingTimer = setInterval(_ping, PING_EVERY);
   };
@@ -112,6 +115,7 @@ function _connect() {
     else if (frame.type === "social_presence") _emit("av:social-presence", frame);
     else if (frame.type === "friendship") _emit("av:friendship", frame);
     else if (frame.type === "lists") _emit("av:lists", frame);
+    else if (frame.type === "comment") _emit("av:comment", frame);
   };
   sock.onclose = (e) => {
     if (ws !== sock) return;
@@ -131,6 +135,13 @@ function _scheduleRetry() {
   // 1, 2, 4… до 30 секунд; если соединение не поднимается совсем (его режет прокси) — раз в 5 минут
   const delay = failures > 10 ? 300_000 : Math.min(30_000, 1000 * 2 ** (failures - 1));
   _schedule(delay);
+}
+
+// Ветки комментариев на экране (чат серии): сервер шлёт кадры «comment» только по ним; после переподключения —
+// подписка заново, пропущенное за обрыв чат перечитывает сам (av:link)
+export function watchComments(objects) {
+  commentObjects = Array.isArray(objects) ? objects.slice(0, 2) : [];
+  _send({ type: "comments.watch", objects: commentObjects });
 }
 
 export function start({ backendUrl = "", watching } = {}) {

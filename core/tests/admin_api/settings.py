@@ -1,6 +1,6 @@
 """
-Настройки сайта из панели: источники, способы входа, объявление; сохраняется только изменённое,
-вкладки узнают сразу.
+Настройки сайта из панели: источники, способы входа, объявление, хосты картинок через прокси, выключенные виды
+плееров; сохраняется только изменённое, вкладки узнают сразу.
 
 Автор: Чепела Даниил Максимович.
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
@@ -8,11 +8,17 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 Часть core/tests/admin_api: вход (core/tests/test_admin_api.py) собирает части по порядку.
 """
 import json
+import tempfile
 import time
+from pathlib import Path
 from unittest.mock import patch
 
+from core.admin import settings as admin_settings
+from core.admin.audit import DETAILS_MAX
 from core.classes import as_sessions
-from core.functions import site_settings
+from core.classes.vpn import bridge as vpn_bridge
+from core.config import config
+from core.functions import public_suffix, site_settings
 
 from core.tests.admin_api.lib import PanelCase
 
@@ -21,6 +27,14 @@ class SettingsTests(PanelCase):
     def setUp(self):
         super().setUp()
         self.announced = []
+        # Общие суффиксы — маленький список вместо файла publicsuffix.org
+        suffixes = Path(tempfile.mkdtemp(prefix="asoplay-psl-")) / "public_suffix_list.dat"
+        suffixes.write_text("\n".join(("com", "org", "uk", "co.uk", "io", "github.io")), encoding="utf-8")
+        listed = patch.object(config, "PUBLIC_SUFFIX_FILE", suffixes)
+        listed.start()
+        self.addCleanup(listed.stop)
+        public_suffix._rules.cache_clear()
+        self.addCleanup(public_suffix._rules.cache_clear)
         p = patch.object(site_settings, "listeners", [self.announced.append])
         p.start()
         self.addCleanup(p.stop)
@@ -35,6 +49,8 @@ class SettingsTests(PanelCase):
                 notice=self.stored.get("notice", current.notice),
                 features=self.stored.get("features", current.features),
                 sources=tuple(self.stored.get("sources", ())),
+                proxy_hosts=tuple(self.stored.get("proxy_hosts", ())),
+                players_off=tuple(self.stored.get("players_off", current.players_off)),
             )
         site_settings.state.load = load
         original = self.cursor.execute
@@ -46,12 +62,66 @@ class SettingsTests(PanelCase):
         self.cursor.execute = execute
 
     def test_all_sources_are_shown_in_order_with_what_can_be_switched_on(self):
-        with patch.object(as_sessions, "enabled", return_value=False):
+        with patch.object(as_sessions, "enabled", return_value=False), patch.object(vpn_bridge, "is_active", return_value=True):
             data = self.panel.call("GET", "/api/admin/settings").json()["data"]
         self.assertEqual([s["id"] for s in data["sources"]][:3], ["yummy_anime", "oldyummy", "animego"])
         self.assertEqual(data["sources"][0], {"id": "yummy_anime", "name": "YummyAnime", "enabled": True, "order": 1})
-        self.assertEqual(data["available"], {"as_login": False, "password_login": True, "comments": False})
+        self.assertEqual(data["available"], {"as_login": False, "password_login": True, "comments": False, "vpn": True,
+                                             "players": ["alloha", "kodik", "cvh", "sibnet", "vk"]})
+        self.assertEqual(data["players_off"], ["alloha"])  # пока панель не сохранила: Alloha не пускает серверы
         self.assertEqual(data["notice"], {"text": "", "until": None})
+        self.assertEqual(data["proxy_hosts"], [])
+
+    def test_the_proxy_list_is_stored_in_its_compared_form_and_audited_as_a_diff(self):
+        resp = self.panel.call("PUT", "/api/admin/settings", {"proxy_hosts": [
+            {"host": " Пример.РФ. ", "via": "vpn"}, {"host": "img.example.com"}, {"host": "xn--e1afmkfd.xn--p1ai"}]})
+        self.assertEqual(resp.status_code, 200, resp.text)
+        listed = [{"host": "xn--e1afmkfd.xn--p1ai", "via": "vpn"}, {"host": "img.example.com", "via": "site"}]
+        self.assertEqual(resp.json()["data"]["proxy_hosts"], listed)                  # повтор схлопнут, первый остался
+        self.assertEqual(site_settings.public_state()["proxy_hosts"], ["xn--e1afmkfd.xn--p1ai", "img.example.com"])
+        self.assertEqual(self.announced, [{"proxy_hosts"}])
+        self.panel.call("PUT", "/api/admin/settings", {"proxy_hosts": [
+            {"host": "img.example.com", "via": "vpn"}, {"host": "new.example.org"}]})
+        details = [json.loads(params[3]) for _, params in self.cursor.sql("INSERT INTO aviev_admin_audit")]
+        self.assertEqual(details, [
+            {"added": listed, "removed": [], "changed": [], "omitted": 0},
+            {"added": [{"host": "new.example.org", "via": "site"}], "removed": [listed[0]],
+             "changed": [{"host": "img.example.com", "via": "vpn", "was": "site"}], "omitted": 0},
+        ])
+        self.assertEqual(site_settings.proxy_via("cdn.img.example.com"), "vpn")
+
+    def test_players_are_switched_off_by_kind_and_audited_as_players(self):
+        resp = self.panel.call("PUT", "/api/admin/settings", {"players_off": ["alloha", "nope"]})
+        self.assertEqual((resp.status_code, resp.json()["error"]["code"]), (422, "unknown_player"))
+        self.assertEqual(self.panel.call("PUT", "/api/admin/settings", {"players_off": []}).status_code, 200)
+        self.assertFalse(site_settings.player_off("https://alloha.yani.tv/?token_movie=1"))  # включён обратно
+        self.panel.call("PUT", "/api/admin/settings", {"players_off": ["vk", "alloha", "vk"]})
+        self.assertEqual(self.stored["players_off"], ["vk", "alloha"])
+        self.assertTrue(site_settings.player_off("https://x.vkvideo.cloud/0/a.m3u8"))  # и потоки вида
+        audit = [(params[1], json.loads(params[3])) for _, params in self.cursor.sql("INSERT INTO aviev_admin_audit")]
+        self.assertEqual(audit, [("settings.players", {"added": [], "removed": ["alloha"]}),
+                                 ("settings.players", {"added": ["vk", "alloha"], "removed": []})])
+        self.assertEqual(self.announced, [{"players_off"}, {"players_off"}])
+
+    def test_a_wrong_host_is_refused_with_its_own_text(self):
+        for bad in ("https://img.example.com", "img.example.com/x", "img.example.com:8080", "127.0.0.1", "[::1]",
+                    "0x7f.1", "2130706433", "a.0x7f", "localhost", "a..example.com", "-a.example.com", "user@a.com"):
+            resp = self.panel.call("PUT", "/api/admin/settings",
+                                   {"proxy_hosts": [{"host": "ok.example.com"}, {"host": bad}]})
+            self.assertEqual((resp.status_code, resp.json()["error"]),
+                             (422, {"code": "invalid_host", "message": f"Неверный хост: {bad}"}), bad)
+        resp = self.panel.call("PUT", "/api/admin/settings", {"proxy_hosts": [{"host": "GitHub.io"}]})
+        self.assertEqual((resp.status_code, resp.json()["error"]["message"]),
+                         (422, "Неверный хост: GitHub.io — это общий суффикс: под ним сайты разных владельцев, "
+                               "укажите сам сайт"))
+        self.assertEqual(self.stored, {})
+
+    def test_a_long_diff_still_fits_the_audit_record(self):
+        hosts = [{"host": f"img{n:03}.a-rather-long-image-host-name.example", "via": "site"} for n in range(100)]
+        details = admin_settings._proxy_hosts_diff([], hosts)
+        self.assertLessEqual(len(json.dumps(details, ensure_ascii=False)), DETAILS_MAX)
+        self.assertEqual((len(details["added"]) + details["omitted"], details["removed"], details["changed"]), (100, [], []))
+        self.assertGreater(details["omitted"], 0)
 
     def test_both_ways_to_sign_in_cannot_be_switched_off(self):
         self.panel.call("PUT", "/api/admin/settings", {"features": {"as_login": False}})

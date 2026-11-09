@@ -21,7 +21,7 @@ HANDLE = "asoplay-guard"  # alias временного аккаунта по у�
 _NAME = ("Проверка", "AsoPlay")
 USER_TABLES = ("aviev_user_lists", "aviev_watch_history", "aviev_episode_progress", "aviev_activity",
                "aviev_title_ratings", "aviev_dub_prefs", "aviev_account_settings", "aviev_privacy", "aviev_import_marks",
-               "aviev_sessions")
+               "aviev_as_events", "aviev_as_sessions", "aviev_sessions")
 
 
 class TempAccount:

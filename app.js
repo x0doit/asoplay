@@ -9,10 +9,14 @@
  * any attempt to do so surfaces a guest-gate.
  */
 
-import * as account from "./js/account.js?v=20261030-online1";
+import * as account from "./js/account.js?v=20261105-adult1";
 import { setupNavigation, setActiveSection, SheetDrag } from "./js/navigation.js?v=20261030-live1";
-import * as realtime from "./js/realtime.js?v=20261030-live1";
-import * as site from "./js/site.js?v=20261030-admin1";
+import * as images from "./js/images.js?v=20261031-img1";
+import * as realtime from "./js/realtime.js?v=20261102-chat1";
+import { EpisodeChat } from "./js/episode-chat.js?v=20261105-replay1";
+import { bindPlayerKeys } from "./js/player-keys.js?v=20261105-keys1";
+import { ResumeButton, resumePoint } from "./js/resume.js?v=20261105-resume1";
+import * as site from "./js/site.js?v=20261105-adult1";
 import { getTrailerId, bindTrailer } from "./js/trailer.js?v=20261029-eddas2";
 
 // Mark iframe embeds early enough for compact app-like layout rules.
@@ -48,7 +52,8 @@ const ANILIST_DIRECT = "https://graphql.anilist.co";
 const SHIKI_ORIGIN = "https://shikimori.io";
 const JIKAN = () => `${BACKEND}/proxy/jikan`;
 const ANILIST = () => state.useProxy ? `${BACKEND}/proxy/anilist` : ANILIST_DIRECT;
-const imgUrl = (u) => (u && state.proxyImages ? `${BACKEND}/proxy/img?url=${encodeURIComponent(u)}` : (u || ""));
+// Картинки чужих хостов: напрямую или через /proxy/img — по правилам js/images.js
+const imgUrl = (u) => images.url(u);
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -167,24 +172,6 @@ function isGenericEpisodeTitle(title) {
       || /^(\u044d\u043f\u0438\u0437\u043e\u0434|\u0441\u0435\u0440\u0438\u044f)\s*\.?\s*\d*\s*$/i.test(t);
 }
 
-async function translateToRu(text) {
-  if (!text) return "";
-  const max = 4500;
-  const raw = text.length > max ? text.slice(0, max) : text;
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 4000);
-  try {
-    const url = state.useProxy
-      ? `${BACKEND}/proxy/translate?q=${encodeURIComponent(raw)}&sl=auto&tl=ru`
-      : `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ru&dt=t&q=${encodeURIComponent(raw)}`;
-    const r = await fetch(url, { signal: ctrl.signal });
-    if (!r.ok) return "";
-    const data = await r.json();
-    return (data?.[0] || []).map(x => x?.[0] || "").join("").trim();
-  } catch { return ""; }
-  finally { clearTimeout(t); }
-}
-
 function parseEpDurationMin(s) {
   if (!s) return null;
   const str = String(s);
@@ -230,7 +217,6 @@ const state = {
   autoNext: true,     // guests default ON; authed loaded from /account/settings
   backendAvailable: false,
   useProxy: false,
-  proxyImages: false,
   backendSources: [],
   user: null,         // set by account.setup/refresh
   current: null,      // currently-mounted Player
@@ -438,13 +424,6 @@ const api = {
   backendEpisodes: (k, s) => fetchJson(`${BACKEND}/src/episodes?key=${encodeURIComponent(k)}&source=${s}`, { timeout: 12000 }),
   backendSources: (k, s) => fetchJson(`${BACKEND}/src/dubs?key=${encodeURIComponent(k)}&source=${s}`, { timeout: 15000 }),
   backendVideos: (k, s) => fetchJson(`${BACKEND}/src/videos?key=${encodeURIComponent(k)}&source=${s}`, { timeout: 20000 }),
-
-  recordTitlePage: (payload) => fetch(`${BACKEND}/title-pages/record`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload),
-  }).catch(() => null),
 };
 
 // ---------- cards + grid ----------
@@ -508,7 +487,7 @@ async function enrichWithShiki(container, list, limit) {
     // Доливаем обложку, если её не было или она битая (пустой src / крестик
     // на сломанном домене). Shikimori image шлёт поле вида
     //   { original: "/system/animes/original/XXXX.jpg", preview: "...", "x96": "..." }
-    // Превращаем в абсолютный URL + проксируем через /proxy/img если VPN.
+    // Превращаем в абсолютный URL; через /proxy/img — по правилам js/images.js.
     const img = $(".av-card-img img", c);
     if (img) {
       const shikiImg = entry.image;
@@ -765,7 +744,6 @@ async function renderHeroCarousel(container) {
         const cleaned = cleanBBCode(shiki?.description || "");
         if (cleaned && hasCyrillic(cleaned)) ru = cleaned;
       } catch {}
-      if (!ru) ru = await translateToRu(s.description);
       if (!ru || !container.isConnected) return;
       const slideEl = rendered.get(s.mal_id)?.el;
       const p = slideEl?.querySelector(".hero-desc");
@@ -1298,18 +1276,11 @@ async function viewAnime(malId) {
     applyShiki(malId, a, shiki);
     const newTitles = [shiki.russian, ...(shiki.synonyms || [])].filter(Boolean);
     if (newTitles.length) player.addTitles(newTitles);
-    _recordTitlePage(malId, a, shiki);
   });
 
-  anilistP
-    .then(al => { if (al && !player.destroyed) applyAnilist(al); })
-    .finally(() => setTimeout(() => { if (!player.destroyed) ensureRussianDescription(); }, 400));
+  anilistP.then(al => { if (al && !player.destroyed) applyAnilist(al); });
   charsP.then(chars => { if (!player.destroyed) renderCharacters(chars); });
   recsP.then(recs => { if (!player.destroyed) renderRecommendations(recs); });
-
-  // If Shikimori is slow, still record the English-only snapshot so the
-  // canonical page gets cached quickly for crawlers.
-  setTimeout(() => _recordTitlePage(malId, a, null), 2500);
 }
 
 function _consumeSSRPreload(expectedMalId) {
@@ -1322,28 +1293,6 @@ function _consumeSSRPreload(expectedMalId) {
   } catch { /* ignore */ }
   return null;
 }
-
-function _recordTitlePage(malId, a, shiki) {
-  if (_recordedTitles.has(malId)) return;
-  _recordedTitles.add(malId);
-  api.recordTitlePage({
-    mal_id: malId,
-    title_ru: shiki?.russian || "",
-    title_en: a.title_english || a.title || "",
-    title_jp: a.title_japanese || "",
-    synopsis: (a.synopsis || "").replace(/\[.*?\]/g, "").trim().slice(0, 5000),
-    poster_url: a.images?.jpg?.large_image_url || a.images?.jpg?.image_url || "",
-    banner_url: a.images?.jpg?.large_image_url || "",
-    year: a.year || null,
-    kind: a.type || "",
-    airing_status: a.status || "",
-    episodes_total: a.episodes || null,
-    score: a.score || null,
-    genres: (a.genres || []).map(g => g.name).filter(Boolean),
-    studios: (a.studios || []).map(s => s.name).filter(Boolean).join(", "),
-  });
-}
-const _recordedTitles = new Set();
 
 function renderAnimeShell({ a, banner, poster, titleMain, titleOrig, synopsis }) {
   const cleanup = [];
@@ -1773,20 +1722,6 @@ function applyAnilist(al) {
   }
 }
 
-async function ensureRussianDescription() {
-  const syn = $("#avSynopsis");
-  if (!syn) return;
-  const cur = syn.textContent.trim();
-  if (!cur || cur === "Описание не найдено" || hasCyrillic(cur)) return;
-  const ru = await translateToRu(cur);
-  if (!ru) return;
-  const synNow = $("#avSynopsis");
-  if (!synNow || hasCyrillic(synNow.textContent)) return;
-  synNow.textContent = ru;
-  const hd = $("#avHeroDesc");
-  if (hd) hd.textContent = ru.slice(0, 260) + (ru.length > 260 ? "…" : "");
-}
-
 function renderCharacters(chars) {
   const box = $("#avChars"); if (!box) return;
   if (!chars?.length) {
@@ -1910,6 +1845,8 @@ class Player {
     this._frameHost = "";
     this._frameIsKodik = false;
     this._kodikVolumeSent = false;
+    this._chat = null;
+    this._seekKind = null;
     this._playerContextMenuEl = null;
     this._onPlayerContextMenu = null;
     this._onPlayerMenuOutside = null;
@@ -2028,9 +1965,6 @@ class Player {
       this.renderComingSoon(releaseAt);
       return;
     }
-    // 18+ — видео ищем только после «Мне есть 18» (запоминается в этом браузере)
-    if (site.isAdult(this.malId) && !site.adultConfirmed() && !(await this._adultGate())) return;
-    if (this.destroyed) return;
     await this.discoverWithFallback();
     if (this.destroyed) return;
     if (this._adoptAnyReadySource() || this._renderFoundSource()) return;
@@ -2071,7 +2005,9 @@ class Player {
     this._fetchEpisodeProgress().then(() => {
       if (this.destroyed) return;
       this.renderEpisodes();
-      this.playEpisode(this._resumeIndex());
+      const idx = this._resumeIndex();
+      this._offerResume(idx);
+      this.playEpisode(idx);
     });
     return true;
   }
@@ -2174,6 +2110,8 @@ class Player {
     $$("#avEpisodesList .ep-row").forEach((b, idx) => b.classList.toggle("active", idx === this.currentEp));
     const ep = this.episodes[this.currentEp];
     $("#avEpInfo").innerHTML = `<span class="sp-ep-num">${ep.num}</span><span class="sp-ep-title">${esc(ep.name)}</span>`;
+    this._resume?.episode(Number(ep.num));
+    this._chatEpisode(ep.num);
     const p = $("#avPrevEp"), n = $("#avNextEp");
     if (p) p.disabled = this.currentEp === 0;
     if (n) n.disabled = this.currentEp === this.episodes.length - 1;
@@ -2227,7 +2165,7 @@ class Player {
   }
 
   async _fetchEpisodeProgress() {
-    this._epProgress = new Map();  // num → { seconds, duration }
+    this._epProgress = new Map();  // num → { seconds (дальняя точка), duration, last (где остановился) }
     if (!state.user) return;
     try {
       const list = await fetchJson(`${BACKEND}/account/progress/${this.malId}`,
@@ -2236,6 +2174,7 @@ class Player {
         this._epProgress.set(Number(row.episode_num), {
           seconds: Number(row.seconds || 0),
           duration: Number(row.duration || 0),
+          last: Number(row.last_seconds ?? row.seconds ?? 0),
         });
       }
     } catch (_) { /* не критично — покраска просто не применится */ }
@@ -2245,6 +2184,15 @@ class Player {
   // (>=92% или финишный хвост), стартуем со следующей. Иначе — с той же,
   // чтобы пользователь мог продолжить с места паузы.
   _resumeIndex() {
+    // ?ep=N — ссылка ветки комментариев серии (уведомление об ответе): эта серия и открытый чат
+    const params = new URLSearchParams(location.search);
+    const askedEp = Number(params.get("ep") || 0);
+    if (askedEp) {
+      params.delete("ep");
+      history.replaceState(history.state, "", location.pathname + (params.size ? `?${params}` : "") + location.hash);
+      const askedIdx = this.episodes.findIndex(e => Number(e.num) === askedEp);
+      if (askedIdx >= 0) { this._openChatOnce = true; return askedIdx; }
+    }
     const tabEp = this._readTabEpisodeNum();
     if (tabEp) {
       const tabIdx = this.episodes.findIndex(e => Number(e.num) === tabEp);
@@ -2541,6 +2489,98 @@ class Player {
     return false;
   }
 
+  // Чат серии (js/episode-chat.js): значок у «Эпизод N», комментарии этой серии, полоски поверх видео
+  _chatEpisode(num) {
+    if (this.destroyed || !num) return;
+    if (!this._chat) {
+      this._chat = new EpisodeChat({
+        malId: this.malId, backend: BACKEND, user: () => state.user, seek: t => this._seekPlayer(t),
+        ago: account.ago, site: () => account.socialSiteUrl(), gate: () => account.openGate("comments"),
+        confirm: account.confirmWithCountdown, dialog: account.openDialog,
+        watch: objects => realtime.watchComments(objects), sheetDrag: SheetDrag,
+      });
+      this._chat.setSeek(!!this._seekKind);
+      this._onFullscreen = () => {
+        const on = !!document.fullscreenElement && document.fullscreenElement === $(".sp-video");
+        this._iframeEl?.contentWindow?.postMessage({ type: "asoplay:fullscreen-state", on }, "*");
+      };
+      document.addEventListener("fullscreenchange", this._onFullscreen);
+    }
+    this._chat.setEpisode(num);
+    if (this._openChatOnce) { this._openChatOnce = false; this._chat.show(); }
+  }
+
+  // Перемотка: наш кадр — asoplay:seek, Kodik — его API; другие плееры не умеют, минуты в чате — простой текст
+  _setSeek(kind) {
+    this._seekKind = kind;
+    if (kind !== "frame") this._frameKeys = false;  // клавиши — только кадру, который сам сказал, что их принимает
+    this._chat?.setSeek(!!kind);
+    this._resume?.setCan(kind === "frame" || kind === "kodik");
+  }
+
+  // «Продолжить с m:ss» (js/resume.js) — у вошедшего, в серии, которую открыли как «где остановился»
+  _offerResume(idx) {
+    const num = Number(this.episodes[idx]?.num);
+    this._resume ??= new ResumeButton(at => this._resumePlay(at));
+    this._resume.set(num, state.user ? resumePoint(this._epProgress?.get(num)) : null);
+  }
+
+  // Нажали «Продолжить»: перемотка и пуск. Kodik до своего старта перемотку теряет — она ждёт его пуска: нашего
+  // {method:"play"} или ▶ зрителя, если браузер не дал запустить видео без нажатия
+  _resumePlay(at) {
+    const target = this._iframeEl?.contentWindow;
+    if (!target) return;
+    if (this._seekKind === "frame") {
+      target.postMessage({ type: "asoplay:seek", time: at }, "*");
+      target.postMessage({ type: "asoplay:play" }, "*");
+    } else if (this._seekKind === "kodik" && this._kodikStarted) {
+      this._seekPlayer(at);
+    } else if (this._seekKind === "kodik") {
+      this._kodikPendingSeek = at;
+      target.postMessage({ key: "kodik_player_api", value: { method: "play" } }, "*");
+    }
+  }
+
+  // Сигналы плеера для «Продолжить» — до отсечки первых секунд: старт Kodik (отложенная перемотка) и время плеера
+  _resumeSignal(d) {
+    const key = String(d.key || "");
+    if (this._frameIsKodik && /^kodik_player_(play|duration_update|time_update)$/.test(key)) {
+      this._kodikStarted = true;
+      if (this._kodikPendingSeek != null) {
+        const at = this._kodikPendingSeek;
+        this._kodikPendingSeek = null;
+        this._seekPlayer(at);
+      }
+    }
+    if (key === "kodik_player_time_update" && typeof d.value === "number") this._resume?.time(d.value);
+  }
+
+  _seekPlayer(t) {
+    const target = this._iframeEl?.contentWindow;
+    if (!target || !this._seekKind) return;
+    const time = Math.max(0, Math.floor(Number(t) || 0));
+    if (this._seekKind === "frame") target.postMessage({ type: "asoplay:seek", time }, "*");
+    else target.postMessage({ key: "kodik_player_api", value: { method: "seek", seconds: time } }, "*");
+  }
+
+  // Наш кадр сообщил, что умеет перематывать и принимает клавиши, или просит раскрыть на весь экран контейнер видео
+  // вместе с полосками
+  _handleChatFrameMessage(data) {
+    if (data?.type === "asoplay:frame-ready") {
+      this._setSeek(data.seek === true ? "frame" : null);
+      this._frameKeys = data.keys === true;
+      return true;
+    }
+    if (data?.type !== "asoplay:fullscreen") return false;
+    const box = $(".sp-video");
+    // failed — страница не смогла (браузер не передал ей нажатие): кадр раскрывается сам, без полосок
+    const reply = (on, failed = false) => this._iframeEl?.contentWindow?.postMessage({ type: "asoplay:fullscreen-state", on, failed }, "*");
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    else if (box?.requestFullscreen) box.requestFullscreen().then(() => reply(true)).catch(() => reply(false, true));
+    else reply(false, true);
+    return true;
+  }
+
   _playerAnimeUrl() {
     try {
       return new URL(location.pathname || `/anime/${this.malId}/`, location.origin).href;
@@ -2669,6 +2709,7 @@ class Player {
     this._autoFired = false;
     this._playStartedAt = 0;
     this._sawPlaybackSignal = false;
+    this._playheadMin = 0;
     this._onMessage = (e) => {
       if (this.destroyed) return;
       const iframe = this._iframeEl;
@@ -2684,6 +2725,8 @@ class Player {
       if (d && typeof d === "object" && this._handlePlayerContextMenuMessage(d)) return;
       if (d && typeof d === "object" && this._handlePlayerScreenshotMessage(d)) return;
       if (d && typeof d === "object" && this._handlePlayerVolumeMessage(d)) return;
+      if (d && typeof d === "object" && this._handleChatFrameMessage(d)) return;
+      if (d && typeof d === "object") this._resumeSignal(d);
       this._dubSawEvent = true;
       const since = Date.now() - (this._playStartedAt || 0);
       if (since < 5000) return;
@@ -2707,7 +2750,9 @@ class Player {
       if (k.includes("time_update") || k === "timeupdate") {
         if (n != null) {
           this._lastTime = n;
+          this._chat?.time(n, this._duration);
           if (n > 0) this._sawPlaybackSignal = true;
+          if (n > 0 && (!this._playheadMin || n < this._playheadMin)) this._playheadMin = n;
           const epNum = this.episodes[this.currentEp]?.num;
           const secs = Math.floor(n);
           const dur = Math.floor(this._duration || 0);
@@ -2729,19 +2774,24 @@ class Player {
       }
     };
     window.addEventListener("message", this._onMessage);
+    // ← → и пробел с фокусом на странице — нашему кадру (js/player-keys.js); Kodik и другие плееры их не получают
+    this._unbindKeys = bindPlayerKeys(() => (this._frameKeys && this._seekKind === "frame" && this._iframeEl?.contentWindow) || null);
   }
   _maybeAutoNext(kind) {
     if (kind !== "ended") return;
     if (this._autoFired || this.destroyed) return;
     if (!state.autoNext) return;
     if (this.currentEp >= this.episodes.length - 1) return;
-    const elapsedMs = Date.now() - (this._playStartedAt || 0);
-    if (elapsedMs < 60_000) return;
     // Some embedded players emit broad "complete" messages before the actual
     // media end. If we still know the playhead is behind the duration, do not
     // skip the final seconds.
     if (this._duration > 30 && this._lastTime > 0 && this._lastTime < this._duration - 1) return;
-    if (kind === "ended" && this._duration > 30 && elapsedMs < this._duration * 500) return;
+    // A playhead that reached the end from earlier in this episode is a real
+    // end: watched through, started mid-episode, rewound or seeked there. Only
+    // a bare end signal waits for the clock: a minute and half the episode.
+    const played = this._duration > 30 && this._lastTime - this._playheadMin >= 3;
+    const elapsedMs = Date.now() - (this._playStartedAt || 0);
+    if (!played && (elapsedMs < 60_000 || (this._duration > 30 && elapsedMs < this._duration * 500))) return;
     this._autoFired = true;
     this.playEpisode(this.currentEp + 1);
   }
@@ -2874,30 +2924,6 @@ class Player {
     ov.classList.remove("hide");
     const list = $("#avEpisodesList");
     if (list) list.innerHTML = errorPage({ title: "Серий нет", message: "Видео этого тайтла недоступно по требованию правообладателя.", icon: "fas fa-ban" });
-  }
-
-  _adultGate() {
-    const ov = $("#avPlayerOverlay");
-    if (!ov) return Promise.resolve(false);
-    ov.innerHTML = `
-      <div class="unavail adult-gate">
-        <div class="unavail-icon adult-gate__mark" aria-hidden="true">18+</div>
-        <div class="unavail-title">Только для взрослых</div>
-        <div class="unavail-sub">В этом тайтле есть сцены для зрителей старше 18 лет.</div>
-        <div class="unavail-links">
-          <button type="button" class="ed-btn ed-btn--primary" data-adult-yes>Мне есть 18</button>
-          <a class="ed-btn ed-btn--secondary" href="/">На главную</a>
-        </div>
-      </div>`;
-    ov.classList.remove("hide");
-    return new Promise(resolve => {
-      ov.querySelector("[data-adult-yes]").addEventListener("click", () => {
-        site.confirmAdult();
-        ov.innerHTML = `<span class="ed-spinner spinner" aria-hidden="true"></span><div id="avPlayerStatus"></div>`;
-        this.status("Ищем аниме…");
-        resolve(true);
-      }, { once: true });
-    });
   }
 
   // «Не работает» — с первой секунды: жалоба нужнее всего, когда видео так и не нашлось. У скрытого тайтла
@@ -3223,6 +3249,7 @@ class Player {
     this._duration = 0;
     this._playStartedAt = Date.now();
     this._sawPlaybackSignal = false;
+    this._playheadMin = 0;
     this._lastCompleteSignalEp = null;
     this._armFallback();
     $$("#avEpisodesList .ep-row").forEach((b, idx) => b.classList.toggle("active", idx === i));
@@ -3233,6 +3260,8 @@ class Player {
     if (!ep) return;
     this._rememberTabEpisode(ep.num);
     $("#avEpInfo").innerHTML = `<span class="sp-ep-num">${ep.num}</span><span class="sp-ep-title">${esc(ep.name)}</span>`;
+    this._resume?.episode(Number(ep.num));
+    this._chatEpisode(ep.num);
     const p = $("#avPrevEp"), n = $("#avNextEp");
     if (p) p.disabled = i === 0;
     if (n) n.disabled = i === this.episodes.length - 1;
@@ -3481,7 +3510,9 @@ class Player {
     playerUrl += playerVolume.fragment(frameHost);
     let iframe = c.querySelector("iframe");
     const hardenFrame = (node, sameOrigin = false) => {
-      node.allow = "autoplay; fullscreen; picture-in-picture; encrypted-media";
+      // Документ плеера за прокси — в CSP-песочнице без allow-same-origin, его адрес непрозрачный. Если прокси на другом
+      // адресе, чем страница (локально), разрешение без «*» с ним не совпадало и полного экрана в плеере не было
+      node.allow = "autoplay *; fullscreen *; picture-in-picture *; encrypted-media *";
       node.removeAttribute("allowfullscreen");
       node.referrerPolicy = "no-referrer";
       node.setAttribute("sandbox", `allow-scripts allow-presentation${sameOrigin ? " allow-same-origin" : ""}`);
@@ -3492,11 +3523,17 @@ class Player {
       if (iframe.src.split("#")[0] !== playerUrl.split("#")[0]) {
         iframe.src = playerUrl;
         this._kodikVolumeSent = false;
+        this._kodikStarted = false;
+        this._kodikPendingSeek = null;
+        this._setSeek(this._frameIsKodik ? "kodik" : null);
       }
       this._iframeEl = iframe;
       return;
     }
     this._kodikVolumeSent = false;
+    this._kodikStarted = false;
+    this._kodikPendingSeek = null;
+    this._setSeek(this._frameIsKodik ? "kodik" : null);
     iframe = document.createElement("iframe");
     // Harden third-party players: keep playback features, block popups and
     // top-level navigation attempts from ad scripts inside the iframe.
@@ -3539,6 +3576,11 @@ class Player {
     if (this._shotNoticeTimer) clearTimeout(this._shotNoticeTimer);
     this._hidePlayerContextMenu();
     if (this._onMessage) window.removeEventListener("message", this._onMessage);
+    this._unbindKeys?.();
+    this._resume?.destroy();
+    if (this._onFullscreen) document.removeEventListener("fullscreenchange", this._onFullscreen);
+    this._chat?.destroy();
+    this._chat = null;
     if (this._shellCleanup) this._shellCleanup();
     this.destroyPlayer();
   }
@@ -3615,11 +3657,12 @@ function _migrateHashOnBoot() {
 }
 
 // ---------- backend status ----------
-function applyBackendStatus({ ok, sources, vpn, site: panel }) {
+function applyBackendStatus({ ok, sources, site: panel }) {
   state.backendAvailable = ok;
   state.useProxy = ok;
-  state.proxyImages = ok && vpn;
   state.backendSources = sources || [];
+  // Какие картинки идут через /proxy/img: хосты из панели — сразу, остальные — запасным путём (js/images.js)
+  images.configure({ backend: BACKEND, available: ok, proxyHosts: panel?.proxy_hosts, imgHosts: panel?.img_hosts });
   // Плашка, скрытые и 18+ тайтлы, способы входа и порядок источников — из панели Anime Social
   site.apply(panel);
 }
@@ -3642,9 +3685,19 @@ function bind() {
   closeMobileMenu = setupNavigation({ nav });
 
   const toTop = $("#toTop");
-  window.addEventListener("scroll", () => {
-    if (toTop) toTop.classList.toggle("show", window.scrollY > 400);
-  });
+  // «Наверх» прячется, пока лежала бы поверх открытого чата серии: внизу чата «Войти» и отправка
+  const overChat = () => {
+    const chat = document.querySelector(".chat-panel:not([hidden])");
+    if (!chat) return false;
+    const a = chat.getBoundingClientRect(), b = toTop.getBoundingClientRect();
+    return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  };
+  const syncToTop = () => {
+    if (toTop) toTop.classList.toggle("show", window.scrollY > 400 && !overChat());
+  };
+  window.addEventListener("scroll", syncToTop);
+  window.addEventListener("resize", syncToTop);
+  document.addEventListener("av:chat", syncToTop);
   toTop?.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
 
   window.addEventListener("popstate", () => router());
@@ -3673,6 +3726,7 @@ bind();
 
 (async function boot() {
   await refreshBackend();
+  images.install();  // до первой картинки на странице: запасной путь через /proxy/img
   await account.setup({
     state,
     backendUrl: BACKEND,

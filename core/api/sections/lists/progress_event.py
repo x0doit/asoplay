@@ -18,10 +18,12 @@ from pydantic import BaseModel, Field, conint
 
 from core.classes.clock import utc_now
 from core.classes.db import connect
-from core.functions import lists_sweep
+from core.functions import as_events, lists_sweep, title_completion
 from core.functions.activity import record_event
-from core.functions.lists import auto_add_enabled, fetch_entry, sweep_dropped_after_30_days, upsert_status
-from core.functions.progress import auto_watching_qualified, history_qualified
+from core.functions.lists import (
+    auto_add_enabled, auto_complete, fetch_entry, sweep_dropped_after_30_days, upsert_status,
+)
+from core.functions.progress import auto_watching_qualified, history_qualified, upsert_episode_progress
 from core.functions.sessions import current_user_required
 from core.functions.watch_time import watched_seconds
 
@@ -56,43 +58,12 @@ def progress_event(
     with connect() as conn:
         cur = conn.cursor()
 
-        # 1) Прогресс эпизода пишем всегда — нужен для «resume at position».
-        cur.execute(
-            """INSERT INTO aviev_episode_progress
-                (user_id, mal_id, episode_num, seconds, duration, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                    seconds=GREATEST(seconds, VALUES(seconds)),
-                    duration=GREATEST(duration, VALUES(duration)),
-                    updated_at=VALUES(updated_at)""",
-            (user["id"], event.mal_id, event.episode_num,
-             event.seconds, event.duration, now),
-        )
-
-        # Если серия фактически досмотрена (>=92% или до конца <90 сек), помечаем
-        # все предыдущие серии как «досмотрено» — чтобы в списке эпизодов они
-        # были подкрашены как пройденные. По ТЗ: если недосмотрел серию N, но
-        # завершил N+1 — N автоматически помечается как досмотренная.
-        episode_done = (
-            event.duration > 0
-            and (event.seconds >= event.duration * 0.92
-                 or event.seconds >= max(0, event.duration - 90))
-        )
-        if episode_done and event.episode_num > 1:
-            stamp_duration = max(event.duration, 1)
-            for ep in range(1, event.episode_num):
-                cur.execute(
-                    """INSERT INTO aviev_episode_progress
-                        (user_id, mal_id, episode_num, seconds, duration, updated_at)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                        ON DUPLICATE KEY UPDATE
-                            seconds=GREATEST(seconds, %s),
-                            duration=GREATEST(duration, %s),
-                            updated_at=VALUES(updated_at)""",
-                    (user["id"], event.mal_id, ep,
-                     stamp_duration, stamp_duration, now,
-                     stamp_duration, stamp_duration),
-                )
+        # 1) Прогресс эпизода пишем всегда — нужен для «resume at position». Если серия фактически досмотрена
+        #    (>=92% или до конца <90 сек), все предыдущие серии помечаются как «досмотрено» — чтобы в списке
+        #    эпизодов они были подкрашены как пройденные. По ТЗ: если недосмотрел серию N, но завершил N+1 —
+        #    N автоматически помечается как досмотренная. Впервые досмотренная серия — событие для соцсети.
+        upsert_episode_progress(conn, user["id"], event.mal_id, event.episode_num, event.seconds, event.duration,
+                                updated_at=now)
 
         # watch_history = фид «Продолжить просмотр». Туда попадает реальный
         # просмотр от 5 минут или честно завершённая короткая серия; «просто
@@ -122,9 +93,9 @@ def progress_event(
         current = fetch_entry(conn, user["id"], event.mal_id)
         auto_ok = auto_add_enabled(conn, user["id"])
 
-        # 2) auto-rule: 10 минут или завершённая серия → watching (auto),
-        #    если нет ручного статуса. Так короткие серии не выпадают из
-        #    списков только потому, что физически короче 10 минут.
+        # 2) auto-rule: 10 минут или завершённая серия → watching (auto), если нет ручного статуса или стоит
+        #    «в планах»: начатый тайтл из планов переходит в «Смотрю», как на MAL. Так и короткие серии не выпадают
+        #    из списков только потому, что физически короче 10 минут.
         cur.execute(
             """SELECT 1
                 FROM aviev_episode_progress
@@ -140,7 +111,7 @@ def progress_event(
         if auto_ok and has_watching_signal:
             prev_status = current.get("status") if current else None
             prev_source = current.get("status_source") if current else None
-            if prev_status is None and prev_source != "manual":
+            if (prev_status is None and prev_source != "manual") or prev_status == "planned":
                 upsert_status(
                     conn, user["id"], event.mal_id,
                     status="watching", source="auto",
@@ -148,37 +119,22 @@ def progress_event(
                 )
                 applied.append("watching")
                 record_event(
-                    conn, user["id"], kind="list_add",
+                    conn, user["id"], kind="list_move" if prev_status else "list_add",
                     mal_id=event.mal_id, meta="watching:auto",
                 )
 
-        # 3) auto-rule: последняя серия → completed (auto), если не было manual
-        #    completed/dropped/postponed.
+        # 3) auto-rule: последняя серия по каталогу сервера (не число серий от плеера; строгое равенство — у части
+        #    источников нумерация сквозная) → completed (auto) по lists.auto_complete: запирают ручная очистка и ручные
+        #    completed/dropped/postponed. Событие completed для соцсети — не здесь: его засчитывает сам досмотр.
+        last = title_completion.last_episode(cur, event.mal_id)
         is_last = (
-            event.episodes_total > 0 and event.episode_num >= event.episodes_total
+            bool(last) and event.episode_num == last
             and event.duration > 30
             and (event.seconds >= event.duration * 0.85
                  or event.seconds >= event.duration - 60)
         )
-        if auto_ok and is_last:
-            entry = fetch_entry(conn, user["id"], event.mal_id)
-            prev_status = entry.get("status") if entry else None
-            prev_source = entry.get("status_source") if entry else None
-            unlocked = (
-                prev_status in (None, "watching")
-                and not (prev_source == "manual" and prev_status in ("dropped", "postponed", "completed"))
-            )
-            if unlocked and prev_status != "completed":
-                upsert_status(
-                    conn, user["id"], event.mal_id,
-                    status="completed", source="auto",
-                    title=event.title, poster_url=event.poster_url,
-                )
-                applied.append("completed")
-                record_event(
-                    conn, user["id"], kind="complete",
-                    mal_id=event.mal_id, meta="auto",
-                )
+        if is_last and auto_complete(conn, user["id"], event.mal_id, title=event.title, poster_url=event.poster_url):
+            applied.append("completed")
 
         # 4) activity: базовое событие «продолжаю смотреть» c эпизодом в meta.
         record_event(
@@ -202,6 +158,7 @@ def progress_event(
 
         conn.commit()
         entry = fetch_entry(conn, user["id"], event.mal_id) or {}
+    as_events.wake()
     return {"applied": applied, "entry": entry}
 
 

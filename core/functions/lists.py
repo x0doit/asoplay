@@ -10,14 +10,17 @@ completed / dropped / postponed), и отдельный флаг is_favorite. К
 
 Автоматические правила:
     - на 10-й минуте просмотра тайтл попадает в watching (auto),
-    - на последней серии — в completed (auto),
+    - на последней серии по каталогу сервера — в completed (auto),
     - через 30 дней простоя watching → dropped (auto).
-Все три правила подчиняются настройке `auto_add_lists` в aviev_account_settings. Первые два считает раздел
-/account/lists/progress-event (core/api/sections/lists), третье — sweep_dropped_after_30_days ниже; по расписанию его
+Все три правила подчиняются настройке `auto_add_lists` в aviev_account_settings; тайтл, который человек сам убрал
+из списков (статус пуст, источник manual), они не возвращают. Первое считает раздел /account/lists/progress-event
+(core/api/sections/lists), второе — auto_complete ниже: его зовут и этот раздел, и проверка досмотра после записи
+страницы тайтла (core/functions/title_completion.py); третье — sweep_dropped_after_30_days ниже, по расписанию его
 запускает core/functions/lists_sweep.py.
 
-Действия человека пишутся в активность (core.functions.activity) там, где он их делает. Автоперенос через 30 дней
-в активность не пишется: график профиля — о том, что человек делал сам; в списке перенос виден по status_source='auto'.
+Действия человека пишутся в активность (core.functions.activity) там, где он их делает; досмотр — со временем
+досмотра. Автоперенос через 30 дней в активность не пишется: график профиля — о том, что человек делал сам; в списке
+перенос виден по status_source='auto'.
 
 Публичный профиль (раздел /profile/… и страница /@handle) берёт отсюда счётчики и записи человека — counts_for
 и items_for; соединение с базой они открывают сами.
@@ -30,6 +33,7 @@ from typing import Any, Callable
 from core.classes.clock import utc_now
 from core.classes.db import connect
 from core.classes.jikan import catalog as jikan_catalog
+from core.functions.activity import record_event
 
 STATUSES = ("watching", "planned", "completed", "dropped", "postponed")
 SWEEP_DAYS = 30
@@ -113,6 +117,22 @@ def upsert_status(conn, user_id: int, mal_id: int, status: str | None,
                 updated_at=VALUES(updated_at)""",
         (user_id, mal_id, status, source, title, poster_url, now, now),
     )
+
+
+def auto_complete(conn, user_id: int, mal_id: int, *, at: datetime | None = None, title: str = "",
+                  poster_url: str = "") -> dict[str, Any] | None:
+    """Последняя серия по каталогу досмотрена: completed (auto) и complete в активность (at — время досмотра).
+    Только при включённых авто-списках и статусе пусто, «Смотрю» или «в планах»; запирают ручная очистка и ручные
+    «Просмотрено», «Брошено», «Отложено». Новая запись списка — или None, если статус не менялся."""
+    if not auto_add_enabled(conn, user_id):
+        return None
+    entry = fetch_entry(conn, user_id, mal_id)
+    status = entry.get("status") if entry else None
+    if status not in (None, "watching", "planned") or (status is None and entry and entry["status_source"] == "manual"):
+        return None
+    upsert_status(conn, user_id, mal_id, status="completed", source="auto", title=title, poster_url=poster_url)
+    record_event(conn, user_id, kind="complete", mal_id=mal_id, meta="auto", at=at)
+    return fetch_entry(conn, user_id, mal_id)
 
 
 # ---------- правило 30 дней ----------

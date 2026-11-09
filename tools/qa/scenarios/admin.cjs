@@ -65,15 +65,32 @@ module.exports = {
     await page.waitForTimeout(800);
     await check(page, "admin: the player comes back when the title is shown again", !/Видео недоступно/.test(await page.textContent("#avPlayerOverlay")));
 
-    await push({ adult: [52991] });
-    await check(page, "admin: an 18+ title asks before the video", await page.isVisible(".adult-gate") && await page.isVisible(".title-adult"));
+    // 18+ — только метка у тайтла и не в карусели главной: перед видео ничего не спрашивается
+    const asked = () => page.evaluate(() => !!document.querySelector(".adult-gate, [data-adult-yes]")
+      || /Мне есть 18/.test(document.querySelector("#avPlayerOverlay")?.textContent || ""));
+    // Прежний плеер ещё перебирает источники — ждём тишины, чтобы считать запросы только нового
+    const quiet = async () => { for (let i = 0, n = -1; i < 20 && n !== searches.length; i++) { n = searches.length; await page.waitForTimeout(1000); } };
+    await quiet();
+    let before = searches.length;
+    await push({ adult: [52991] }); await page.waitForTimeout(1000);
+    await check(page, "admin: marking the open title 18+ adds the label and the video search goes on",
+      await page.isVisible(".title-adult") && !(await asked()) && searches.length > before, `${before} → ${searches.length}`);
     await shot(page, "admin-title-adult");
-    const before = searches.length;
-    await page.click("[data-adult-yes]"); await page.waitForTimeout(1000);
-    await check(page, "admin: «Мне есть 18» starts the search and is remembered",
-      searches.length > before && await page.evaluate(() => localStorage.getItem("av_adult_ok")) === "1", `${before} → ${searches.length}`);
-    await page.reload({ waitUntil: "domcontentloaded" }); await settle(page, 2000);
-    await check(page, "admin: the question is not asked again", !(await page.isVisible(".adult-gate")) && await page.isVisible(".title-adult"));
+    await quiet();
+    before = searches.length;
+    await page.goto(SITE + "/anime/52991", { waitUntil: "domcontentloaded" }); await settle(page, 2000);
+    await check(page, "admin: a guest opening an 18+ title is asked nothing and the search starts at once",
+      await page.isVisible(".title-adult") && !(await asked()) && searches.length > before
+      && await page.evaluate(() => localStorage.getItem("av_adult_ok")) === null, `${before} → ${searches.length}`);
+    await page.goto(SITE + "/", { waitUntil: "domcontentloaded" }); await settle(page, 3000);
+    const hero = await page.evaluate(() => {
+      const watch = document.querySelector("#avHero .hero-watch"), next = document.querySelector("#avHero .hero-nav.next");
+      const total = document.querySelectorAll("#avHero .hero-slide").length, links = [];
+      for (let i = 0; i < total; i++) { links.push(watch.getAttribute("href")); next.click(); }
+      return { links, badges: [...document.querySelectorAll("#avHero .hero-badge")].map(b => b.textContent.trim()) };
+    });
+    await check(page, "admin: a pinned 18+ title stays out of the home carousel",
+      hero.links.length > 0 && !hero.links.includes("/anime/52991/") && !hero.badges.includes("Рекомендуем"), hero.links.join(" "));
     await push({ adult: [], pinned: [] });
 
     await push({ login: { social: false, password: true } });

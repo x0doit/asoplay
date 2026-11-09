@@ -13,7 +13,7 @@
 import { calendarMonth, dayDate, groupActivity } from "./profile-activity.js?v=20261027-profile6";
 import { activeSection, applyTheme, getTheme, syncThemeLabels, themeLabel, SheetDrag } from "./navigation.js?v=20261030-live1";
 import * as realtime from "./realtime.js?v=20261030-live1";
-import * as siteState from "./site.js?v=20261030-admin1";
+import * as siteState from "./site.js?v=20261105-adult1";
 
 let ctx = null;
 let authConfig = {
@@ -110,8 +110,8 @@ function _paintTabCounts(tabsEl, counts) {
   });
 }
 
-// Правило 30 дней перенесло тайтлы в «Брошено» (кадр «lists» по /ws): store обновляется, а страница тайтла
-// перекрашивает список так же, как после события плеера
+// Сервер перенёс тайтлы (кадр «lists» по /ws: правило 30 дней, досмотр по каталогу): store обновляется, а страница
+// тайтла перекрашивает список так же, как после события плеера
 document.addEventListener("av:lists", (e) => {
   if (!ctx?.state.user) return;
   ctx.state.lists = ctx.state.lists || {};
@@ -269,6 +269,8 @@ function _loginErrorMessage(exc) {
   if (exc?.status === 401 || exc?.status === 422) return authConfig.as_login ? "Неправильная почта или пароль." : "Неправильный логин или пароль.";
   if (exc?.status === 403 && /password_login_disabled/.test(exc.message)) return "Вход по почте сейчас выключен.";
   if (exc?.status === 403) return "Аккаунт заблокирован.";
+  // Вход через соцсеть выключен на сервере — пароль AsoPlay сам не проверяет
+  if (exc?.status === 503 && /login_unavailable/.test(exc.message)) return "Вход временно недоступен.";
   if (exc?.status === 503) return `${socialSiteName()} не отвечает. Попробуйте войти чуть позже.`;
   if (exc?.status === 429) {
     const minutes = Math.max(1, Math.ceil((exc.retryAfter || 900) / 60));
@@ -1104,6 +1106,11 @@ function _gateCopy(kind) {
       title: "Оценки — для вошедших",
       body: "Чтобы ваша оценка сохранялась и показывалась рядом с публичным рейтингом MyAnimeList, нужна авторизация.",
       points: ["Сохраняется в вашем аккаунте", "Можно менять в любой момент"],
+    },
+    comments: {
+      title: "Чат серии — для вошедших",
+      body: "Писать в чат, отвечать и отмечать «Нравится» можно после входа.",
+      points: ["Комментарий встаёт на минуту серии", "Об ответах приходит уведомление"],
     },
     history: {
       title: "История просмотра — для вошедших",
@@ -3364,3 +3371,6 @@ function esc(s) {
     { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
   ));
 }
+
+// Для чата серии (js/episode-chat.js): «5 минут назад» словами соцсети и окно EDDAS
+export { _ago as ago, _openDialog as openDialog };

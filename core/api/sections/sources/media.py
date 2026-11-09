@@ -15,7 +15,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from core.functions import native_sources, source_filters, sources
+from core.functions import native_sources, site_settings, source_filters, sources
 from core.functions.player_hosts import iframe_preference_score, is_disabled_player_url
 
 log = logging.getLogger("asoplay")  # тот же журнал, что у core.py до деления
@@ -26,6 +26,7 @@ router = APIRouter()
 @router.get("/src/dubs")
 async def dubs_for_episode(key: str, source: str = "anilibria"):
     """Озвучки серии по её ключу: одна на имя и вид, с лучшим плеером, VK — последними."""
+    sources.request_title.set(sources.title_of(key))  # тайтл ключа — для счёта ошибок разбора
     if source in sources.NATIVE_SOURCES:
         return await sources.guard_source(
             source,
@@ -47,7 +48,7 @@ async def dubs_for_episode(key: str, source: str = "anilibria"):
         raise
     except Exception as exc:
         log.exception("sources failed")
-        raise HTTPException(502, f"sources failed: {exc}")
+        raise HTTPException(502, "sources_failed") from exc  # подробность — в журнале
 
     seen: dict[tuple[str, str], dict] = {}
     scores: dict[tuple[str, str], int] = {}
@@ -73,6 +74,7 @@ async def dubs_for_episode(key: str, source: str = "anilibria"):
 async def videos(key: str, source: str = "anilibria"):
     """Видео по ключу озвучки или серии: фрейм плеера, файлы и потоки — сначала m3u8 и лучшее качество; всё —
     через фильтр неиграбельных плееров и рекламы."""
+    sources.request_title.set(sources.title_of(key))
     if source in sources.NATIVE_SOURCES:
         vids = await sources.guard_source(
             source,
@@ -133,7 +135,8 @@ async def videos(key: str, source: str = "anilibria"):
 
         async def fetch_one(s):
             """Видео одной озвучки за 8 секунд; выключенный плеер или ошибка — пусто."""
-            if is_disabled_player_url(getattr(s, "url", None) or ""):
+            player_url = getattr(s, "url", None) or ""
+            if is_disabled_player_url(player_url) or site_settings.player_off(player_url):
                 return []
             async with sem:
                 try:
@@ -169,7 +172,7 @@ async def videos(key: str, source: str = "anilibria"):
         raise
     except Exception as exc:
         log.exception("videos failed")
-        raise HTTPException(502, f"videos failed: {exc}")
+        raise HTTPException(502, "videos_failed") from exc  # подробность — в журнале
 
     def score(v):
         """Порядок видео: m3u8 раньше mp4, затем по качеству."""

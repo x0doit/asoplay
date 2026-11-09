@@ -8,6 +8,7 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 Часть core/tests/player_guard: вход (core/tests/test_player_guard.py) собирает части по порядку.
 """
 import unittest
+from unittest.mock import patch
 
 import httpx
 from fastapi import HTTPException
@@ -59,9 +60,11 @@ class Redirects(unittest.IsolatedAsyncioTestCase):
         # httpx строит следующий шаг сам и не разбирает такой Location: это сбой апстрима, а не 500
         for target in ("javascript:alert(1)", "data:text/html,<b>x</b>"):
             answers = {KODIK: lambda: httpx.Response(302, headers={"location": target})}
-            result, seen, _ = await self.fetch(answers)
-            self.assertEqual(result.status_code, 502, target)
-            self.assertIn("bad redirect", result.detail, target)
+            with patch.object(player, "_log_upstream_failure", player._RefusalLog("upstream failed for")), \
+                    self.assertLogs(player.log, "INFO") as logs:
+                result, seen, _ = await self.fetch(answers)
+            self.assertEqual((result.status_code, result.detail), (502, "player_upstream_failed"), target)
+            self.assertIn("bad redirect", logs.output[-1], target)  # текст сбоя — в журнале, не в ответе
             self.assertEqual(seen, [KODIK], target)
 
     async def test_clean_frames_show_their_error_on_a_bad_redirect(self):

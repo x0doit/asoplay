@@ -80,15 +80,16 @@ class HubSocial:
                 conn = self.conns.get(conn_id)
                 if conn:
                     await self.close(conn, 4001)
-        # notify и account_state — для значка соцсети в шапке, client_comment — для веток комментариев:
-        # их у AsoPlay пока нет
+        elif name == "client_comment":
+            await self.comment_event(data)  # вкладкам, подписанным на эту ветку (HubComments)
+        # notify и account_state — для значка соцсети в шапке: его у AsoPlay пока нет
 
     async def lists_changed(self, user_id: int, items: list[dict[str, Any]]) -> None:
-        """Правило 30 дней перенесло тайтлы человека: кадр «lists» во все его вкладки."""
+        """Сервер перенёс тайтлы человека (правило 30 дней, досмотр по каталогу): кадр «lists» во все его вкладки."""
         await self._to_people([user_id], {"type": "lists", "items": items})
 
     def lists_changed_from_thread(self, user_id: int, items: list[dict[str, Any]]) -> None:
-        """lists_changed из потока (правило 30 дней)."""
+        """lists_changed из потока или из записи страницы тайтла (правило 30 дней, досмотр по каталогу)."""
         if self._loop is not None:
             asyncio.run_coroutine_threadsafe(self.lists_changed(user_id, items), self._loop)
 
