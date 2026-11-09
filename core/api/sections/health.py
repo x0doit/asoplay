@@ -16,6 +16,7 @@ from core.classes import db
 from core.classes.adblock import engine as adblock
 from core.classes.jikan import catalog as jikan_catalog
 from core.classes.vpn import bridge as vpn_bridge
+from core.config import config
 from core.functions import site_settings, source_health
 from core.functions import sources as source_registry  # маршрут sources перепривязал бы имя модуля
 
@@ -24,13 +25,14 @@ router = APIRouter()
 
 @router.get("/health")
 def health():
-    """Состояние сервера для вкладок: источники для плеера, VPN, каталог, база, фильтр рекламы,
-    здоровье источников и решения панели."""
+    """Состояние сервера для вкладок: источники для плеера, VPN и кому он (vpn_scope: all или images), каталог,
+    база, фильтр рекламы, здоровье источников и решения панели."""
     active_sources = source_registry.player_sources()
     return {
         "ok": True,
         "sources": active_sources,
         "vpn": vpn_bridge.is_active(),
+        "vpn_scope": config.vpn_scope(),
         "catalog": jikan_catalog.status(),
         "db": db.health(),
         "adblock": adblock.status(),

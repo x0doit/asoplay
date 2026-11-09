@@ -456,6 +456,9 @@ Backend читает runtime settings из `.env`, `core/config/db.php` и
   для rewriting.
 - `AV_VPN_ENABLED` — `0` временно отключает xray bridge, не стирая параметры
   сервера.
+- `AV_VPN_SCOPE` — кому bridge: `all` (по умолчанию) — запасной путь для всех
+  запросов наверх и источников видео; `images` — только картинки хостов, которым
+  панель велела идти через мост (via vpn), остальное ходит только напрямую.
 - `AV_VPN_URL` — ссылка `vless://` (VLESS + Reality) для xray bridge. Запросы
   идут напрямую; через bridge повторяется только запрос к хосту, недоступному
   напрямую, и такой хост 10 минут ходит через bridge первым. Плееры всегда идут
@@ -1061,6 +1064,9 @@ Important environment groups:
   rewriting.
 - `AV_VPN_ENABLED` — `0` temporarily disables the xray bridge without erasing the
   server settings.
+- `AV_VPN_SCOPE` — who uses the bridge: `all` (default) — a fallback for every
+  upstream request and video source; `images` — only images of hosts the panel
+  sends through the bridge (via vpn), everything else goes direct only.
 - `AV_VPN_URL` — `vless://` share link (VLESS + Reality) for the xray bridge.
   Requests go out directly; only a request to a host that is unreachable
   directly is retried through the bridge, and that host then uses the bridge

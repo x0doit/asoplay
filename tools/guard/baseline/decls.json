@@ -3829,6 +3829,9 @@
  "vpn_enabled": [
   "def() -> bool"
  ],
+ "vpn_scope": [
+  "def() -> str"
+ ],
  "vpn_url": [
   "def() -> str"
  ],

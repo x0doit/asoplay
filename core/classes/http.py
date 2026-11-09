@@ -5,7 +5,8 @@
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
 Каждый апстрим сначала пробуется напрямую; хост, который ответил только через VPN-мост, ходит через него первым
-VPN_STICKY_SECONDS. Ограничитель MAL_LIMIT стоит здесь, рядом с request(): он задаёт темп исходящих запросов.
+VPN_STICKY_SECONDS. С AV_VPN_SCOPE=images мост только у картинок с via vpn из панели (core/classes/image_proxy.py),
+и запасного пути через него здесь нет: источники видео и остальные апстримы ходят только напрямую. Ограничитель MAL_LIMIT стоит здесь, рядом с request(): он задаёт темп исходящих запросов.
 Кеш на диске и запросы через него — core/classes/http_cache.py, маршруты каталога — core/api/sections/catalog.py.
 """
 from __future__ import annotations
@@ -18,6 +19,7 @@ from urllib.parse import urlparse
 import httpx
 
 from core.classes.vpn import bridge as vpn_bridge
+from core.config import config
 
 log = logging.getLogger("asoplay.proxies")
 
@@ -75,8 +77,9 @@ async def get_vpn_client() -> httpx.AsyncClient | None:
 
 
 def route_order(host: str) -> list[str]:
-    """Routes to try for a host: direct first, unless it recently needed the VPN."""
-    if vpn_bridge.proxy_url() is None:
+    """Routes to try for a host: direct first, unless it recently needed the VPN. Without the bridge, or with
+    the bridge kept for panel images only (AV_VPN_SCOPE=images), there is just the direct route."""
+    if vpn_bridge.proxy_url() is None or config.vpn_scope() == "images":
         return ["direct"]
     if _vpn_preferred_until.get(host, 0) > time.monotonic():
         return ["vpn", "direct"]

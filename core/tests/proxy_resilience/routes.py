@@ -8,6 +8,7 @@ AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 Часть core/tests/proxy_resilience: вход (core/tests/test_proxy_resilience.py) собирает части по порядку.
 """
 import asyncio
+import contextlib
 import json
 import os
 import tempfile
@@ -18,6 +19,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 from fastapi import HTTPException
+from core.api.sections import health as health_section
+from core.config import config
 from core.functions import sources as source_registry
 from core.classes import http
 from core.classes.sources import oldyummy
@@ -60,6 +63,24 @@ class VpnBridgeConfigTests(unittest.TestCase):
 
     def test_without_settings_the_bridge_stays_direct(self):
         self.assertIsNone(self.build({}))
+
+    def test_the_bridge_scope_comes_from_the_env_and_shows_in_health(self):
+        for env, scope in (({}, "all"), ({"AV_VPN_SCOPE": " Images "}, "images"), ({"AV_VPN_SCOPE": "sources"}, "all")):
+            with patch.dict(os.environ, env, clear=True):
+                self.assertEqual(config.vpn_scope(), scope)
+        quiet = (patch.object(health_section.source_registry, "player_sources", return_value=[]),
+                 patch.object(health_section.source_registry, "all_sources", return_value=[]),
+                 patch.object(health_section.jikan_catalog, "status", return_value={}),
+                 patch.object(health_section.db, "health", return_value={"ok": True}),
+                 patch.object(health_section.adblock, "status", return_value={}),
+                 patch.object(health_section.site_settings, "public_state", return_value={}),
+                 patch.object(health_section.vpn_bridge, "is_active", return_value=True),
+                 patch.dict(os.environ, {"AV_VPN_SCOPE": "images"}))
+        with contextlib.ExitStack() as stack:
+            for item in quiet:
+                stack.enter_context(item)
+            body = health_section.health()
+        self.assertEqual((body["vpn"], body["vpn_scope"]), (True, "images"))
 
     def test_runtime_config_creates_its_own_folder(self):
         # Папку кеша создаёт и импорт http_cache, но xray на это не полагается: пишет и в папку, которой ещё нет.
@@ -113,6 +134,14 @@ class RouteFallbackTests(unittest.IsolatedAsyncioTestCase):
                 await http.request("GET", "https://api.example.test/a")
         self.vpn.request.assert_not_awaited()
 
+    async def test_with_the_bridge_kept_for_panel_images_requests_stay_direct_with_their_full_wait(self):
+        with patch.object(http.config, "vpn_scope", return_value="images"):
+            self.assertEqual(http.route_order("api.example.test"), ["direct"])
+            with self.assertRaises(httpx.ConnectError):
+                await http.request("GET", "https://api.example.test/a", timeout=httpx.Timeout(10, connect=4))
+        self.vpn.request.assert_not_awaited()
+        self.assertEqual(self.direct.request.call_args.kwargs["timeout"].connect, 4)  # не урезан до 2,5 под второй путь
+
 
 class SourceRouteTests(unittest.IsolatedAsyncioTestCase):
     SOURCE = "oldyummy"
@@ -152,6 +181,18 @@ class SourceRouteTests(unittest.IsolatedAsyncioTestCase):
         start = time.monotonic()
         self.assertEqual(await source_registry.source_call(self.SOURCE, "search", run, timeout=0.8), ["hit"])
         self.assertLess(time.monotonic() - start, 0.8)
+
+    async def test_with_the_bridge_kept_for_panel_images_a_source_keeps_its_whole_wait_direct(self):
+        calls = []
+
+        async def run(route):
+            calls.append(route)
+            await asyncio.sleep(0.5)  # дольше половины срока: с мостом прямой путь получил бы только половину
+            return ["hit"]
+
+        with patch.object(http.config, "vpn_scope", return_value="images"):
+            self.assertEqual(await source_registry.source_call(self.SOURCE, "search", run, timeout=0.8), ["hit"])
+        self.assertEqual(calls, ["direct"])
 
     async def test_both_routes_failing_is_a_502_and_counts_once(self):
         async def run(route):

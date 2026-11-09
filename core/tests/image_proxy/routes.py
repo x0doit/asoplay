@@ -14,12 +14,15 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 import httpx
+from fastapi import HTTPException
 
-from core.classes import http_bridge, http_public, image_fetch, image_proxy
+from core.classes import http, http_bridge, http_public, image_fetch, image_proxy
+from core.config import config
 from core.tests.image_proxy.lib import MAL, PNG, ProxyCase, image
 from core.tests.player_guard.stubs import Recorder, addresses
 
 STUB = http_public.Refused("cdn.myanimelist.net resolves to non-public 127.0.0.1")
+ROUTE_ORDER = http.route_order  # настоящий: ProxyCase подменяет его на время каждой проверки
 
 
 class Routes(ProxyCase):
@@ -50,6 +53,17 @@ class Routes(ProxyCase):
         self.direct.seen.clear()
         self.assertEqual((await self.get(MAL + "?2")).body, PNG)
         self.assertEqual((self.direct.seen, self.vpn.seen, self.remembered), ([], [MAL + "?2"], []))
+
+    async def test_with_the_bridge_kept_for_panel_images_only_via_vpn_hosts_use_it(self):
+        self.bridge_on = True
+        with patch.object(http, "route_order", ROUTE_ORDER), patch.object(config, "vpn_scope", lambda: "images"):
+            self.direct.answers[MAL] = httpx.ConnectError("blocked")
+            self.assertIsInstance(await self.get(), HTTPException)  # хост не в панели — запасного пути нет
+            self.assertEqual(self.vpn.seen, [])
+            self.panel(("myanimelist.net", "vpn"))
+            self.vpn.answers[MAL + "?2"] = image
+            self.assertEqual((await self.get(MAL + "?2")).body, PNG)
+            self.assertEqual(self.vpn.seen, [MAL + "?2"])
 
     async def test_a_private_address_on_every_path_is_403_but_a_doh_failure_is_a_network_failure(self):
         self.bridge_on = True

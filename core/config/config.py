@@ -202,6 +202,13 @@ def vpn_url() -> str:
     return os.environ.get("AV_VPN_URL", "").strip()
 
 
+def vpn_scope() -> str:
+    """AV_VPN_SCOPE — кому мост: all — запасной путь для всех запросов наверх и источников видео (по умолчанию),
+    images — только картинкам хостов, которым панель велела идти через мост (via vpn); остальное ходит напрямую."""
+    scope = os.environ.get("AV_VPN_SCOPE", "all").strip().lower()
+    return scope if scope in {"all", "images"} else "all"
+
+
 def ss_address() -> str:
     """SS_ADDRESS — сервер запасного Shadowsocks."""
     return os.environ.get("SS_ADDRESS", "").strip()
