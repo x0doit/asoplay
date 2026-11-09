@@ -172,24 +172,6 @@ function isGenericEpisodeTitle(title) {
       || /^(\u044d\u043f\u0438\u0437\u043e\u0434|\u0441\u0435\u0440\u0438\u044f)\s*\.?\s*\d*\s*$/i.test(t);
 }
 
-async function translateToRu(text) {
-  if (!text) return "";
-  const max = 4500;
-  const raw = text.length > max ? text.slice(0, max) : text;
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 4000);
-  try {
-    const url = state.useProxy
-      ? `${BACKEND}/proxy/translate?q=${encodeURIComponent(raw)}&sl=auto&tl=ru`
-      : `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ru&dt=t&q=${encodeURIComponent(raw)}`;
-    const r = await fetch(url, { signal: ctrl.signal });
-    if (!r.ok) return "";
-    const data = await r.json();
-    return (data?.[0] || []).map(x => x?.[0] || "").join("").trim();
-  } catch { return ""; }
-  finally { clearTimeout(t); }
-}
-
 function parseEpDurationMin(s) {
   if (!s) return null;
   const str = String(s);
@@ -762,7 +744,6 @@ async function renderHeroCarousel(container) {
         const cleaned = cleanBBCode(shiki?.description || "");
         if (cleaned && hasCyrillic(cleaned)) ru = cleaned;
       } catch {}
-      if (!ru) ru = await translateToRu(s.description);
       if (!ru || !container.isConnected) return;
       const slideEl = rendered.get(s.mal_id)?.el;
       const p = slideEl?.querySelector(".hero-desc");
@@ -1297,9 +1278,7 @@ async function viewAnime(malId) {
     if (newTitles.length) player.addTitles(newTitles);
   });
 
-  anilistP
-    .then(al => { if (al && !player.destroyed) applyAnilist(al); })
-    .finally(() => setTimeout(() => { if (!player.destroyed) ensureRussianDescription(); }, 400));
+  anilistP.then(al => { if (al && !player.destroyed) applyAnilist(al); });
   charsP.then(chars => { if (!player.destroyed) renderCharacters(chars); });
   recsP.then(recs => { if (!player.destroyed) renderRecommendations(recs); });
 }
@@ -1741,20 +1720,6 @@ function applyAnilist(al) {
       if (heroDesc) heroDesc.textContent = clean.slice(0, 260) + (clean.length > 260 ? "…" : "");
     }
   }
-}
-
-async function ensureRussianDescription() {
-  const syn = $("#avSynopsis");
-  if (!syn) return;
-  const cur = syn.textContent.trim();
-  if (!cur || cur === "Описание не найдено" || hasCyrillic(cur)) return;
-  const ru = await translateToRu(cur);
-  if (!ru) return;
-  const synNow = $("#avSynopsis");
-  if (!synNow || hasCyrillic(synNow.textContent)) return;
-  synNow.textContent = ru;
-  const hd = $("#avHeroDesc");
-  if (hd) hd.textContent = ru.slice(0, 260) + (ru.length > 260 ? "…" : "");
 }
 
 function renderCharacters(chars) {

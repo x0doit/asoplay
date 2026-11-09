@@ -3342,9 +3342,6 @@
  "proxy_jikan": [
   "@router.get('/proxy/jikan/{path:path}') async def(path: str, request: Request)"
  ],
- "proxy_translate": [
-  "@router.get('/proxy/translate') async def(q: str=Query(...), sl: str='auto', tl: str='ru')"
- ],
  "proxy_url": [
   "def() -> str | None"
  ],

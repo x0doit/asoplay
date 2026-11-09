@@ -37,7 +37,6 @@
   "GET /shiki/search",
   "GET /proxy/jikan/{path:path}",
   "POST /proxy/anilist",
-  "GET /proxy/translate",
   "GET /proxy/img",
   "POST /auth/login",
   "POST /auth/logout",
@@ -4813,60 +4812,6 @@
      }
     },
     "summary": "Proxy Jikan"
-   }
-  },
-  "/proxy/translate": {
-   "get": {
-    "parameters": [
-     {
-      "in": "query",
-      "name": "q",
-      "required": true,
-      "schema": {
-       "title": "Q",
-       "type": "string"
-      }
-     },
-     {
-      "in": "query",
-      "name": "sl",
-      "required": false,
-      "schema": {
-       "default": "auto",
-       "title": "Sl",
-       "type": "string"
-      }
-     },
-     {
-      "in": "query",
-      "name": "tl",
-      "required": false,
-      "schema": {
-       "default": "ru",
-       "title": "Tl",
-       "type": "string"
-      }
-     }
-    ],
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      }
-     },
-     "422": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError@c3fc8f07"
-        }
-       }
-      }
-     }
-    },
-    "summary": "Proxy Translate"
    }
   },
   "/random/watchable": {

@@ -1,6 +1,6 @@
 """
 Маршруты каталога и прокси: Shikimori (карточка, пачка, поиск с запасным поиском old.yummyani), встроенный Jikan,
-AniList, перевод Google и картинки с разрешённых хостов.
+AniList и картинки с разрешённых хостов. Присланный текст сервер не переводит: прокси перевода здесь нет.
 
 Автор: Чепела Даниил Максимович.
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
@@ -167,22 +167,6 @@ async def proxy_anilist(request: Request):
         "POST", "https://graphql.anilist.co", json_body=body, ttl=600
     )
     return Response(content=content, status_code=status, media_type=ct)
-
-
-@router.get("/proxy/translate")
-async def proxy_translate(q: str = Query(...), sl: str = "auto", tl: str = "ru"):
-    """Перевод через Google Translate (gtx) с кешем на неделю."""
-    url = "https://translate.googleapis.com/translate_a/single"
-    params = {"client": "gtx", "sl": sl, "tl": tl, "dt": "t", "q": q}
-    content, ct, status = await http_cache.cached_fetch(
-        "GET", url, params=params, ttl=86400 * 7, timeout=8
-    )
-    return Response(
-        content=content,
-        status_code=status,
-        media_type=ct,
-        headers={"Cache-Control": "public, max-age=604800"},
-    )
 
 
 def _miss_budget(ip: str):
