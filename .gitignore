@@ -22,6 +22,9 @@ __pycache__/
 # Installed PHP dependencies; reproducible from composer.lock, included in deploy.
 core/classes/jikan/php/vendor/
 
+# Копия оформления комментариев ленты Anime Social: файлы соцсети на GitHub не идут, в выкладку — из рабочей копии
+assets/eddas/css/chat/01-comments.css
+
 # Старые/внешние агентские workspace-артефакты
 .claude/
 .serena/
