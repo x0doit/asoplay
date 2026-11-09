@@ -256,6 +256,8 @@ def _file_route(app: FastAPI, route: str, path: Path, media: str | None = None) 
 
 for _route, _path in _ASSET_DIRS:
     _file_route(app, _route, _path)
+# Имя, цвет и значки для «На экран „Домой“»; значки лежат в /assets/icons
+_file_route(app, "/manifest.webmanifest", env.ROOT / "manifest.webmanifest", "application/manifest+json")
 
 # Serve the whole /js/ directory if present (split frontend modules live here).
 _JS_DIR = env.ROOT / "js"

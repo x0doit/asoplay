@@ -24,6 +24,8 @@ core/classes/jikan/php/vendor/
 
 # Копия оформления комментариев ленты Anime Social: файлы соцсети на GitHub не идут, в выкладку — из рабочей копии
 assets/eddas/css/chat/01-comments.css
+# Знак Anime Social — значок AsoPlay по слову владельца; это файлы соцсети, и в выкладку они идут так же
+assets/icons/
 
 # Старые/внешние агентские workspace-артефакты
 .claude/

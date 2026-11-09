@@ -1,0 +1,15 @@
+{
+	"name": "AsoPlay",
+	"short_name": "AsoPlay",
+	"description": "Аниме онлайн в русской озвучке",
+	"lang": "ru",
+	"start_url": "/",
+	"scope": "/",
+	"display": "standalone",
+	"background_color": "#f3f6f9",
+	"theme_color": "#4c637b",
+	"icons": [
+		{ "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+		{ "src": "/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+	]
+}
