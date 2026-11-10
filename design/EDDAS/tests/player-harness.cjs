@@ -13,6 +13,15 @@ const source = readFileSync(join(__dirname, '..', '..', '..', 'app.js'), 'utf8')
 const playerSource = source.slice(source.indexOf('// ---------- player ----------'), source.indexOf('// ---------- router ----------'));
 let lastContext = null;
 
+/** Модуль страницы без своих import (js/*.js) — объектом его export, как `import * as` в app.js. */
+function browserModule(rel) {
+  const code = readFileSync(join(__dirname, '..', '..', '..', rel), 'utf8');
+  const names = [...code.matchAll(/^export (?:async )?(?:function|const|let|class) (\w+)/gm)].map(m => m[1]);
+  const context = vm.createContext({});
+  vm.runInContext(`${code.replace(/^export /gm, '')}\nglobalThis.__module = { ${names.join(', ')} };`, context);
+  return context.__module;
+}
+
 function harness(api = {}, globals = {}) {
   const nodes = new Map();
   const context = vm.createContext({ api, console: { warn() {} }, Set, Map, esc: s => s,
@@ -32,6 +41,9 @@ function harness(api = {}, globals = {}) {
     // «Продолжить с» (js/resume.js) рисует кнопку в шапке — в песочнице её нет
     ResumeButton: class { set() {} setCan() {} episode() {} time() {} destroy() {} },
     resumePoint: () => null,
+    // Имена озвучек (js/dub-names.js) — настоящий модуль; выбора на тайтле и любимой нет, пока проверка не задаст
+    dubNames: browserModule('js/dub-names.js'),
+    prefs: { getDub: () => null, getFavoriteDub: () => '' },
     account: {}, realtime: {}, SheetDrag: {}, BACKEND: '',
     document: { addEventListener() {}, removeEventListener() {} },
     ...globals,
@@ -50,4 +62,4 @@ function harness(api = {}, globals = {}) {
 /** Песочница последнего вызова harness: в ней playerVolume и остальное окружение плеера. */
 const last = () => lastContext;
 
-module.exports = { harness, last };
+module.exports = { browserModule, harness, last };

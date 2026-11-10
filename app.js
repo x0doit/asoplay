@@ -9,7 +9,8 @@
  * any attempt to do so surfaces a guest-gate.
  */
 
-import * as account from "./js/account.js?v=20261110-lists1";
+import * as account from "./js/account.js?v=20261110-favdub1";
+import * as dubNames from "./js/dub-names.js?v=20261110-favdub1";
 import { setupNavigation, setActiveSection, SheetDrag } from "./js/navigation.js?v=20261030-live1";
 import * as images from "./js/images.js?v=20261031-img1";
 import * as realtime from "./js/realtime.js?v=20261102-chat1";
@@ -246,6 +247,7 @@ const rating = {
 const prefs = {
   getDub: id => account.store.getDubPref(id),
   setDub: (id, norm) => account.store.setDubPref(id, norm),
+  getFavoriteDub: () => account.store.getFavoriteDub(),
   setAutoNext: on => account.store.setAutoNext(on),
 };
 function saveProgress(id, ep, time, dur) { account.store.saveProgress(id, ep, time, dur); }
@@ -1883,14 +1885,7 @@ class Player {
   }
 
   _normDubName(name) {
-    let s = (name || "").toLowerCase().trim();
-    s = s.replace(/[\(\[]([^)\]]*)[\)\]]/g, " ");
-    const prefixes = ["озвучка ", "субтитры ", "оригинал ", "original ", "voice ", "sub ", "дубляж "];
-    for (const p of prefixes) if (s.startsWith(p)) s = s.slice(p.length);
-    s = s.replace(/\b(ru|en|jp|ja|рус|русский|англ\w*|яп\w*|дубляж|дубл|sub|subs|ost)\b/g, " ");
-    s = s.replace(/[^\w\sа-яё]+/gi, " ");
-    s = s.replace(/\s+/g, " ").trim();
-    return s;
+    return dubNames.normDubName(name);
   }
 
   _isSubDub(dub) {
@@ -1904,10 +1899,12 @@ class Player {
     return (this._isSubDub(dub) ? `sub:${name}` : name).slice(0, 128);
   }
 
-  // Wanted dub first, otherwise the first voice-over: subtitles only when nothing is voiced.
+  // Wanted dub first (picked in this tab, then saved for the title), then the favourite from the settings,
+  // otherwise the first voice-over: subtitles only when nothing is voiced.
   _pickDubIndex(dubs) {
     const wanted = this._sessionDubKey || prefs.getDub(this.malId);
     let idx = wanted ? dubs.findIndex(d => this._dubKey(d) === wanted) : -1;
+    if (idx < 0) idx = dubNames.favoriteIndex(dubs, prefs.getFavoriteDub());
     if (idx < 0) idx = Math.max(0, dubs.findIndex(d => !this._isSubDub(d)));
     if (!this._sessionDubKey) this._sessionDubKey = wanted || this._dubKey(dubs[idx]);
     return idx;
@@ -2096,8 +2093,15 @@ class Player {
     return dubs;
   }
 
+  // The favourite dub's own player (AniLibria, Dream Cast, Studio Band) is searched first while the title has no dub
+  // saved by hand and none was picked in this tab.
+  _favoriteSource() {
+    if (this._sessionDubKey || prefs.getDub(this.malId)) return "";
+    return dubNames.ownSource(prefs.getFavoriteDub());
+  }
+
   _backendSourcePriority() {
-    return sourcePriority();
+    return dubNames.sourceFirst(sourcePriority(), this._favoriteSource());
   }
 
   _activateSourceForEpisode(src, episodes, index) {
@@ -3057,10 +3061,12 @@ class Player {
   }
 
   async discoverWithFallback() {
-    const priority = sourcePriority();
+    const priority = this._backendSourcePriority();
     const available = new Set(state.backendSources || []);
     const pool = priority.filter(s => available.has(s));
     if (!pool.length) return;
+    // The favourite's own player goes alone, before the others: a faster collection would win the first wave
+    const lead = pool[0] === this._favoriteSource() ? 1 : 0;
 
     const seq = (this._discoverySeq || 0) + 1;
     this._discoverySeq = seq;
@@ -3096,7 +3102,7 @@ class Player {
       return adoptFoundSource();
     };
 
-    const waves = [pool.slice(0, 2), pool.slice(2, 5), pool.slice(5)];
+    const waves = [pool.slice(0, lead), pool.slice(lead, lead + 2), pool.slice(lead + 2, lead + 5), pool.slice(lead + 5)];
     for (const wave of waves) {
       if (adoptFoundSource()) return;
       if (await runWave(wave, 6_000)) return;
@@ -3110,7 +3116,7 @@ class Player {
     if (this._activeSource && this.sources[`backend:${this._activeSource}`]?.episodes?.length) {
       return this._renderFoundSource();
     }
-    for (const s of sourcePriority()) {
+    for (const s of this._backendSourcePriority()) {
       if (this.sources[`backend:${s}`]?.episodes?.length) {
         this._activeSource = s;
         return this._renderFoundSource();

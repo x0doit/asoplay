@@ -15,7 +15,7 @@ const { harness, last } = require('./player-harness.cjs');
 const kodik = 'https://kodikplayer.com/seria/1/abc/720p';
 const cvh = 'https://site.yummyani.me/iframecvh.html?id=1';
 const dub = (label, iframeUrl = cvh) => ({ label, iframeUrl });
-const savedDub = saved => ({ prefs: { getDub: () => saved } });
+const savedDub = saved => ({ prefs: { getDub: () => saved, getFavoriteDub: () => '' } });
 
 test('first voice-over wins by default, not subtitles or the first Kodik entry', () => {
   const p = harness({}, savedDub(null));

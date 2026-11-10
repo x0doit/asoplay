@@ -11,13 +11,14 @@ core/functions/source_filters.py.
 Части — в порядке подключения, он же порядок маршрутов:
     search.py   /src/search, /src/episodes
     media.py    /src/dubs, /src/videos
+    names.py    /src/dub-names
 """
 from __future__ import annotations
 
 from fastapi import APIRouter
 
-from core.api.sections.sources import media, search
+from core.api.sections.sources import media, names, search
 
 router = APIRouter()
-for _part in (search, media):  # порядок — как до деления
+for _part in (search, media, names):  # порядок — как до деления, новые части — в конце
     router.include_router(_part.router)

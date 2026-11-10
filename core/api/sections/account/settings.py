@@ -5,7 +5,8 @@
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
 Часть core/api/sections/account: вход (__init__.py) подключает части по порядку. Что значат флаги приватности
-и как их читают другие разделы — в core/functions/privacy.py.
+и как их читают другие разделы — в core/functions/privacy.py. Любимая озвучка (favorite_dub) — имя из реестра
+core/functions/dub_names.py как текст: пусто — не выбрана; плеер ищет её среди озвучек серии сам.
 """
 from __future__ import annotations
 
@@ -13,11 +14,11 @@ import json
 from typing import Any
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from core.classes.clock import utc_now
 from core.classes.db import connect
-from core.functions import lists
+from core.functions import dub_names, lists
 from core.functions.privacy import PRIVACY_FIELDS, read_privacy
 from core.functions.sessions import current_user_required
 
@@ -35,6 +36,7 @@ class SettingsIn(BaseModel):
     autonext: bool | None = None
     auto_add_lists: bool | None = None
     extra: dict[str, Any] | None = None
+    favorite_dub: str | None = Field(default=None, max_length=1000)  # "" — сбросить; хранится до 200 знаков
 
 
 @router.get("/settings")
@@ -43,13 +45,13 @@ def settings_get(user: dict[str, Any] = Depends(current_user_required)) -> dict[
     with connect() as conn:
         cur = conn.cursor()
         cur.execute(
-            """SELECT autonext, auto_add_lists, settings_json
+            """SELECT autonext, auto_add_lists, settings_json, favorite_dub
                 FROM aviev_account_settings WHERE user_id=%s""",
             (user["id"],),
         )
         row = cur.fetchone()
     if not row:
-        return {"autonext": True, "auto_add_lists": True, "extra": {}}
+        return {"autonext": True, "auto_add_lists": True, "extra": {}, "favorite_dub": ""}
     extra = {}
     if row[2]:
         try:
@@ -60,6 +62,7 @@ def settings_get(user: dict[str, Any] = Depends(current_user_required)) -> dict[
         "autonext": bool(row[0]),
         "auto_add_lists": bool(row[1]),
         "extra": extra,
+        "favorite_dub": row[3] or "",
     }
 
 
@@ -76,6 +79,7 @@ def settings_put(
     insert_autonext = 1 if payload.autonext is None else (1 if payload.autonext else 0)
     insert_auto_add = 1 if payload.auto_add_lists is None else (1 if payload.auto_add_lists else 0)
     insert_extra = json.dumps(payload.extra or {}, ensure_ascii=False)
+    favorite = dub_names.clean_name(payload.favorite_dub or "")
 
     update_sets: list[str] = []
     update_vals: list[Any] = []
@@ -88,20 +92,23 @@ def settings_put(
     if payload.extra is not None:
         update_sets.append("settings_json=%s")
         update_vals.append(insert_extra)
+    if payload.favorite_dub is not None:
+        update_sets.append("favorite_dub=%s")
+        update_vals.append(favorite)
     update_sets.append("updated_at=%s")
     update_vals.append(now)
 
     sql = (
         "INSERT INTO aviev_account_settings "
-        "(user_id, autonext, auto_add_lists, settings_json, updated_at) "
-        "VALUES (%s, %s, %s, %s, %s) "
+        "(user_id, autonext, auto_add_lists, settings_json, favorite_dub, updated_at) "
+        "VALUES (%s, %s, %s, %s, %s, %s) "
         f"ON DUPLICATE KEY UPDATE {', '.join(update_sets)}"
     )
     with connect() as conn:
         cur = conn.cursor()
         cur.execute(
             sql,
-            (user["id"], insert_autonext, insert_auto_add, insert_extra, now,
+            (user["id"], insert_autonext, insert_auto_add, insert_extra, favorite, now,
              *update_vals),
         )
         conn.commit()

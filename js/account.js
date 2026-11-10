@@ -176,6 +176,7 @@ export async function refresh() {
     ctx.state.ratings = {};
     ctx.state.dubPrefs = _loadGuestDubs();
     ctx.state.autoNext = true;
+    ctx.state.favoriteDub = "";
   }
   renderHeader();
   return ctx.state.user;
@@ -226,6 +227,7 @@ async function _hydratePersonal() {
   ctx.state.dubPrefs = dubPrefs || {};
   ctx.state.autoNext = (settings && settings.autonext) !== false;
   ctx.state.autoAddLists = settings ? !!settings.auto_add_lists : true;
+  ctx.state.favoriteDub = (settings && settings.favorite_dub) || "";
   ctx.state.privacy = { ...PRIVACY_DEFAULTS, ...(privacy || {}) };
 }
 
@@ -386,6 +388,7 @@ export async function logout() {
   ctx.state.watch = {};
   ctx.state.ratings = {};
   ctx.state.dubPrefs = _loadGuestDubs();
+  ctx.state.favoriteDub = "";
   renderHeader();
 }
 
@@ -752,6 +755,20 @@ export const store = {
     } catch (_) {}
   },
 
+  // Любимая озвучка из настроек: сразу в состоянии; сбой сохранения — прежняя и исключение для строки настроек
+  getFavoriteDub() { return ctx.state.favoriteDub || ""; },
+  async setFavoriteDub(name) {
+    const before = ctx.state.favoriteDub || "";
+    ctx.state.favoriteDub = name;
+    if (!ctx.state.user) return;
+    try {
+      await _fetchJson("/account/settings", { method: "PUT", body: { favorite_dub: name } });
+    } catch (err) {
+      ctx.state.favoriteDub = before;
+      throw err;
+    }
+  },
+
   getAutoNext() { return !!ctx.state.autoNext; },
   async setAutoNext(on) {
     ctx.state.autoNext = !!on;
@@ -921,8 +938,9 @@ window.addEventListener("beforeunload", () => {
 // ==== guest gate ====
 let _gateEl = null;
 
-// EDDAS dialog: centred on wide screens, a bottom sheet on phones that the finger can swipe away.
-function _openDialog(className, inner, { onClose, label } = {}) {
+// EDDAS dialog: centred on wide screens, a bottom sheet on phones that the finger can swipe away. scroll — selector of
+// a list inside that scrolls under the finger (the sheet then follows it only from the list's top).
+function _openDialog(className, inner, { onClose, label, scroll } = {}) {
   const wrap = document.createElement("div");
   wrap.className = `av-dialog ${className}`;
   wrap.innerHTML = `
@@ -953,6 +971,7 @@ function _openDialog(className, inner, { onClose, label } = {}) {
     scrim: wrap.querySelector(".av-dialog__scrim"),
     active: () => window.matchMedia("(max-width: 767px)").matches,
     close,
+    scroll,
   });
   (panel.querySelector("[autofocus]") || panel.querySelector(".ed-btn, button"))?.focus({ preventScroll: true });
   return { el: wrap, close };
@@ -1791,6 +1810,9 @@ export async function viewMySettings(tab) {
   const privacy = { ...PRIVACY_DEFAULTS, ...(ctx.state.privacy || {}) };
   const autoLists = ctx.state.autoAddLists !== false;
   const activeTab = tab === "privacy" ? "privacy" : "general";
+  // «Любимая озвучка» — свой модуль, его грузит только эта вкладка; не загрузился — страница без этой строки
+  const favDub = activeTab === "general" ? await import("./fav-dub-settings.js?v=20261110-favdub1").catch(() => null) : null;
+  if (!location.pathname.startsWith("/my/settings")) return;  // пока грузился модуль, ушли на другую страницу
   const tabLink = (key, href, label) => `<a class="ed-tabs__item${activeTab === key ? " is-active" : ""}" href="${href}"${activeTab === key ? ' aria-current="page"' : ""}>${label}</a>`;
   const theme = getTheme();
   const themeOption = (value) => `<button type="button" class="ed-tabs__item${theme === value ? " is-active" : ""}" role="radio" aria-checked="${theme === value}" data-theme-value="${value}">${esc(themeLabel(value))}</button>`;
@@ -1820,6 +1842,7 @@ export async function viewMySettings(tab) {
               <label class="ed-switch"><span>Добавлять в «Смотрю» и «Просмотрено» автоматически</span><input type="checkbox" role="switch" id="avAutoAddToggle" ${autoLists ? "checked" : ""} /></label>
               <p class="settings-help">Вместе с этим отключается правило «30 дней без просмотра, тайтл переходит в „Брошено“». Автопереключение серий включается под плеером.</p>
             </div>
+            ${favDub ? favDub.favDubRow() : ""}
           </div>
         </section>
         <section class="ed-panel" aria-labelledby="avSetLook">
@@ -1867,6 +1890,13 @@ export async function viewMySettings(tab) {
 
   if (activeTab === "general") {
     document.querySelector("#avAutoAddToggle")?.addEventListener("change", e => store.setAutoAddLists(e.target.checked));
+    favDub?.bindFavDub(ctx.outlet.querySelector(".fav-dub"), {
+      get: () => store.getFavoriteDub(),
+      set: name => store.setFavoriteDub(name),
+      chosen: () => Object.values(ctx.state.dubPrefs || {}).filter(key => key && !String(key).startsWith("sub:")),
+      fetchJson: _fetchJson,
+      openDialog: _openDialog,
+    });
     const themeTabs = document.querySelector(".theme-tabs");
     // The header and the sheet can change the theme while this page is open.
     const paintTheme = () => {

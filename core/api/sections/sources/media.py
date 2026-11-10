@@ -5,8 +5,8 @@
 AsoPlay — proprietary, все права защищены (см. /COPYRIGHT).
 
 Часть core/api/sections/sources: вход (__init__.py) подключает части по порядку. Озвучки — одна на имя и вид
-(озвучка или субтитры), с лучшим плеером, VK — последними. Видео проходят фильтр неиграбельных плееров и рекламы
-(core/functions/source_filters.py).
+(озвучка или субтитры), с лучшим плеером, VK — последними; их имена пополняют реестр для выбора любимой
+(core/functions/dub_names.py). Видео проходят фильтр неиграбельных плееров и рекламы (core/functions/source_filters.py).
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from core.functions import native_sources, site_settings, source_filters, sources
+from core.functions import dub_names, native_sources, site_settings, source_filters, sources
 from core.functions.player_hosts import iframe_preference_score, is_disabled_player_url
 
 log = logging.getLogger("asoplay")  # тот же журнал, что у core.py до деления
@@ -28,12 +28,14 @@ async def dubs_for_episode(key: str, source: str = "anilibria"):
     """Озвучки серии по её ключу: одна на имя и вид, с лучшим плеером, VK — последними."""
     sources.request_title.set(sources.title_of(key))  # тайтл ключа — для счёта ошибок разбора
     if source in sources.NATIVE_SOURCES:
-        return await sources.guard_source(
+        found = await sources.guard_source(
             source,
             "dubs",
             native_sources.native_dubs(source, key),
             timeout=12.0,
         )
+        dub_names.note(found)
+        return found
 
     episode = sources.get(key)
 
@@ -67,7 +69,9 @@ async def dubs_for_episode(key: str, source: str = "anilibria"):
             continue
         scores[identity] = score
         seen[identity] = {"name": name.strip(), "norm": norm, "kind": kind, "key": sources.put(s)}
-    return [seen[identity] for identity in source_filters.vk_last(list(seen), scores)]
+    found = [seen[identity] for identity in source_filters.vk_last(list(seen), scores)]
+    dub_names.note(found)
+    return found
 
 
 @router.get("/src/videos")

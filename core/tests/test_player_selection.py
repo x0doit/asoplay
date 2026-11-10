@@ -33,7 +33,8 @@ class Selection(unittest.IsolatedAsyncioTestCase):
         sources = [SimpleNamespace(title=name, url=url) for name, url in entries]
         ep = SimpleNamespace(a_get_sources=AsyncMock(return_value=sources))
         with patch.object(source_registry, 'get', return_value=ep), \
-             patch.object(source_registry, 'put', side_effect=lambda s: s.url):
+             patch.object(source_registry, 'put', side_effect=lambda s: s.url), \
+             patch.object(media.dub_names, 'note'):  # реестр имён — своя проверка (test_dub_names), без базы
             return await media.dubs_for_episode('episode', 'yummy_anime')
 
     async def native_dubs(self, entries):

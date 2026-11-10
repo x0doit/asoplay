@@ -52,7 +52,9 @@ JavaScript, бэкенд работает на Python/FastAPI, а пользов
 - **Интеграция AnimeSocial**: авторизация через существующую MySQL-базу
   AnimeSocial и локальные HTTP-only сессии проекта.
 - **Личный кабинет**: избранное, продолжить просмотр, списки, статусы,
-  оценки, выбранные озвучки, настройки и приватность.
+  оценки, выбранные озвучки, настройки и приватность. Любимая озвучка из настроек (выбор с поиском среди всех
+  озвучек, что встречались в плеере) включается сама, если на тайтле не выбрана другая; AniLibria, Dream Cast
+  и Studio Band плеер сначала ищет в их собственных плеерах.
 - **Друзья и «онлайн на AsoPlay»**: страница «Друзья» как в AnimeSocial — кто сейчас на
   AsoPlay и что смотрит, кто в сети в соцсети, кто когда был, поиск, заявки (принять, отклонить,
   отменить), «Возможные друзья», «Удалить из друзей», «Написать» (сообщение уходит в переписку
@@ -185,7 +187,8 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── account/            /account/…: вход __init__.py подключает части в порядке маршрутов —
 │   │   │                       favorites, history, progress, ratings, settings, import_storage
 │   │   ├── lists/              /account/lists/…: entries (записи), progress_event (события плеера)
-│   │   ├── sources/            /src/…: search.py (поиск, серии), media.py (озвучки, видео)
+│   │   ├── sources/            /src/…: search.py (поиск, серии), media.py (озвучки, видео),
+│   │   │                       names.py (имена озвучек для выбора любимой)
 │   │   ├── activity.py         /account/activity: график и лента активности
 │   │   ├── auth.py             /auth/login, logout, me, register, config: вход паролем и настройки соцсети
 │   │   ├── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, перевод, картинки
@@ -239,6 +242,7 @@ AsoPlayer — это не отдельная библиотека, а прикл
 │   │   ├── sources.py          источники видео: реестр, ключи найденного, вызов напрямую или через VPN-мост
 │   │   ├── native_sources.py   свои источники (old.yummyani, animevost) в том же виде, что anicli-api
 │   │   ├── source_filters.py   фильтры найденного: год, имена озвучек, неиграбельные и VK-плееры, реклама
+│   │   ├── dub_names.py        реестр имён озвучек из /src/dubs для выбора любимой: вставка раз в минуту, до 5000
 │   │   └── player_hosts.py     политика плееров: белый список хостов прокси, VK, неиграющие плееры
 │   ├── classes/
 │   │   ├── db.py               подключение к базе AnimeSocial: настройки, соединение, проверка для /health
@@ -549,7 +553,8 @@ python -m core.api.tools.as_events_backfill --since 2026-10-30 --apply
 - `aviev_episode_progress` — per-episode progress.
 - `aviev_title_ratings` — personal ratings.
 - `aviev_dub_prefs` — preferred dubbing per title.
-- `aviev_account_settings` — account toggles.
+- `aviev_dub_names` — dub names the player has met, to pick a favourite from (up to 5000; the rarest go).
+- `aviev_account_settings` — account toggles and the favourite dub.
 - `aviev_privacy` — public profile privacy controls and presence on AsoPlay.
 - `aviev_as_sessions` — AnimeSocial device sessions behind sign-in with AnimeSocial.
 - `aviev_activity` — contribution/activity graph events.
@@ -653,7 +658,9 @@ JavaScript, the backend runs on Python/FastAPI, and user data is stored in MySQL
 - **AnimeSocial authentication bridge** using the existing AnimeSocial MySQL
   account database with project-local HTTP-only sessions.
 - **Personal library** with favorites, continue watching, statuses, ratings,
-  dub preferences, settings and privacy controls.
+  dub preferences, settings and privacy controls. A favourite dub from the settings (picked with a search among
+  every dub the player has met) plays by itself unless the title has another one chosen; for AniLibria, Dream
+  Cast and Studio Band the player looks in their own players first.
 - **Friends and «онлайн на AsoPlay»**: a friends page laid out like AnimeSocial's, showing who is
   on AsoPlay now and what they watch, who is online on the social network and when others were
   last seen, with a search, friend requests (accept, decline, cancel), «Возможные друзья»,
@@ -790,7 +797,8 @@ Key capabilities:
 │   │   ├── account/            /account/…: the __init__.py entry includes the parts in route order —
 │   │   │                       favorites, history, progress, ratings, settings, import_storage
 │   │   ├── lists/              /account/lists/…: entries, progress_event (player events)
-│   │   ├── sources/            /src/…: search.py (search, episodes), media.py (dubs, videos)
+│   │   ├── sources/            /src/…: search.py (search, episodes), media.py (dubs, videos),
+│   │   │                       names.py (dub names for picking a favourite)
 │   │   ├── activity.py         /account/activity: the activity graph and feed
 │   │   ├── auth.py             /auth/login, logout, me, register, config: password sign-in, social settings
 │   │   ├── catalog.py          /proxy/…, /shiki/…: Jikan, AniList, Shikimori, translate, images
@@ -844,6 +852,7 @@ Key capabilities:
 │   │   ├── sources.py          video sources: the registry, keys of found objects, calls direct or via the VPN bridge
 │   │   ├── native_sources.py   our own sources (old.yummyani, animevost) shaped like anicli-api
 │   │   ├── source_filters.py   filters for found objects: year, dub names, unplayable and VK players, ads
+│   │   ├── dub_names.py        dub names from /src/dubs to pick a favourite from: one insert a minute, up to 5000
 │   │   └── player_hosts.py     player policy: the proxy host list, VK, players that do not play
 │   ├── classes/
 │   │   ├── db.py               AnimeSocial DB connection: settings, connect, the /health probe
@@ -1159,7 +1168,8 @@ Core project tables:
 - `aviev_episode_progress` — per-episode progress.
 - `aviev_title_ratings` — personal ratings.
 - `aviev_dub_prefs` — preferred dubbing per title.
-- `aviev_account_settings` — account toggles.
+- `aviev_dub_names` — dub names the player has met, to pick a favourite from (up to 5000; the rarest go).
+- `aviev_account_settings` — account toggles and the favourite dub.
 - `aviev_privacy` — public profile privacy controls and presence on AsoPlay.
 - `aviev_as_sessions` — AnimeSocial device sessions behind sign-in with AnimeSocial.
 - `aviev_activity` — contribution/activity graph events.

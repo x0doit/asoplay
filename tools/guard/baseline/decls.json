@@ -583,6 +583,9 @@
  "LIST_KINDS": [
   "= e8f4b9b6b0df"
  ],
+ "LIST_TTL": [
+  "= afea213dc1b7"
+ ],
  "LOGIN_WINDOW": [
   "= f142b51ba867"
  ],
@@ -668,6 +671,9 @@
  "NAME": [
   "= a73094449e34"
  ],
+ "NAME_MAX": [
+  "= 9f9af029585b"
+ ],
  "NATIVE_SOURCES": [
   "= 88945ee3c648",
   "= 91e8488f217e",
@@ -675,6 +681,9 @@
  ],
  "NETWORK_ERRORS": [
   "= bb2a3e218dcc"
+ ],
+ "NORM_MAX": [
+  "= b4182bff4b3c"
  ],
  "NOTICE_MAX": [
   "= f83a383c0fa8"
@@ -720,6 +729,9 @@
  ],
  "PAGE": [
   "= e1822db470e6"
+ ],
+ "PENDING_MAX": [
+  "= e3cbba8883fe"
  ],
  "PER_HOST": [
   "= c1dfd96eea8c"
@@ -892,6 +904,9 @@
  "ROOT": [
   "= 25b03a64adba"
  ],
+ "ROWS_MAX": [
+  "= f8237d8959e0"
+ ],
  "RatingIn": [
   "class(BaseModel)"
  ],
@@ -969,6 +984,9 @@
  ],
  "Row.user_id": [
   "int = da39a3ee5e6b"
+ ],
+ "SEED": [
+  "= 1190c80eed01"
  ],
  "SEND_TIMEOUT": [
   "= ac3478d69a3c"
@@ -1093,6 +1111,9 @@
  ],
  "SettingsIn.extra": [
   "dict[str, Any] | None = 6eef6648406c"
+ ],
+ "SettingsIn.favorite_dub": [
+  "str | None = 64e10d1ffa8d"
  ],
  "SettingsIn.features": [
   "FeaturesIn | None = 6eef6648406c"
@@ -1357,7 +1378,8 @@
  ],
  "WINDOW": [
   "= 70142f66475a",
-  "= b463555d4f85"
+  "= b463555d4f85",
+  "= df1f005bd0e9"
  ],
  "WINDOW_HOURS": [
   "= 4d134bc07221"
@@ -1760,6 +1782,9 @@
  "_VK_WRAPPER_NAMES": [
   "= 2d70eb6c72df"
  ],
+ "_VOICE_PREFIX": [
+  "= 0d6049f660fe"
+ ],
  "_XRAY_CANDIDATES": [
   "= e1b809fa00ec"
  ],
@@ -2032,6 +2057,9 @@
  "_listed": [
   "def(user: dict[str, Any], **extra: Any) -> dict[str, Any]"
  ],
+ "_listing": [
+  "= 471a37fd5db5"
+ ],
  "_lists_url": [
   "def(user_id: int) -> str"
  ],
@@ -2042,6 +2070,7 @@
   "def() -> dict[str, Any]"
  ],
  "_lock": [
+  "= c6d6acc28078",
   "= c6d6acc28078",
   "= c6d6acc28078",
   "= c6d6acc28078"
@@ -2135,6 +2164,7 @@
  ],
  "_pending": [
   "= 9aadf8ef192d",
+  "= bf21a9e8fbc5",
   "= bf21a9e8fbc5",
   "= bf21a9e8fbc5"
  ],
@@ -2406,6 +2436,9 @@
  ],
  "_thread_title": [
   "async def(mal_id: int, episode: int | None) -> tuple[str, str]"
+ ],
+ "_timer": [
+  "= 6eef6648406c"
  ],
  "_title": [
   "def(raw: str | None) -> str"
@@ -2740,6 +2773,9 @@
  "clean": [
   "def(value: str, limit: int) -> str"
  ],
+ "clean_name": [
+  "def(raw: Any) -> str"
+ ],
  "clean_title": [
   "def(value: Any) -> str"
  ],
@@ -2836,6 +2872,9 @@
  "drop_session": [
   "def(session: str) -> None"
  ],
+ "dub_names_list": [
+  "@router.get('/src/dub-names') async def() -> JSONResponse"
+ ],
  "dub_prefs_all": [
   "@router.get('/dub-prefs') def(user: dict[str, Any]=Depends(current_user_required)) -> dict[str, str]"
  ],
@@ -2918,6 +2957,9 @@
  ],
  "flows": [
   "= 11e199702906"
+ ],
+ "flush": [
+  "def() -> None"
  ],
  "fon_url": [
   "def(user_id: int | str | None, fon: str | None) -> str"
@@ -3148,6 +3190,9 @@
  "listeners": [
   "= 97d170e1550e"
  ],
+ "listing": [
+  "def() -> list[str]"
+ ],
  "lists_block": [
   "@router.get('/lists/{user_id}') def(user_id: int=Path(ge=1, lt=2 ** 32), _peer: None=Depends(social_peer)) -> dict[str, Any]"
  ],
@@ -3180,6 +3225,7 @@
   "= 09e04af44e51",
   "= 0dd68a9ceb8a",
   "= 1775a40410d5",
+  "= 2e576a67b5c6",
   "= 32d06339fc74",
   "= 331c30afefaa",
   "= 3acb6a6c60f8",
@@ -3268,6 +3314,9 @@
  ],
  "normalize_host": [
   "def(raw: Any) -> str"
+ ],
+ "note": [
+  "def(items: Iterable[Any]) -> None"
  ],
  "notice": [
   "def() -> dict[str, Any] | None"
@@ -3568,6 +3617,7 @@
   "= 38a8009d6ab6",
   "= 603dd6e11367",
   "= 60402b34e88b",
+  "= 82e1a4f1c862",
   "= 82e1a4f1c862",
   "= 82e1a4f1c862",
   "= 82e1a4f1c862",

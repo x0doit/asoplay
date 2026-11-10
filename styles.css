@@ -1903,6 +1903,91 @@ a.ed-tabs__item {
   color: var(--text-muted);
 }
 
+/* «Любимая озвучка»: кнопка с выбранной озвучкой и список с поиском в окне (js/fav-dub-settings.js) */
+.fav-dub__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.fav-dub__pick {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.fav-dub__value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .fav-dub-overlay .av-dialog__panel {
+    max-width: 480px;
+  }
+}
+
+.fav-dub__search {
+  margin-top: var(--space-4);
+}
+
+.fav-dub__list {
+  max-height: min(420px, 50vh);
+  margin-top: var(--space-3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.fav-dub__group + .fav-dub__group {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+.fav-dub__group-title {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  font: 500 13px/1.4 var(--font-sans);
+  color: var(--text-muted);
+}
+
+.fav-dub__item {
+  width: 100%;
+  height: auto;
+  min-height: 40px;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+
+.fav-dub__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fav-dub__item.is-active {
+  background: var(--selected);
+  color: var(--text-strong);
+}
+
+.fav-dub__item.is-active i {
+  color: var(--brand);
+}
+
+.fav-dub__empty {
+  padding: var(--space-6) var(--space-4);
+}
+
+.fav-dub__more {
+  padding: var(--space-2) var(--space-3);
+  font: 400 13px/1.45 var(--font-sans);
+  color: var(--text-muted);
+}
+
 /* Недоступная настройка: «Показывать, что я смотрю» без отметки «на AsoPlay» */
 .ed-switch:has(input:disabled) {
   color: var(--text-muted);

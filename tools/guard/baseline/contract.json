@@ -32,6 +32,7 @@
   "GET /src/episodes",
   "GET /src/dubs",
   "GET /src/videos",
+  "GET /src/dub-names",
   "GET /random/watchable",
   "GET /shiki/anime/{mal_id}",
   "GET /shiki/batch",
@@ -2484,7 +2485,7 @@
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/SettingsIn@26a952e3"
+        "$ref": "#/components/schemas/SettingsIn@27a09f4c"
        }
       }
      },
@@ -5593,6 +5594,20 @@
     "summary": "Sources"
    }
   },
+  "/src/dub-names": {
+   "get": {
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    },
+    "summary": "Dub Names List"
+   }
+  },
   "/src/dubs": {
    "get": {
     "parameters": [
@@ -6084,7 +6099,7 @@
   "{\"ReportIn@187c883a\": {\"properties\": {\"dub\": {\"default\": \"\", \"maxLength\": 200, \"title\": \"Dub\", \"type\": \"string\"}, \"episode\": {\"anyOf\": [{\"maximum\": 65535.0, \"minimum\": 1.0, \"type\": \"integer\"}, {\"type\": \"null\"}], \"title\": \"Episode\"}, \"kind\": {\"title\": \"Kind\", \"type\": \"string\"}, \"mal_id\": {\"exclusiveMaximum\": 10000000.0, \"exclusiveMinimum\": 0.0, \"title\": \"Mal Id\", \"type\": \"integer\"}, \"player\": {\"default\": \"\", \"maxLength\": 100, \"title\": \"Player\", \"type\": \"string\"}, \"source\": {\"default\": \"\", \"maxLength\": 64, \"title\": \"Source\", \"type\": \"string\"}, \"text\": {\"default\": \"\", \"maxLength\": 2000, \"title\": \"Text\", \"type\": \"string\"}}, \"required\": [\"mal_id\", \"kind\"], \"title\": \"ReportIn\", \"type\": \"object\"}}",
   "{\"ReportIn@b6227f8d\": {\"properties\": {\"comment\": {\"default\": \"\", \"maxLength\": 300, \"title\": \"Comment\", \"type\": \"string\"}, \"reason\": {\"enum\": [\"spam\", \"insult\", \"adult\", \"violence\", \"fraud\", \"other\"], \"title\": \"Reason\", \"type\": \"string\"}}, \"required\": [\"reason\"], \"title\": \"ReportIn\", \"type\": \"object\"}}",
   "{\"ReportPatch@b8d71a2b\": {\"properties\": {\"note\": {\"default\": \"\", \"maxLength\": 1000, \"title\": \"Note\", \"type\": \"string\"}, \"status\": {\"title\": \"Status\", \"type\": \"string\"}}, \"required\": [\"status\"], \"title\": \"ReportPatch\", \"type\": \"object\"}}",
-  "{\"SettingsIn@26a952e3\": {\"properties\": {\"auto_add_lists\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Auto Add Lists\"}, \"autonext\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Autonext\"}, \"extra\": {\"anyOf\": [{\"additionalProperties\": true, \"type\": \"object\"}, {\"type\": \"null\"}], \"title\": \"Extra\"}}, \"title\": \"SettingsIn\", \"type\": \"object\"}}",
+  "{\"SettingsIn@27a09f4c\": {\"properties\": {\"auto_add_lists\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Auto Add Lists\"}, \"autonext\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Autonext\"}, \"extra\": {\"anyOf\": [{\"additionalProperties\": true, \"type\": \"object\"}, {\"type\": \"null\"}], \"title\": \"Extra\"}, \"favorite_dub\": {\"anyOf\": [{\"maxLength\": 1000, \"type\": \"string\"}, {\"type\": \"null\"}], \"title\": \"Favorite Dub\"}}, \"title\": \"SettingsIn\", \"type\": \"object\"}}",
   "{\"SettingsIn@f3e7d11d\": {\"properties\": {\"features\": {\"anyOf\": [{\"$ref\": \"#/components/schemas/FeaturesIn@7efcfba0\"}, {\"type\": \"null\"}]}, \"notice\": {\"anyOf\": [{\"$ref\": \"#/components/schemas/NoticeIn@e0fa44fe\"}, {\"type\": \"null\"}]}, \"players_off\": {\"anyOf\": [{\"items\": {\"type\": \"string\"}, \"maxItems\": 5, \"type\": \"array\"}, {\"type\": \"null\"}], \"title\": \"Players Off\"}, \"proxy_hosts\": {\"anyOf\": [{\"items\": {\"$ref\": \"#/components/schemas/ProxyHostIn@b57302aa\"}, \"maxItems\": 100, \"type\": \"array\"}, {\"type\": \"null\"}], \"title\": \"Proxy Hosts\"}, \"sources\": {\"anyOf\": [{\"items\": {\"$ref\": \"#/components/schemas/SourceIn@f0d06b14\"}, \"maxItems\": 50, \"type\": \"array\"}, {\"type\": \"null\"}], \"title\": \"Sources\"}}, \"title\": \"SettingsIn\", \"type\": \"object\"}}",
   "{\"SourceIn@f0d06b14\": {\"properties\": {\"enabled\": {\"default\": true, \"title\": \"Enabled\", \"type\": \"boolean\"}, \"id\": {\"maxLength\": 32, \"minLength\": 1, \"title\": \"Id\", \"type\": \"string\"}, \"order\": {\"default\": 0, \"maximum\": 1000.0, \"minimum\": 0.0, \"title\": \"Order\", \"type\": \"integer\"}}, \"required\": [\"id\"], \"title\": \"SourceIn\", \"type\": \"object\"}}",
   "{\"TitleIn@a8c13772\": {\"properties\": {\"adult\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Adult\"}, \"hidden\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Hidden\"}, \"note\": {\"anyOf\": [{\"maxLength\": 1000, \"type\": \"string\"}, {\"type\": \"null\"}], \"title\": \"Note\"}, \"pinned\": {\"anyOf\": [{\"type\": \"boolean\"}, {\"type\": \"null\"}], \"title\": \"Pinned\"}}, \"title\": \"TitleIn\", \"type\": \"object\"}}",
